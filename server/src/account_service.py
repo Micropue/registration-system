@@ -8,13 +8,29 @@ import secrets
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Literal
+from typing import Any, Literal, TypedDict, cast
 
 import mysql.connector
-from mysql.connector import MySQLConnection
+from mysql.connector.connection import MySQLConnection
 
 
 AccountType = Literal["admin", "default"]
+
+
+class UserRow(TypedDict):
+    uid: str
+    username: str
+    password: str
+    login_sessions: str
+    type: AccountType
+
+
+class SessionRow(TypedDict):
+    session_uid: str
+    token: str
+    user_uid: str
+    login_sessions: str
+    type: AccountType
 
 
 class AccountError(Exception):
@@ -118,7 +134,7 @@ class AccountService:
                 """,
                 (username,),
             )
-            user = cursor.fetchone()
+            user = cast(UserRow | None, cursor.fetchone())
             if user is None or user["password"] != password_hash:
                 raise AccountAuthError("invalid username or password")
 
@@ -167,7 +183,7 @@ class AccountService:
                 """,
                 (session_uid,),
             )
-            row = cursor.fetchone()
+            row = cast(SessionRow | None, cursor.fetchone())
 
         if row is None:
             return None
@@ -199,7 +215,7 @@ class AccountService:
         return allow_admin and session.account_type == "admin"
 
     def _connect(self) -> MySQLConnection:
-        return mysql.connector.connect(
+        conn = mysql.connector.connect(
             host=self.host,
             port=self.port,
             database=self.database,
@@ -208,6 +224,7 @@ class AccountService:
             charset="utf8mb4",
             autocommit=False,
         )
+        return cast(MySQLConnection, conn)
 
     @staticmethod
     def _hash_password(password: str) -> str:
@@ -215,15 +232,11 @@ class AccountService:
 
     @classmethod
     def _validate_username(cls, username: str) -> None:
-        if not isinstance(username, str):
-            raise AccountValidationError("username must be a string")
         if not 1 <= len(username.encode("utf-8")) <= 20:
             raise AccountValidationError("username length must be 1-20 UTF-8 bytes")
 
     @classmethod
     def _validate_password(cls, password: str) -> None:
-        if not isinstance(password, str):
-            raise AccountValidationError("password must be a string")
         if not 6 <= len(password) <= 16:
             raise AccountValidationError("password length must be 6-16 characters")
         if cls._PASSWORD_PATTERN.fullmatch(password) is None:
@@ -241,13 +254,15 @@ class AccountService:
         if raw_sessions in (None, ""):
             return []
         if isinstance(raw_sessions, list):
-            return [str(item) for item in raw_sessions]
+            return [str(item) for item in cast(list[Any], raw_sessions)]
         if isinstance(raw_sessions, (bytes, bytearray)):
             raw_sessions = raw_sessions.decode("utf-8")
-        sessions = json.loads(raw_sessions)
-        if not isinstance(sessions, list):
-            raise AccountValidationError("login_sessions must be a JSON array")
-        return [str(item) for item in sessions]
+        if isinstance(raw_sessions, str):
+            sessions = json.loads(raw_sessions)
+            if not isinstance(sessions, list):
+                raise AccountValidationError("login_sessions must be a JSON array")
+            return [str(item) for item in cast(list[Any], sessions)]
+        return []
 
     @staticmethod
     def _new_uid() -> str:
