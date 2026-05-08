@@ -23,6 +23,7 @@ class UserRow(TypedDict):
     password: str
     login_sessions: str
     type: AccountType
+    login_device: str | None
 
 
 class SessionRow(TypedDict):
@@ -50,6 +51,7 @@ class LoginSession:
     uid: str
     token: str
     user_uid: str
+    username: str
     account_type: AccountType
 
 
@@ -73,6 +75,60 @@ class AccountService:
         self.database = database or os.getenv("DB_NAME", "huhurun")
         self.user = user or os.getenv("DB_USERNAME", "root")
         self.password = password or os.getenv("DB_PASSWORD", "root")
+
+    def init_db(self) -> None:
+        """Initialize the database tables and create the default admin account."""
+        # First connect without database to create it if it doesn't exist
+        with self._connect(include_db=False) as connection:
+            cursor = connection.cursor()
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.database}")
+            connection.commit()
+
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            # Create users table
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    username VARCHAR(255) NOT NULL,
+                    password VARCHAR(255) NOT NULL,
+                    login_sessions JSON,
+                    type ENUM('admin', 'default') DEFAULT 'default',
+                    register_time DATETIME NOT NULL,
+                    last_login_time DATETIME,
+                    login_ip VARCHAR(64),
+                    login_device VARCHAR(255)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            # Ensure login_device column exists (for existing tables)
+            cursor.execute("SHOW COLUMNS FROM users LIKE 'login_device'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE users ADD COLUMN login_device VARCHAR(255)")
+            
+            # Create login_sessions table
+            cursor.execute(
+                """
+                CREATE TABLE IF NOT EXISTS login_sessions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    token VARCHAR(255) NOT NULL,
+                    user_uid VARCHAR(64) NOT NULL,
+                    create_time DATETIME NOT NULL,
+                    FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+                """
+            )
+            connection.commit()
+
+        # Create default admin if not exists
+        try:
+            self.create_account("admin", "admin-123456", account_type="admin")
+        except AccountValidationError as e:
+            if "username already exists" not in str(e):
+                raise
 
     def create_account(
         self,
@@ -117,7 +173,7 @@ class AccountService:
 
         return user_uid
 
-    def login(self, username: str, password: str, login_ip: str = "") -> str:
+    def login(self, username: str, password: str, login_ip: str = "", login_device: str = "") -> str:
         password_hash = self._hash_password(password)
         session_uid = self._new_uid()
         token = secrets.token_hex(32)
@@ -146,10 +202,11 @@ class AccountService:
                 UPDATE users
                 SET login_sessions = %s,
                     last_login_time = %s,
-                    login_ip = %s
+                    login_ip = %s,
+                    login_device = %s
                 WHERE uid = %s
                 """,
-                (json.dumps(sessions, ensure_ascii=False), now, login_ip, user["uid"]),
+                (json.dumps(sessions, ensure_ascii=False), now, login_ip, login_device, user["uid"]),
             )
             cursor.execute(
                 """
@@ -174,6 +231,7 @@ class AccountService:
                     ls.uid AS session_uid,
                     ls.token,
                     ls.user_uid,
+                    u.username,
                     u.login_sessions,
                     u.type
                 FROM login_sessions ls
@@ -183,7 +241,7 @@ class AccountService:
                 """,
                 (session_uid,),
             )
-            row = cast(SessionRow | None, cursor.fetchone())
+            row = cast(Any, cursor.fetchone())
 
         if row is None:
             return None
@@ -196,6 +254,7 @@ class AccountService:
             uid=row["session_uid"],
             token=row["token"],
             user_uid=row["user_uid"],
+            username=row["username"],
             account_type=row["type"],
         )
 
@@ -214,16 +273,20 @@ class AccountService:
             return True
         return allow_admin and session.account_type == "admin"
 
-    def _connect(self) -> MySQLConnection:
-        conn = mysql.connector.connect(
-            host=self.host,
-            port=self.port,
-            database=self.database,
-            user=self.user,
-            password=self.password,
-            charset="utf8mb4",
-            autocommit=False,
-        )
+    def _connect(self, include_db: bool = True) -> MySQLConnection:
+        config: dict[str, Any] = {
+            "host": self.host,
+            "port": self.port,
+            "user": self.user,
+            "password": self.password,
+            "charset": "utf8mb4",
+            "autocommit": False,
+            "time_zone": "+08:00",
+        }
+        if include_db:
+            config["database"] = self.database
+        
+        conn = mysql.connector.connect(**config)
         return cast(MySQLConnection, conn)
 
     @staticmethod
@@ -270,7 +333,10 @@ class AccountService:
 
     @staticmethod
     def _now() -> datetime:
-        return datetime.now()
+        from datetime import timezone, timedelta
+        # UTC+8 (Asia/Shanghai)
+        tz = timezone(timedelta(hours=8))
+        return datetime.now(tz).replace(tzinfo=None)
 
     @staticmethod
     def _parse_db_url(db_url: str) -> tuple[str | None, str | None]:
