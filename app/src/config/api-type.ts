@@ -19,3 +19,14 @@ export interface CheckLoginData {
   type: 'admin' | 'default';
   token: string;
 }
+
+/** 用户列表项 */
+export interface UserItem {
+  username: string;
+  session_count: number;
+  type: 'admin' | 'default';
+  register_time: string;
+  last_login_time: string | null;
+  login_ip: string | null;
+  login_device: string;
+}

@@ -37,69 +37,65 @@
 | `username` | String | 是 | 用户名 |
 | `password` | String | 是 | 密码 |
 
-#### 响应数据 (`data`)
-| 参数名 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `token` | String | 登录会话标识（Session UID），后续请求需携带此 token |
-
-#### 响应示例
-**成功 (200)**:
-```json
-{
-  "code": 200,
-  "msg": "Login successful",
-  "data": {
-    "token": "a1b2c3d4e5f6..."
-  }
-}
-```
-
-**失败 (401/400)**:
-```json
-{
-  "code": 401,
-  "msg": "invalid username or password",
-  "data": []
-}
-```
-
 ### 2. 登录检测
-通过 token 检查当前登录状态并获取用户信息。
+通过 Authorization Header 检查当前登录状态并获取用户信息。
 
 - **URL**: `/auth/check-login`
 - **方法**: `GET`
+- **Header**: `Authorization: Bearer <token>`
+
+### 3. 获取所有用户信息 (管理员)
+管理员获取系统中所有用户的分页列表，支持排序。
+
+- **URL**: `/admin/users`
+- **方法**: `GET`
+- **Header**: `Authorization: Bearer <token>`
+- **查询参数**:
+  - `page` (可选, int, 默认为 1)
+  - `page_size` (可选, int, 默认为 20)
+  - `sort_by` (可选, string, 可选值: `register_time`, `last_login_time`, `session_count`)
+  - `order` (可选, string, 可选值: `asc`, `desc`, 默认为 `desc`)
+
+#### 响应数据 (`data`)
+| 参数名 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `total` | Int | 用户总数 |
+| `page` | Int | 当前页码 |
+| `page_size` | Int | 每页条数 |
+| `items` | Array | 用户详细信息列表 |
+
+其中 `items` 数组包含对象：
+| 参数名 | 类型 | 说明 |
+| :--- | :--- | :--- |
+| `username` | String | 用户名 |
+| `session_count` | Int | 当前活跃会话数量 |
+| `type` | String | 账户类型 (`admin` | `default`) |
+| `register_time` | String | 注册时间 (ISO 8601) |
+| `last_login_time`| String | 最后登录时间 |
+| `login_ip` | String | 最后登录IP |
+| `login_device` | String | 自动识别的登录设备 |
+
+### 4. 创建账户 (管理员)
+管理员在系统中创建一个新的账户。
+
+- **URL**: `/admin/users`
+- **方法**: `POST`
+- **Header**: `Authorization: Bearer <token>`
+- **请求体类型**: `application/json`
 
 #### 请求参数
 | 参数名 | 类型 | 必填 | 说明 |
 | :--- | :--- | :--- | :--- |
-| `token` | String | 是 | 登录时返回的会话标识 |
-
-#### 响应数据 (`data`)
-| 参数名 | 类型 | 说明 |
-| :--- | :--- | :--- |
-| `username` | String | 用户名 |
-| `type` | String | 用户类型 (`admin` 或 `default`) |
-| `token` | String | 当前有效的会话标识 |
+| `username` | String | 是 | 用户名 |
+| `password` | String | 是 | 密码 |
+| `type` | String | 是 | 账户类型 (`admin` | `default`) |
 
 #### 响应示例
 **成功 (200)**:
 ```json
 {
   "code": 200,
-  "msg": "Authorized",
-  "data": {
-    "username": "admin",
-    "type": "admin",
-    "token": "a1b2c3d4e5f6..."
-  }
-}
-```
-
-**失败 (401)**:
-```json
-{
-  "code": 401,
-  "msg": "Unauthorized",
+  "msg": "User created successfully",
   "data": []
 }
 ```

@@ -68,12 +68,13 @@ export async function ajax<T = any>(
     
     // 即使状态码不是 2xx，也尝试解析 JSON，因为后端规范中 code 是写在 body 里的
     const data: ApiResponse<T> = await response.json();
-    
-    // 自动匹配中文提示
-    data.msg = getErrorMessage(data.code, data.msg);
-    
-    return data;
-  } catch (error) {
+
+    // 如果没有返回具体 msg，则尝试匹配预定义的中文错误
+    if (!data.msg) {
+      data.msg = getErrorMessage(data.code, '请求失败');
+    }
+
+    return data;  } catch (error) {
     console.error('Fetch error:', error);
     return {
       code: 500,

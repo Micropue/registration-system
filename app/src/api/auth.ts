@@ -21,9 +21,12 @@ export async function checkLoginStatus(): Promise<CheckLoginData | null> {
 
   try {
     // 2. 向后端发起验证请求
-    // 注意：CHECK_LOGIN 是 GET 请求，参数通过 URL 传递
-    const res = await ajax<CheckLoginData>(`${ApiUrl.CHECK_LOGIN}?token=${token}`, {
-      method: 'GET'
+    // 使用 Authorization Header 传递 Token
+    const res = await ajax<CheckLoginData>(ApiUrl.CHECK_LOGIN, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
     });
 
     if (res.code === 200 && res.data) {

@@ -88,7 +88,7 @@
     <v-main class="bg-grey-lighten-4">
       <div class="main-gradient-bg"></div>
 
-      <v-container class="py-8 position-relative fill-height">
+      <v-container class="pa-0 fill-height" fluid>
         <RouterView />
       </v-container>
     </v-main>

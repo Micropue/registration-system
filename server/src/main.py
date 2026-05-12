@@ -1,37 +1,80 @@
-from fastapi import FastAPI, Form, Request, HTTPException
+import uvicorn
+from fastapi import FastAPI, Form, Request, Header, HTTPException
 from fastapi.responses import JSONResponse
+from typing import Any, Optional
+from contextlib import asynccontextmanager
 
+# 尝试导入业务逻辑类
 try:
     from .account_service import AccountService, AccountError, AccountAuthError
-except ImportError:
+except (ImportError, ModuleNotFoundError):
     from account_service import AccountService, AccountError, AccountAuthError
-from typing import Any
-
-app = FastAPI()
-account_service = AccountService()
 
 
-@app.on_event("startup")
-async def startup_event():
-    # Initialize database on startup
+# 1. 使用 lifespan 管理数据库初始化（替代过时的 on_event）
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     try:
         account_service.init_db()
+        print("Database initialized.")
     except Exception as e:
         print(f"Error initializing database: {e}")
+    yield
+    # 这里可以放关闭数据库连接的逻辑
 
 
+from pydantic import BaseModel
+from typing import Any, Optional, cast
+
+app = FastAPI(lifespan=lifespan)
+account_service = AccountService()
+
+class CreateUserRequest(BaseModel):
+    username: str
+    password: str
+    type: str
+
+@app.post("/admin/users")
+async def create_user(
+    request: CreateUserRequest,
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+        
+    try:
+        account_service.create_account(
+            username=request.username,
+            password=request.password,
+            account_type=cast(Any, request.type)
+        )
+        return api_response(200, "User created successfully")
+    except AccountError as e:
+        return api_response(400, str(e))
+    except Exception as e:
+        return api_response(500, f"Internal server error: {str(e)}")
+
+
+
+# 2. 统一响应格式工具
 def api_response(code: int, msg: str, data: Any = None):
-    if data is None:
-        data = []
     return JSONResponse(
-        status_code=code, content={"code": code, "msg": msg, "data": data}
+        status_code=code, content={"code": code, "msg": msg, "data": data or []}
     )
 
 
-@app.get("/")
-def read_root():
-    return api_response(200, "Hello World")
+# 3. 提取 Token 的工具函数
+def get_token(authorization: str) -> str:
+    if authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+    return authorization
 
+
+# --- 路由开始 ---
 
 @app.post("/auth/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -45,22 +88,24 @@ async def login(request: Request, username: str = Form(...), password: str = For
             login_ip=login_ip,
             login_device=login_device,
         )
-
         return api_response(200, "Login successful", {"token": session_uid})
+
     except AccountAuthError as e:
         return api_response(401, str(e))
     except AccountError as e:
         return api_response(400, str(e))
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
         return api_response(500, f"Internal server error: {str(e)}")
 
 
 @app.get("/auth/check-login")
-async def check_login(token: str):
+async def check_login(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
     session = account_service.get_login_session(token)
+
     if session:
         return api_response(
             200,
@@ -74,7 +119,23 @@ async def check_login(token: str):
     return api_response(401, "Unauthorized")
 
 
-if __name__ == "__main__":
-    import uvicorn
+@app.get("/admin/users")
+async def get_users(authorization: Optional[str] = Header(None), page: int = 1, page_size: int = 20, sort_by: Optional[str] = None, order: str = "desc"):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
 
+    token = get_token(authorization)
+    # 验证管理员权限
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+
+    users_data = account_service.get_all_users(page=page, page_size=page_size, sort_by=sort_by, order=order)
+    # 计算总页数
+    import math
+    total_pages = math.ceil(users_data["total"] / page_size) if users_data["total"] > 0 else 1
+    users_data["total_pages"] = total_pages
+    return api_response(200, "Success", users_data)
+
+
+if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
