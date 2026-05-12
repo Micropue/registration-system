@@ -6,7 +6,7 @@
 
 // Composables
 import { createApp } from 'vue'
-
+import './styles/main.scss'
 // Plugins
 import { registerPlugins } from '@/plugins'
 

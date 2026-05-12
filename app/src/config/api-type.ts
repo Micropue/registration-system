@@ -22,6 +22,7 @@ export interface CheckLoginData {
 
 /** 用户列表项 */
 export interface UserItem {
+  uid: string;
   username: string;
   session_count: number;
   type: 'admin' | 'default';

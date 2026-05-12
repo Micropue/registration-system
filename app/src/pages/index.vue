@@ -197,7 +197,7 @@ $cream: #FFFFFF;
 }
 
 .content-wrapper {
-  max-width: 1200px;
+  max-width: 1500px;
   margin: 0 auto;
 }
 
@@ -477,7 +477,6 @@ $cream: #FFFFFF;
   justify-content: center;
   align-items: center;
   padding: 80px 24px;
-  background: $cream;
 }
 
 .contact-title {

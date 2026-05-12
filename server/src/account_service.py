@@ -162,14 +162,70 @@ class AccountService:
             cursor.execute(f"SELECT COUNT(*) as total FROM users {where_sql}", tuple(params))
             total = cursor.fetchone()["total"]
             limit_clause = f"LIMIT {page_size} OFFSET {offset}" if page_size != -1 else ""
-            sql = f"SELECT username, login_sessions, type, register_time, last_login_time, login_ip, login_device FROM users {where_sql} {sort_clause} {limit_clause}"
+            sql = f"SELECT uid, username, login_sessions, type, register_time, last_login_time, login_ip, login_device FROM users {where_sql} {sort_clause} {limit_clause}"
             cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
         result = []
         for row in rows:
             sessions = self._parse_sessions(row["login_sessions"])
-            result.append({"username": row["username"], "session_count": len(sessions), "type": row["type"], "register_time": row["register_time"].isoformat() if row["register_time"] else None, "last_login_time": row["last_login_time"].isoformat() if row["last_login_time"] else None, "login_ip": row["login_ip"], "login_device": self._format_device(row["login_device"])})
+            result.append({"uid": row["uid"], "username": row["username"], "session_count": len(sessions), "type": row["type"], "register_time": row["register_time"].isoformat() if row["register_time"] else None, "last_login_time": row["last_login_time"].isoformat() if row["last_login_time"] else None, "login_ip": row["login_ip"], "login_device": self._format_device(row["login_device"])})
         return {"total": total, "page": page, "page_size": page_size, "items": result}
+
+    def delete_account(self, uid: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT username FROM users WHERE uid = %s LIMIT 1", (uid,))
+            user = cursor.fetchone()
+            if not user:
+                raise AccountError("用户不存在")
+            if user["username"] == "admin":
+                raise AccountError("不能删除系统管理员账户")
+            
+            cursor.execute("DELETE FROM users WHERE uid = %s", (uid,))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def update_account(self, uid: str, username: str | None = None, password: str | None = None) -> bool:
+        if not username and not password:
+            return False
+            
+        updates = []
+        params = []
+        
+        if username:
+            self._validate_username(username)
+            # 检查用户名是否冲突（排除自身）
+            with self._connect() as connection:
+                cursor = connection.cursor()
+                cursor.execute("SELECT uid FROM users WHERE username = %s AND uid != %s", (username, uid))
+                if cursor.fetchone():
+                    raise AccountValidationError("用户名已存在")
+            updates.append("username = %s")
+            params.append(username)
+            
+        if password:
+            self._validate_password(password)
+            updates.append("password = %s")
+            params.append(self._hash_password(password))
+            
+        params.append(uid)
+        sql = f"UPDATE users SET {', '.join(updates)} WHERE uid = %s"
+        
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute(sql, tuple(params))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def force_logout(self, uid: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            # 1. 清空 users 表中的 login_sessions JSON
+            cursor.execute("UPDATE users SET login_sessions = %s WHERE uid = %s", (json.dumps([], ensure_ascii=False), uid))
+            # 2. 删除 login_sessions 表中对应的记录
+            cursor.execute("DELETE FROM login_sessions WHERE user_uid = %s", (uid,))
+            connection.commit()
+            return True
 
     @staticmethod
     def _format_device(ua_string: str | None) -> str:
@@ -224,3 +280,15 @@ class AccountService:
         config: dict[str, Any] = {"host": self.host, "port": self.port, "user": self.user, "password": self.password, "charset": "utf8mb4", "autocommit": False, "time_zone": "+08:00"}
         if include_db: config["database"] = self.database
         return cast(MySQLConnection, mysql.connector.connect(**config))
+
+    def get_distinct_values(self, field: str) -> list[str]:
+        # 防止 SQL 注入
+        allowed_fields = {"type", "login_device"}
+        if field not in allowed_fields:
+            return []
+            
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute(f"SELECT DISTINCT {field} FROM users WHERE {field} IS NOT NULL")
+            rows = cursor.fetchall()
+            return [str(row[0]) for row in rows]

@@ -34,6 +34,10 @@ class CreateUserRequest(BaseModel):
     password: str
     type: str
 
+class UpdateUserRequest(BaseModel):
+    username: Optional[str] = None
+    password: Optional[str] = None
+
 @app.post("/admin/users")
 async def create_user(
     request: CreateUserRequest,
@@ -120,7 +124,13 @@ async def check_login(authorization: Optional[str] = Header(None)):
 
 
 @app.get("/admin/users")
-async def get_users(authorization: Optional[str] = Header(None), page: int = 1, page_size: int = 20, sort_by: Optional[str] = None, order: str = "desc"):
+async def get_users(
+    authorization: Optional[str] = Header(None), 
+    page: int = 1, 
+    page_size: int = 20, 
+    sort_by: Optional[str] = None, 
+    order: str = "desc"
+):
     if not authorization:
         return api_response(401, "Missing Authorization Header")
 
@@ -135,6 +145,75 @@ async def get_users(authorization: Optional[str] = Header(None), page: int = 1, 
     total_pages = math.ceil(users_data["total"] / page_size) if users_data["total"] > 0 else 1
     users_data["total_pages"] = total_pages
     return api_response(200, "Success", users_data)
+
+
+@app.delete("/admin/users/{uid}")
+async def delete_user(
+    uid: str,
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
+    # 验证管理员权限
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+
+    try:
+        account_service.delete_account(uid)
+        return api_response(200, "User deleted successfully")
+    except AccountError as e:
+        return api_response(400, str(e))
+    except Exception as e:
+        return api_response(500, f"Internal server error: {str(e)}")
+
+
+@app.patch("/admin/users/{uid}")
+async def update_user(
+    uid: str,
+    request: UpdateUserRequest,
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
+    # 验证管理员权限
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+
+    try:
+        account_service.update_account(
+            uid=uid,
+            username=request.username,
+            password=request.password
+        )
+        return api_response(200, "User updated successfully")
+    except AccountError as e:
+        return api_response(400, str(e))
+    except Exception as e:
+        return api_response(500, f"Internal server error: {str(e)}")
+
+
+@app.post("/admin/users/{uid}/force-logout")
+async def force_logout_user(
+    uid: str,
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
+    # 验证管理员权限
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+
+    try:
+        account_service.force_logout(uid)
+        return api_response(200, "User forced logout successfully")
+    except Exception as e:
+        return api_response(500, f"Internal server error: {str(e)}")
 
 
 if __name__ == "__main__":

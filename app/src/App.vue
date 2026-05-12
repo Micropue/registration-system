@@ -126,12 +126,14 @@ const displayFunctions = computed(() => {
 async function fetchUser() {
   isAuthChecking.value = true
   user.value = await checkLoginStatus()
+  appStore.setUserInfo(user.value)
   isAuthChecking.value = false
 }
 
 function handleLogout() {
   cookie.remove('token')
   user.value = null
+  appStore.setUserInfo(null)
   router.push('/login')
 }
 
@@ -142,22 +144,16 @@ watch(() => route.path, fetchUser)
 
 <style>
 /* 全局字体大小调整 */
-html, body, .v-application {
-  font-size: 0.9em !important;
-}
-
-/* Logo 文字强制大小 */
 .logo-text {
   font-size: 16px !important;
-  line-height: 1.2 !important;
+  /* line-height: 1.2 !important; */
 }
-</style>
 
-<style scoped>
 /* 品牌颜色 */
 .color-primary {
   color: #1867C0;
 }
+
 
 /* 抽屉顶部渐变：确保在背景图上文字清晰 */
 .bg-gradient-overlay {
@@ -172,7 +168,7 @@ html, body, .v-application {
   left: 0;
   right: 0;
   height: 400px;
-  background: linear-gradient(180deg, rgba(24, 103, 192, 0.2) 0%, rgba(255, 255, 255, 0) 100%);
+  background: linear-gradient(180deg, rgba(24, 103, 192, 0.08) 0%, rgba(255, 255, 255, 0) 100%);
   pointer-events: none;
 }
 
