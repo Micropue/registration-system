@@ -1,5 +1,5 @@
 <template>
-  <v-app class="d-flex flex-column h-screen overflow-hidden">
+  <v-app class="d-flex flex-column" style="height: 100%">
     <!-- 侧边抽屉 (移动端) -->
     <v-navigation-drawer v-model="drawer" temporary class="d-md-none border-0" elevation="16" width="300">
       <v-img height="160" src="https://cdn.vuetifyjs.com/images/backgrounds/vbanner.jpg" cover class="align-end">
@@ -85,7 +85,7 @@
       </v-container>
     </v-app-bar>
 
-    <v-main class="bg-grey-lighten-4 flex-grow-1 overflow-y-auto">
+    <v-main class="bg-grey-lighten-4 flex-grow-1 overflow-y-auto" style="height: calc(100% - 65px)">
       <div class="main-gradient-bg"></div>
       <RouterView />
     </v-main>

@@ -72,6 +72,17 @@ class AccountService:
                 cursor.execute("ALTER TABLE users ADD COLUMN login_device VARCHAR(255)")
             cursor.execute("""CREATE TABLE IF NOT EXISTS login_sessions (id INT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(64) UNIQUE NOT NULL, token VARCHAR(255) NOT NULL, user_uid VARCHAR(64) NOT NULL, create_time DATETIME NOT NULL, FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
             self._init_fields_table(cursor)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS registrations (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    user_uid VARCHAR(64) NOT NULL,
+                    data JSON NOT NULL,
+                    create_time DATETIME NOT NULL,
+                    status ENUM('pending', 'approved', 'rejected') DEFAULT 'pending',
+                    FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+            """)
             connection.commit()
         try:
             self.create_account("admin", "admin-123456", account_type="admin")
@@ -116,6 +127,26 @@ class AccountService:
                 'default': json.loads(row['default_val']) if row['default_val'] else '',
                 'options': json.loads(row['options']) if row['options'] else []
             } for row in rows]
+
+    def submit_registration(self, user_uid: str, data: dict[str, Any]) -> str:
+        if self.check_registration_exists(user_uid):
+            raise AccountError("用户已登记，无法重复登记")
+        reg_uid = self._new_uid()
+        now = self._now()
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("""
+                INSERT INTO registrations (uid, user_uid, data, create_time)
+                VALUES (%s, %s, %s, %s)
+            """, (reg_uid, user_uid, json.dumps(data, ensure_ascii=False), now))
+            connection.commit()
+        return reg_uid
+
+    def check_registration_exists(self, user_uid: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT id FROM registrations WHERE user_uid = %s LIMIT 1", (user_uid,))
+            return cursor.fetchone() is not None
 
     def create_account(self, username: str, password: str, account_type: AccountType = "default", login_ip: str = "", login_device: str = "") -> str:
         self._validate_username(username)

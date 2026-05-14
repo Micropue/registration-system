@@ -246,6 +246,49 @@ async def get_fields(authorization: Optional[str] = Header(None)):
     fields = account_service.get_registration_fields()
     return api_response(200, "Success", fields)
 
+# --- 普通用户接口 ---
+
+@app.get("/fields")
+async def get_public_fields():
+    """获取登记字段（公开接口，仅限已登录用户或根据需求开放）"""
+    try:
+        fields = account_service.get_registration_fields()
+        return api_response(200, "Success", fields)
+    except Exception as e:
+        return api_response(500, f"Error fetching fields: {str(e)}")
+
+@app.get("/registrations/check")
+async def check_registration_status(authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    
+    exists = account_service.check_registration_exists(session.user_uid)
+    return api_response(200, "Success", {"registered": exists})
+
+@app.post("/registrations")
+async def submit_registration(
+    data: dict[str, Any],
+    authorization: Optional[str] = Header(None)
+):
+    """提交登记数据"""
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+        
+    try:
+        account_service.submit_registration(session.user_uid, data)
+        return api_response(200, "Registration submitted successfully")
+    except AccountError as e:
+        return api_response(400, str(e))
+    except Exception as e:
+        return api_response(500, f"Error submitting registration: {str(e)}")
+
 if __name__ == "__main__":
 
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8001)
