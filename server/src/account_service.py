@@ -71,12 +71,51 @@ class AccountService:
             if not cursor.fetchone():
                 cursor.execute("ALTER TABLE users ADD COLUMN login_device VARCHAR(255)")
             cursor.execute("""CREATE TABLE IF NOT EXISTS login_sessions (id INT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(64) UNIQUE NOT NULL, token VARCHAR(255) NOT NULL, user_uid VARCHAR(64) NOT NULL, create_time DATETIME NOT NULL, FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
+            self._init_fields_table(cursor)
             connection.commit()
         try:
             self.create_account("admin", "admin-123456", account_type="admin")
         except AccountValidationError as e:
             if "用户名已存在" not in str(e):
                 raise
+
+    def _init_fields_table(self, cursor: Any) -> None:
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS registration_fields (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                label VARCHAR(255) NOT NULL,
+                type ENUM('text', 'textarea', 'date', 'date-range', 'number', 'number-range', 'time-range', 'radio', 'checkbox', 'select') NOT NULL,
+                required BOOLEAN DEFAULT FALSE,
+                default_val JSON,
+                options JSON,
+                sort_order INT DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        """)
+
+    def save_registration_fields(self, fields: list[dict[str, Any]]) -> None:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("TRUNCATE TABLE registration_fields")
+            for idx, field in enumerate(fields):
+                cursor.execute("""
+                    INSERT INTO registration_fields (label, type, required, default_val, options, sort_order)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (field['label'], field['type'], field['required'], 
+                      json.dumps(field.get('default')), json.dumps(field.get('options')), idx))
+            connection.commit()
+
+    def get_registration_fields(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM registration_fields ORDER BY sort_order ASC")
+            rows = cursor.fetchall()
+            return [{
+                'label': row['label'],
+                'type': row['type'],
+                'required': bool(row['required']),
+                'default': json.loads(row['default_val']) if row['default_val'] else '',
+                'options': json.loads(row['options']) if row['options'] else []
+            } for row in rows]
 
     def create_account(self, username: str, password: str, account_type: AccountType = "default", login_ip: str = "", login_device: str = "") -> str:
         self._validate_username(username)

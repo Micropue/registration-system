@@ -31,3 +31,40 @@ export interface UserItem {
   login_ip: string | null;
   login_device: string;
 }
+
+/** 表单字段选项 */
+export interface FieldOption {
+  label: string;
+  value: string;
+}
+
+/** 表单字段配置 */
+export interface FormFieldConfig {
+  validation?: string;
+  maxLength?: number;
+  minLength?: number;
+  rows?: number;
+  options?: FieldOption[];
+  minDate?: string;
+  maxDate?: string;
+  format?: string;
+  accept?: string;
+  maxSize?: number;
+  [key: string]: any;
+}
+
+/** 表单字段类型 */
+export type FieldType = 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'date' | 'time' | 'datetime' | 'file';
+
+/** 表单字段项 */
+export interface FormField {
+  field_id: string;
+  label: string;
+  type: FieldType;
+  required: boolean;
+  placeholder?: string;
+  sort_order: number;
+  config?: FormFieldConfig;
+  created_at: string;
+  updated_at: string;
+}

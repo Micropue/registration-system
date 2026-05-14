@@ -93,13 +93,13 @@ const router = createRouter({
         { path: 'users', component: () => import("@/pages/admin/users/index.vue"), meta: { title: '账户管理' } },
         { path: 'registers', component: () => import("@/pages/admin/registers/index.vue"), meta: { title: '登记处理' } },
         { path: 'feedbacks', component: () => import("@/pages/admin/feedbacks/index.vue"), meta: { title: '工单处理' } },
-        { 
-          path: 'settings', 
-          component: () => import("@/pages/admin/settings/index.vue"), 
+        {
+          path: 'settings',
+          component: () => import("@/pages/admin/settings/index.vue"),
           meta: { title: '系统设置' },
           children: [
             { path: '', component: () => import("@/pages/admin/settings/welcome.vue") },
-            { path: 'fields', component: () => import("@/pages/admin/settings/fields.vue"), meta: { title: '登记字段配置' } }
+            { path: 'fields', component: () => import("@/pages/admin/settings/fields/index.vue"), meta: { title: '登记字段配置' } }
           ]
         }
       ]
@@ -120,7 +120,7 @@ router.afterEach((to) => {
   setTimeout(() => {
     appStore.setPageLoading(false)
   }, 400)
-  
+
   // 动态修改标题
   document.title = to.meta.title ? `${to.meta.title} - 哆啦A梦（校园跑版）` : '哆啦A梦（校园跑版）'
 })

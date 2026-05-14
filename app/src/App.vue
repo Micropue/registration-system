@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <v-app class="d-flex flex-column h-screen overflow-hidden">
     <!-- 侧边抽屉 (移动端) -->
     <v-navigation-drawer v-model="drawer" temporary class="d-md-none border-0" elevation="16" width="300">
       <v-img height="160" src="https://cdn.vuetifyjs.com/images/backgrounds/vbanner.jpg" cover class="align-end">
@@ -35,7 +35,7 @@
     </v-navigation-drawer>
 
     <!-- 顶部导航栏 -->
-    <v-app-bar app color="rgba(255, 255, 255, 0.8)" flat class="px-3 px-md-10 border-b"
+    <v-app-bar app color="rgba(255, 255, 255, 0.8)" flat class="px-3 px-md-10 border-b flex-grow-0"
       style="backdrop-filter: blur(12px);">
       <v-container class="d-flex align-center pa-0" fluid>
         <div class="d-flex align-center cursor-pointer" @click="$router.push('/')">
@@ -85,12 +85,9 @@
       </v-container>
     </v-app-bar>
 
-    <v-main class="bg-grey-lighten-4">
+    <v-main class="bg-grey-lighten-4 flex-grow-1 overflow-y-auto">
       <div class="main-gradient-bg"></div>
-
-      <v-container class="pa-0 fill-height" fluid>
-        <RouterView />
-      </v-container>
+      <RouterView />
     </v-main>
   </v-app>
 </template>

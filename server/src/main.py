@@ -216,5 +216,36 @@ async def force_logout_user(
         return api_response(500, f"Internal server error: {str(e)}")
 
 
+@app.post("/admin/settings/fields")
+async def save_fields(
+    fields: list[dict[str, Any]],
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+        
+    try:
+        account_service.save_registration_fields(fields)
+        return api_response(200, "Fields configuration saved successfully")
+    except Exception as e:
+        return api_response(500, f"Error saving fields: {str(e)}")
+
+@app.get("/admin/settings/fields")
+async def get_fields(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+        
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+        
+    fields = account_service.get_registration_fields()
+    return api_response(200, "Success", fields)
+
 if __name__ == "__main__":
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
