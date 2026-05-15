@@ -27,7 +27,7 @@
 
       <!-- 表单内容 -->
       <v-form v-else ref="formRef" v-model="isFormValid" @submit.prevent="submitForm">
-        <v-row dense>
+        <v-row dense gap="0">
           <v-col v-for="field in formFields" :key="field.label" cols="12" class="mb-1">
 
             <!-- 文本/多行文本/数值/日期 -->
@@ -95,7 +95,7 @@
         <v-card-subtitle class="pb-4">注意⚠️：请仔细填写表单，您只可以填写一次。</v-card-subtitle>
         <v-btn color="primary" block size="x-large" rounded="pill" class="mt-4 font-weight-black elevation-4"
           :loading="isSubmitting" :disabled="!isFormValid || isLoading" @click="openConfirm">
-          立即提交登记
+          提交登记
         </v-btn>
       </v-form>
     </v-card>
@@ -113,7 +113,7 @@
     </v-dialog>
 
 
-    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000" location="top">
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
   </v-container>

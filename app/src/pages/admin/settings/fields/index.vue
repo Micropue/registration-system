@@ -320,15 +320,11 @@
         </v-dialog>
 
         <!-- 消息提示 -->
-        <v-snackbar v-model="snackbar" :timeout="2500" :color="snackbarColor" elevation="10" location="top"
-            rounded="pill">
+        <v-snackbar v-model="snackbar" :timeout="2500" :color="snackbarColor">
             <div class="d-flex align-center text-body-2 text-sm-subtitle-1">
                 <v-icon start size="small" class="mr-2">{{ snackbarIcon }}</v-icon>
                 {{ snackbarText }}
             </div>
-            <template v-slot:actions>
-                <v-btn variant="text" icon="mdi-close" size="small" @click="snackbar = false"></v-btn>
-            </template>
         </v-snackbar>
     </v-container>
 </template>

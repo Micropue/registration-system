@@ -26,7 +26,7 @@
     </v-card>
 
     <!-- 数据表格 -->
-    <v-card class="elevation-0" border>
+    <v-card class="elevation-0" border style="overflow: auto; ">
       <v-data-table-server :headers="headers" :items="filteredItems" :loading="loading" v-model:page="localPage"
         v-model:items-per-page="localItemsPerPage" :items-length="totalItems" items-per-page-text="每页行数"
         page-text="{0}-{1} 共 {2}" @update:options="onOptionsUpdate" class="elevation-0">
