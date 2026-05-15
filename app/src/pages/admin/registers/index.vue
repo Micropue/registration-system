@@ -6,20 +6,10 @@
       </div>
 
       <!-- 使用封装后的通用表格组件 -->
-      <app-data-table 
-        :headers="headers" 
-        :items="registers" 
-        :total-items="totalRegisters" 
-        :loading="loading"
-        v-model:page="currentPage" 
-        v-model:items-per-page="itemsPerPage" 
-        show-search 
-        show-filter
-        search-label="搜索用户名" 
-        @update:options="loadRegisters" 
-        @reset="loadRegisters"
-      >
-        
+      <app-data-table :headers="headers" :items="registers" :total-items="totalRegisters" :loading="loading"
+        v-model:page="currentPage" v-model:items-per-page="itemsPerPage" show-search show-filter search-label="搜索用户名"
+        @update:options="loadRegisters" @reset="loadRegisters">
+
         <!-- 自定义槽位：创建时间 -->
         <template v-slot:item.created_at="{ item }">
           {{ formatDate(item.created_at) }}
@@ -105,9 +95,11 @@
 <script lang="ts" setup>
 import { ref, reactive } from 'vue'
 import AppDataTable from '@/components/AppDataTable.vue'
-
+import { ApiUrl } from '@/config/api-url'
+import { ajax } from '@/api/ajax'
+import { cookie } from '@/api/cookie'
 // 类型定义
-interface RegisterItem {
+interface RegistrationItem {
   id: string
   username: string
   created_at: string
@@ -116,12 +108,12 @@ interface RegisterItem {
 }
 
 // 状态管理
-const registers = ref<RegisterItem[]>([])
+const registers = ref<RegistrationItem[]>([])
 const loading = ref(false)
 const totalRegisters = ref(0)
 const itemsPerPage = ref(20)
 const currentPage = ref(1)
-const detailsDialog = reactive({ show: false, item: null as RegisterItem | null })
+const detailsDialog = reactive({ show: false, item: null as RegistrationItem | null })
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 function showMsg(text: string, color: string = 'success') {
@@ -130,7 +122,7 @@ function showMsg(text: string, color: string = 'success') {
   snackbar.show = true
 }
 
-function openDetailsDialog(item: RegisterItem) {
+function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.item = item
   detailsDialog.show = true
 }
@@ -171,64 +163,75 @@ function formatDetails(info: any) {
   if (!info) return {}
   const res: any = {}
   for (const [key, val] of Object.entries(info)) {
+    let displayVal: any = val
+    if (typeof val === 'string') {
+      const lower = val.toLowerCase()
+      if (lower === 'yes') displayVal = '是'
+      else if (lower === 'no') displayVal = '否'
+    }
+    
     if (Array.isArray(val)) {
       res[key] = val.join(' - ')
     } else {
-      res[key] = val
+      res[key] = displayVal
     }
   }
   return res
 }
 
 // 事件处理
-function handleView(item: RegisterItem) {
+function handleView(item: RegistrationItem) {
   openDetailsDialog(item)
 }
 
-function updateStatus(item: RegisterItem, status: RegisterItem['status']) {
-  item.status = status
-  showMsg(`已更新 ${item.username} 的状态为: ${getStatusText(status)}`)
+async function updateStatus(item: RegistrationItem, status: RegistrationItem['status']) {
+  loading.value = true
+  try {
+    const res = await ajax(`${ApiUrl.UPDATE_REGISTRATION_STATUS}/${item.id}/status`, {
+      method: 'POST',
+      body: { status },
+      isFormData: true,
+      headers: { 
+        'Authorization': `Bearer ${cookie.get('token') || ''}`
+      }
+    })
+    if (res.code === 200) {
+      item.status = status
+      showMsg(`已更新 ${item.username} 的状态为: ${getStatusText(status)}`)
+      loadRegisters()
+    } else {
+      showMsg(res.msg || '状态更新失败', 'error')
+    }
+  } catch (err) {
+    showMsg('请求失败', 'error')
+  } finally {
+    loading.value = false
+  }
 }
 
 // 加载数据
 async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
+  const page = options.page || currentPage.value
+  const pageSize = options.itemsPerPage || itemsPerPage.value
+
   loading.value = true
-  // 模拟更丰富的数据加载
-  setTimeout(() => {
-    registers.value = [
-      { 
-        id: '1', username: '张三', created_at: new Date().toISOString(), status: 'pending', 
-        registration_info: { 
-          "QQ号": "12345678", "密码": "pass123", "校区": "南校区", "学校名": "XX大学", 
-          "跑步用的APP": "运动世界", "一天能跑几次": "2", "特殊要求备注": "无",
-          "目前下单的总km数": "50", "跑步的准确时间段": ["06:00-07:00", "18:00-19:00"],
-          "学校是第一次开展校园跑吗": "yes", "跑步的时候是否有人脸识别": "yes",
-          "学校规定的单次上限-下限公里数": ["3", "5"]
-        } 
-      },
-      { 
-        id: '2', username: '李四', created_at: new Date().toISOString(), status: 'approved', 
-        registration_info: { 
-          "QQ号": "87654321", "密码": "mima987", "校区": "北校区", "学校名": "YY学院", 
-          "跑步用的APP": "悦跑圈", "一天能跑几次": "1", "特殊要求备注": "希望能尽快处理",
-          "目前下单的总km数": "20", "跑步的准确时间段": ["20:00-21:00"],
-          "学校是第一次开展校园跑吗": "no", "跑步的时候是否有人脸识别": "no",
-          "学校规定的单次上限-下限公里数": ["2", "4"]
-        } 
-      },
-      { 
-        id: '3', username: '王五', created_at: new Date().toISOString(), status: 'rejected', 
-        registration_info: { 
-          "QQ号": "55566677", "密码": "xyz789", "校区": "西校区", "学校名": "ZZ理工", 
-          "跑步用的APP": "咕咚", "一天能跑几次": "3", "特殊要求备注": "备注测试",
-          "目前下单的总km数": "100", "跑步的准确时间段": ["05:00-06:00"],
-          "学校是第一次开展校园跑吗": "yes", "跑步的时候是否有人脸识别": "yes",
-          "学校规定的单次上限-下限公里数": ["1", "10"]
-        } 
-      }
-    ]
-    totalRegisters.value = 3
+  currentPage.value = page
+  itemsPerPage.value = pageSize
+
+  try {
+    const res = await ajax(`${ApiUrl.GET_REGISTRATIONS}?page=${page}&page_size=${pageSize}`, {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      registers.value = res.data.items
+      totalRegisters.value = res.data.total
+    }
+  } catch (err) {
+    showMsg('加载登记数据失败', 'error')
+  } finally {
     loading.value = false
-  }, 500)
+  }
 }
+
 </script>

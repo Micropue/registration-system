@@ -56,15 +56,11 @@ export interface FormFieldConfig {
 /** 表单字段类型 */
 export type FieldType = 'text' | 'textarea' | 'select' | 'radio' | 'checkbox' | 'date' | 'time' | 'datetime' | 'file';
 
-/** 表单字段项 */
-export interface FormField {
-  field_id: string;
-  label: string;
-  type: FieldType;
-  required: boolean;
-  placeholder?: string;
-  sort_order: number;
-  config?: FormFieldConfig;
+/** 登记列表项 */
+export interface RegistrationItem {
+  id: string;
+  username: string;
   created_at: string;
-  updated_at: string;
+  status: 'pending' | 'approved' | 'rejected';
+  registration_info: Record<string, any>;
 }

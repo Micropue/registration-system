@@ -9,6 +9,11 @@
 
       <v-divider class="mb-6"></v-divider>
 
+      <!-- 驳回提示 -->
+      <v-alert v-if="isRejected && !isRegistered" type="warning" variant="tonal" class="mb-6" border="start">
+        你的旧登记已被驳回，请重新提交。
+      </v-alert>
+
       <!-- 已登记状态 (如果是初次提交成功显示绿勾，如果是之前已登记显示黄色提示) -->
       <div v-if="isRegistered" class="text-center py-12">
           <v-icon :color="isSuccess ? 'success' : 'warning'" size="80">
@@ -136,6 +141,7 @@ const isLoading = ref(true)
 const isSubmitting = ref(false)
 const isFormValid = ref(false)
 const isRegistered = ref(false)
+const isRejected = ref(false)
 const confirmDialog = ref(false)
 const formRef = ref<any>(null)
 const formFields = ref<FormField[]>([])
@@ -151,14 +157,20 @@ async function fetchFields() {
   isLoading.value = true
   const token = cookie.get('token')
   try {
-    // 1. 先检查是否已登记
-    const regRes = await ajax<{ registered: boolean }>('/api/registrations/check', {
+    // 1. 获取最新登记状态
+    const regRes = await ajax<{ status: string; data: any }>('/api/registrations/latest', {
       headers: { 'Authorization': `Bearer ${token}` }
     })
-    isRegistered.value = regRes.data?.registered || false
-    if (isRegistered.value) {
+    
+    const latestStatus = regRes.data?.status
+    if (latestStatus === 'pending' || latestStatus === 'approved') {
+      isRegistered.value = true
       isLoading.value = false
       return
+    }
+
+    if (latestStatus === 'rejected') {
+      isRejected.value = true
     }
 
     // 2. 拉取配置

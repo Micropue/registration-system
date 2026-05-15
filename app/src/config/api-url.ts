@@ -29,6 +29,8 @@ export enum ApiUrl {
   UPDATE_FORM_FIELD = '/api/admin/settings/fields',
   /** 删除表单字段 (管理员) */
   DELETE_FORM_FIELD = '/api/admin/settings/fields',
-  /** 重新排序表单字段 (管理员) */
-  REORDER_FORM_FIELDS = '/api/admin/settings/fields/reorder',
+  /** 获取登记列表 (管理员) */
+  GET_REGISTRATIONS = '/api/admin/registrations',
+  /** 更新登记状态 (管理员) */
+  UPDATE_REGISTRATION_STATUS = '/api/admin/registrations',
 }

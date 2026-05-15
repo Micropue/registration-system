@@ -78,7 +78,28 @@ def get_token(authorization: str) -> str:
     return authorization
 
 
-# --- 路由开始 ---
+@app.get("/admin/users")
+async def get_users(
+    authorization: Optional[str] = Header(None), 
+    page: int = 1, 
+    page_size: int = 20, 
+    sort_by: Optional[str] = None, 
+    order: str = "desc"
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
+    # 验证管理员权限
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+
+    users_data = account_service.get_all_users(page=page, page_size=page_size, sort_by=sort_by, order=order)
+    # 计算总页数
+    import math
+    total_pages = math.ceil(users_data["total"] / page_size) if users_data["total"] > 0 else 1
+    users_data["total_pages"] = total_pages
+    return api_response(200, "Success", users_data)
 
 @app.post("/auth/login")
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
@@ -123,8 +144,8 @@ async def check_login(authorization: Optional[str] = Header(None)):
     return api_response(401, "Unauthorized")
 
 
-@app.get("/admin/users")
-async def get_users(
+@app.get("/admin/registrations")
+async def get_registrations(
     authorization: Optional[str] = Header(None), 
     page: int = 1, 
     page_size: int = 20, 
@@ -135,16 +156,30 @@ async def get_users(
         return api_response(401, "Missing Authorization Header")
 
     token = get_token(authorization)
-    # 验证管理员权限
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "Forbidden: Admin access required")
 
-    users_data = account_service.get_all_users(page=page, page_size=page_size, sort_by=sort_by, order=order)
-    # 计算总页数
-    import math
-    total_pages = math.ceil(users_data["total"] / page_size) if users_data["total"] > 0 else 1
-    users_data["total_pages"] = total_pages
-    return api_response(200, "Success", users_data)
+    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order)
+    return api_response(200, "Success", data)
+
+@app.post("/admin/registrations/{uid}/status")
+async def update_registration_status(
+    uid: str,
+    status: str = Form(...),
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+        
+    try:
+        account_service.update_registration_status(uid, status)
+        return api_response(200, "Status updated successfully")
+    except Exception as e:
+        return api_response(500, f"Error updating status: {str(e)}")
 
 
 @app.delete("/admin/users/{uid}")
@@ -266,6 +301,16 @@ async def check_registration_status(authorization: Optional[str] = Header(None))
     
     exists = account_service.check_registration_exists(session.user_uid)
     return api_response(200, "Success", {"registered": exists})
+
+@app.get("/registrations/latest")
+async def get_latest_registration(authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    
+    data = account_service.get_latest_registration(session.user_uid)
+    return api_response(200, "Success", data or {})
 
 @app.post("/registrations")
 async def submit_registration(

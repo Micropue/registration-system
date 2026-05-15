@@ -128,16 +128,38 @@ class AccountService:
                 'options': json.loads(row['options']) if row['options'] else []
             } for row in rows]
 
+    def get_latest_registration(self, user_uid: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT data, status FROM registrations 
+                WHERE user_uid = %s 
+                ORDER BY create_time DESC LIMIT 1
+            """, (user_uid,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {
+                "status": row["status"],
+                "data": json.loads(row["data"])
+            }
+
     def submit_registration(self, user_uid: str, data: dict[str, Any]) -> str:
-        if self.check_registration_exists(user_uid):
-            raise AccountError("用户已登记，无法重复登记")
+        # 允许提交：没有记录，或者最后一条记录被拒绝
+        latest = self.get_latest_registration(user_uid)
+        if latest:
+            if latest["status"] == "pending":
+                raise AccountError("已存在待处理的登记，无法重复登记")
+            if latest["status"] == "approved":
+                raise AccountError("您的登记已审核通过，无法重复登记")
+            
         reg_uid = self._new_uid()
         now = self._now()
         with self._connect() as connection:
             cursor = connection.cursor()
             cursor.execute("""
-                INSERT INTO registrations (uid, user_uid, data, create_time)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO registrations (uid, user_uid, data, create_time, status)
+                VALUES (%s, %s, %s, %s, 'pending')
             """, (reg_uid, user_uid, json.dumps(data, ensure_ascii=False), now))
             connection.commit()
         return reg_uid
@@ -145,7 +167,7 @@ class AccountService:
     def check_registration_exists(self, user_uid: str) -> bool:
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("SELECT id FROM registrations WHERE user_uid = %s LIMIT 1", (user_uid,))
+            cursor.execute("SELECT id FROM registrations WHERE user_uid = %s AND status IN ('pending', 'approved') LIMIT 1", (user_uid,))
             return cursor.fetchone() is not None
 
     def create_account(self, username: str, password: str, account_type: AccountType = "default", login_ip: str = "", login_device: str = "") -> str:
@@ -351,14 +373,37 @@ class AccountService:
         if include_db: config["database"] = self.database
         return cast(MySQLConnection, mysql.connector.connect(**config))
 
-    def get_distinct_values(self, field: str) -> list[str]:
-        # 防止 SQL 注入
-        allowed_fields = {"type", "login_device"}
-        if field not in allowed_fields:
-            return []
+    def get_registrations(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc") -> dict[str, Any]:
+        offset = (page - 1) * page_size
+        sort_clause = f"ORDER BY {sort_by} {order}" if sort_by in {"create_time", "status"} else "ORDER BY create_time DESC"
+        
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT COUNT(*) as total FROM registrations")
+            total = cursor.fetchone()["total"]
             
+            sql = f"""
+                SELECT r.uid, r.data, r.create_time, r.status, u.username
+                FROM registrations r
+                JOIN users u ON r.user_uid = u.uid
+                {sort_clause}
+                LIMIT {page_size} OFFSET {offset}
+            """
+            cursor.execute(sql)
+            rows = cursor.fetchall()
+            
+        items = [{
+            "id": row["uid"],
+            "username": row["username"],
+            "created_at": row["create_time"].isoformat(),
+            "status": row["status"],
+            "registration_info": json.loads(row["data"])
+        } for row in rows]
+        
+        return {"total": total, "page": page, "page_size": page_size, "items": items}
+
+    def update_registration_status(self, registration_uid: str, status: str) -> None:
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute(f"SELECT DISTINCT {field} FROM users WHERE {field} IS NOT NULL")
-            rows = cursor.fetchall()
-            return [str(row[0]) for row in rows]
+            cursor.execute("UPDATE registrations SET status = %s WHERE uid = %s", (status, registration_uid))
+            connection.commit()
