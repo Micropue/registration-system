@@ -33,4 +33,6 @@ export enum ApiUrl {
   GET_REGISTRATIONS = '/api/admin/registrations',
   /** 更新登记状态 (管理员) */
   UPDATE_REGISTRATION_STATUS = '/api/admin/registrations',
+  /** 删除登记记录 (管理员) */
+  DELETE_REGISTRATION = '/api/admin/registrations',
 }

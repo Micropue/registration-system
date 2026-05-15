@@ -45,6 +45,10 @@
                   <v-list-item @click="updateStatus(item, 'pending')">未处理</v-list-item>
                 </v-list>
               </v-menu>
+              <v-divider></v-divider>
+              <v-list-item @click="confirmDelete(item)" class="text-error">
+                删除记录
+              </v-list-item>
             </v-list>
           </v-menu>
         </template>
@@ -74,6 +78,21 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="tonal" @click="detailsDialog.show = false">关闭</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 删除确认 Dialog -->
+    <v-dialog v-model="deleteDialog.show" max-width="400">
+      <v-card>
+        <v-card-title class="text-h5">确认删除</v-card-title>
+        <v-card-text>
+          确定要删除用户 <b>{{ deleteDialog.item?.username }}</b> 的登记记录吗？此操作不可撤销。
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="deleteDialog.show = false">取消</v-btn>
+          <v-btn color="error" variant="elevated" @click="handleDelete" :loading="loading">确认删除</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -114,6 +133,7 @@ const totalRegisters = ref(0)
 const itemsPerPage = ref(20)
 const currentPage = ref(1)
 const detailsDialog = reactive({ show: false, item: null as RegistrationItem | null })
+const deleteDialog = reactive({ show: false, item: null as RegistrationItem | null })
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 function showMsg(text: string, color: string = 'success') {
@@ -125,6 +145,11 @@ function showMsg(text: string, color: string = 'success') {
 function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.item = item
   detailsDialog.show = true
+}
+
+function confirmDelete(item: RegistrationItem) {
+  deleteDialog.item = item
+  deleteDialog.show = true
 }
 
 // 配置化表头
@@ -201,6 +226,31 @@ async function updateStatus(item: RegistrationItem, status: RegistrationItem['st
       loadRegisters()
     } else {
       showMsg(res.msg || '状态更新失败', 'error')
+    }
+  } catch (err) {
+    showMsg('请求失败', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+async function handleDelete() {
+  if (!deleteDialog.item) return
+  
+  loading.value = true
+  try {
+    const res = await ajax(`${ApiUrl.DELETE_REGISTRATION}/${deleteDialog.item.id}`, {
+      method: 'DELETE',
+      headers: { 
+        'Authorization': `Bearer ${cookie.get('token') || ''}`
+      }
+    })
+    if (res.code === 200) {
+      showMsg(`已成功删除 ${deleteDialog.item.username} 的登记记录`)
+      deleteDialog.show = false
+      loadRegisters()
+    } else {
+      showMsg(res.msg || '删除失败', 'error')
     }
   } catch (err) {
     showMsg('请求失败', 'error')

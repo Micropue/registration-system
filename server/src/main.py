@@ -182,6 +182,28 @@ async def update_registration_status(
         return api_response(500, f"Error updating status: {str(e)}")
 
 
+@app.delete("/admin/registrations/{uid}")
+async def delete_registration(
+    uid: str,
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+        
+    try:
+        success = account_service.delete_registration(uid)
+        if success:
+            return api_response(200, "Registration deleted successfully")
+        else:
+            return api_response(404, "Registration not found")
+    except Exception as e:
+        return api_response(500, f"Error deleting registration: {str(e)}")
+
+
 @app.delete("/admin/users/{uid}")
 async def delete_user(
     uid: str,

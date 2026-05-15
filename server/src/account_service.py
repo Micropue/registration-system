@@ -407,3 +407,10 @@ class AccountService:
             cursor = connection.cursor()
             cursor.execute("UPDATE registrations SET status = %s WHERE uid = %s", (status, registration_uid))
             connection.commit()
+
+    def delete_registration(self, registration_uid: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM registrations WHERE uid = %s", (registration_uid,))
+            connection.commit()
+            return cursor.rowcount > 0
