@@ -145,7 +145,7 @@ onMounted(async () => {
       y: 0, opacity: 1, duration: 0.9, stagger: 0.12, ease: "power3.out",
       scrollTrigger: {
         trigger: ".feature-grid", start: "top 80%",
-        scroller: ".home", toggleActions: "play none none none",
+        scroller: ".v-main", toggleActions: "play none none none",
       },
     }
   );
@@ -155,7 +155,7 @@ onMounted(async () => {
     { y: 40, opacity: 0 },
     {
       y: 0, opacity: 1, duration: 0.9, stagger: 0.15, ease: "power3.out",
-      scrollTrigger: { trigger: ".intro-row", start: "top 85%", scroller: ".home" },
+      scrollTrigger: { trigger: ".intro-row", start: "top 85%", scroller: ".v-main" },
     }
   );
 
@@ -164,7 +164,7 @@ onMounted(async () => {
     { y: 30, opacity: 0 },
     {
       y: 0, opacity: 1, duration: 0.7, stagger: 0.1, ease: "power2.out",
-      scrollTrigger: { trigger: ".contact-grid", start: "top 85%", scroller: ".home" },
+      scrollTrigger: { trigger: ".contact-grid", start: "top 85%", scroller: ".v-main" },
     }
   );
 });
@@ -183,17 +183,12 @@ $bg-soft: #F5F5F5; // grey-lighten-4
 $cream: #FFFFFF;
 
 .home {
-  position: fixed;
-  inset: 0;
-  overflow-y: auto;
   background: $bg;
   color: $ink;
   font-family:
     "Inter", "PingFang SC", "Microsoft YaHei", -apple-system, BlinkMacSystemFont,
     sans-serif;
   -webkit-font-smoothing: antialiased;
-  margin-top: 60px;
-  height: calc(100% - 60px);
 }
 
 .content-wrapper {
