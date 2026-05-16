@@ -81,6 +81,33 @@
           </v-fade-transition>
 
           <template v-if="user">
+            <v-menu location="bottom end" :close-on-content-click="false" min-width="320">
+              <template v-slot:activator="{ props: menuProps }">
+                <v-badge :model-value="unreadCount > 0" :content="unreadCount" color="error" overlap>
+                  <v-btn icon="mdi-bell-outline" variant="text" size="small" v-bind="menuProps"
+                    @click="openNotifications"></v-btn>
+                </v-badge>
+              </template>
+              <v-list density="compact" max-height="400" style="overflow-y: auto;">
+                <div class="d-flex justify-space-between align-center pa-2">
+                  <span class="text-subtitle-2 font-weight-bold">消息</span>
+                  <v-btn v-if="unreadCount > 0" variant="text" size="x-small" @click="markAllRead">全部已读</v-btn>
+                </div>
+                <v-divider></v-divider>
+                <div v-if="notifications.length === 0" class="pa-4 text-center text-grey">暂无消息</div>
+                <v-list-item v-for="n in notifications" :key="n.id" :class="!n.is_read ? 'bg-primary-lighten-5' : ''"
+                  @click="handleNotificationClick(n)" density="compact" class="mb-1">
+                  <template v-slot:prepend>
+                    <v-icon size="18" :color="n.is_read ? 'grey' : 'primary'">mdi-circle</v-icon>
+                  </template>
+                  <v-list-item-title class="text-body-2">{{ n.title }}</v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">{{ n.content }}</v-list-item-subtitle>
+                  <template v-slot:append>
+                    <span class="text-caption text-grey">{{ formatNotifDate(n.created_at) }}</span>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </v-menu>
             <v-btn color="error" variant="tonal" class="rounded-pill px-4 font-weight-bold"
               size="small" @click="handleLogout">
               退出登录
@@ -106,11 +133,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed } from 'vue'
+import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { checkLoginStatus } from '@/api/auth'
 import { cookie } from '@/api/cookie'
+import { ajax } from '@/api/ajax'
 import { functions } from '@/config/functions'
 import { useAppStore } from '@/stores/app'
 import type { CheckLoginData } from '@/config/api-type'
@@ -151,11 +179,73 @@ function handleLogout() {
   router.push('/login')
 }
 
+const unreadCount = ref(0)
+const notifications = ref<any[]>([])
+let notifTimer: any = null
+
+async function fetchNotifications() {
+  if (!user.value) return
+  try {
+    const [countRes, listRes] = await Promise.all([
+      ajax<any>('/api/notifications/unread-count', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } }),
+      ajax<any[]>('/api/notifications', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } })
+    ])
+    if (countRes.code === 200) unreadCount.value = countRes.data.count
+    if (listRes.code === 200) notifications.value = listRes.data
+  } catch (e) { /* ignore */ }
+}
+
+function openNotifications() {
+  fetchNotifications()
+}
+
+async function markAllRead() {
+  try {
+    await ajax('/api/notifications/read-all', {
+      method: 'POST', headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    unreadCount.value = 0
+    notifications.value = notifications.value.map((n: any) => ({ ...n, is_read: true }))
+  } catch (e) { /* ignore */ }
+}
+
+async function handleNotificationClick(n: any) {
+  if (!n.is_read) {
+    try {
+      await ajax(`/api/notifications/${n.id}/read`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+      })
+      n.is_read = true
+      unreadCount.value = Math.max(0, unreadCount.value - 1)
+    } catch (e) { /* ignore */ }
+  }
+  if (n.type === 'registration_rejected' || n.type === 'new_registration') router.push('/admin/registers')
+  else if (n.type === 'feedback_replied' || n.type === 'new_feedback' || n.type === 'feedback_status') {
+    router.push(user.value?.type === 'admin' ? '/admin/feedbacks' : '/feedback')
+  }
+}
+
+function formatNotifDate(iso: string) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const now = new Date()
+  const diff = now.getTime() - d.getTime()
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  return d.toLocaleDateString('zh-CN')
+}
+
 onMounted(() => {
   fetchUser()
   if (mdAndUp.value) {
     sideOpen.value = true
   }
+  notifTimer = setInterval(fetchNotifications, 30000)
+  setTimeout(fetchNotifications, 2000)
+})
+
+onUnmounted(() => {
+  if (notifTimer) clearInterval(notifTimer)
 })
 watch(() => route.path, fetchUser)
 </script>

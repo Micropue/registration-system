@@ -10,6 +10,11 @@
         v-model:page="currentPage" v-model:items-per-page="itemsPerPage" show-search show-filter search-label="搜索用户名"
         @update:options="loadRegisters" @reset="loadRegisters">
 
+        <!-- 自定义槽位：跑步APP -->
+        <template v-slot:item.app="{ item }">
+          {{ item.registration_info?.['跑步APP'] || '-' }}
+        </template>
+
         <!-- 自定义槽位：创建时间 -->
         <template v-slot:item.created_at="{ item }">
           {{ formatDate(item.created_at) }}
@@ -41,7 +46,7 @@
                 </template>
                 <v-list density="compact">
                   <v-list-item @click="updateStatus(item, 'approved')" class="text-success">已处理</v-list-item>
-                  <v-list-item @click="updateStatus(item, 'rejected')" class="text-error">驳回</v-list-item>
+                  <v-list-item @click="openReject(item)" class="text-error">驳回</v-list-item>
                   <v-list-item @click="updateStatus(item, 'pending')">未处理</v-list-item>
                 </v-list>
               </v-menu>
@@ -68,14 +73,18 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="(val, key) in formatDetails(detailsDialog.item?.registration_info)" :key="key">
-                <td>{{ key }}</td>
-                <td>{{ val }}</td>
-              </tr>
+                <tr v-for="row in detailFields" :key="row.key">
+                  <td>{{ row.key }}</td>
+                  <td>{{ row.value }}</td>
+                </tr>
             </tbody>
           </v-table>
+          <v-alert v-if="detailsDialog.item?.reject_reason" type="error" variant="tonal" class="mt-3" density="compact">
+            <strong>驳回原因：</strong>{{ detailsDialog.item.reject_reason }}
+          </v-alert>
         </v-card-text>
         <v-card-actions>
+          <v-btn variant="text" size="small" prepend-icon="mdi-content-copy" @click="copyDetailText">复制为文本</v-btn>
           <v-spacer></v-spacer>
           <v-btn variant="tonal" @click="detailsDialog.show = false">关闭</v-btn>
         </v-card-actions>
@@ -97,6 +106,23 @@
       </v-card>
     </v-dialog>
 
+    <!-- 驳回原因 Dialog -->
+    <v-dialog v-model="rejectDialog.show" max-width="450">
+      <v-card>
+        <v-card-title class="text-h5 pa-4">驳回登记</v-card-title>
+        <v-card-text class="pa-4 pt-0">
+          <v-textarea v-model="rejectDialog.reason" label="驳回原因" variant="outlined"
+            placeholder="请填写驳回原因，用户将看到此内容"
+            rows="3" hide-details auto-grow></v-textarea>
+        </v-card-text>
+        <v-card-actions class="pa-4">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="rejectDialog.show = false">取消</v-btn>
+          <v-btn color="error" variant="flat" :loading="loading" @click="confirmReject">确认驳回</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
@@ -112,7 +138,7 @@
 </style>
 
 <script lang="ts" setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import AppDataTable from '@/components/AppDataTable.vue'
 import { ApiUrl } from '@/config/api-url'
 import { ajax } from '@/api/ajax'
@@ -124,6 +150,8 @@ interface RegistrationItem {
   created_at: string
   status: 'pending' | 'approved' | 'rejected'
   registration_info?: any
+  reject_reason?: string
+  app?: string
 }
 
 // 状态管理
@@ -134,13 +162,52 @@ const itemsPerPage = ref(20)
 const currentPage = ref(1)
 const detailsDialog = reactive({ show: false, item: null as RegistrationItem | null })
 const deleteDialog = reactive({ show: false, item: null as RegistrationItem | null })
+const rejectDialog = reactive({ show: false, item: null as RegistrationItem | null, reason: '' })
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
+const fieldOrder = ref<string[]>([])
+
+const detailFields = computed(() => {
+  const info = detailsDialog.item?.registration_info
+  if (!info) return []
+  const keys = Object.keys(info)
+  const order = ['跑步APP', ...fieldOrder.value]
+  return keys
+    .map(k => ({ key: k, value: _formatVal(info[k]) }))
+    .sort((a, b) => {
+      const ai = order.indexOf(a.key)
+      const bi = order.indexOf(b.key)
+      if (ai === -1 && bi === -1) return a.key.localeCompare(b.key)
+      if (ai === -1) return 1
+      if (bi === -1) return -1
+      return ai - bi
+    })
+})
+
+function _formatVal(val: any): string {
+  if (val === null || val === undefined) return '-'
+  if (Array.isArray(val)) return val.join(', ')
+  return String(val)
+}
+
 function showMsg(text: string, color: string = 'success') {
   snackbar.text = text
   snackbar.color = color
   snackbar.show = true
 }
+
+async function loadFieldOrder() {
+  try {
+    const res = await ajax<any[]>('/api/fields')
+    if (res.code === 200) {
+      fieldOrder.value = res.data.map((f: any) => f.label)
+    }
+  } catch (err) { /* ignore */ }
+}
+
+onMounted(() => {
+  loadFieldOrder()
+})
 
 function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.item = item
@@ -155,6 +222,7 @@ function confirmDelete(item: RegistrationItem) {
 // 配置化表头
 const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
+  { title: '跑步APP', key: 'app', sortable: false, filterable: true },
   { title: '登记信息', key: 'details', sortable: false },
   { title: '创建时间', key: 'created_at', sortable: true },
   { title: '登记状态', key: 'status', sortable: true, filterable: true },
@@ -184,29 +252,63 @@ function getStatusText(status: string) {
   }
 }
 
-function formatDetails(info: any) {
-  if (!info) return {}
-  const res: any = {}
-  for (const [key, val] of Object.entries(info)) {
-    let displayVal: any = val
-    if (typeof val === 'string') {
-      const lower = val.toLowerCase()
-      if (lower === 'yes') displayVal = '是'
-      else if (lower === 'no') displayVal = '否'
-    }
-    
-    if (Array.isArray(val)) {
-      res[key] = val.join(' - ')
-    } else {
-      res[key] = displayVal
-    }
-  }
-  return res
-}
-
 // 事件处理
 function handleView(item: RegistrationItem) {
   openDetailsDialog(item)
+}
+
+async function copyDetailText() {
+  const item = detailsDialog.item
+  if (!item?.registration_info) return
+  const info = item.registration_info
+  const keys = Object.keys(info)
+  const order = ['跑步APP', ...fieldOrder.value]
+  const sorted = [...keys].sort((a, b) => {
+    const ai = order.indexOf(a)
+    const bi = order.indexOf(b)
+    if (ai === -1 && bi === -1) return a.localeCompare(b)
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+  const text = sorted.map(k => `${k}：${info[k] ?? ''}`).join('\n')
+  try {
+    await navigator.clipboard.writeText(text)
+    showMsg('已复制到剪贴板')
+  } catch {
+    showMsg('复制失败', 'error')
+  }
+}
+
+function openReject(item: RegistrationItem) {
+  rejectDialog.item = item
+  rejectDialog.reason = ''
+  rejectDialog.show = true
+}
+
+async function confirmReject() {
+  if (!rejectDialog.item) return
+  loading.value = true
+  try {
+    const res = await ajax(`${ApiUrl.UPDATE_REGISTRATION_STATUS}/${rejectDialog.item.id}/status`, {
+      method: 'POST',
+      body: { status: 'rejected', reject_reason: rejectDialog.reason },
+      isFormData: true,
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      rejectDialog.item.status = 'rejected'
+      showMsg(`已驳回 ${rejectDialog.item.username} 的登记`)
+      rejectDialog.show = false
+      loadRegisters()
+    } else {
+      showMsg(res.msg || '驳回失败', 'error')
+    }
+  } catch (err) {
+    showMsg('请求失败', 'error')
+  } finally {
+    loading.value = false
+  }
 }
 
 async function updateStatus(item: RegistrationItem, status: RegistrationItem['status']) {
@@ -274,7 +376,10 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) {
-      registers.value = res.data.items
+      registers.value = res.data.items.map((item: any) => ({
+        ...item,
+        app: item.registration_info?.['跑步APP'] || ''
+      }))
       totalRegisters.value = res.data.total
     }
   } catch (err) {

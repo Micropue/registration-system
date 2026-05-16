@@ -27,15 +27,22 @@
 
     <!-- 数据表格 -->
     <v-card class="elevation-0" border style="overflow: auto; ">
-      <v-data-table-server :headers="headers" :items="filteredItems" :loading="loading" v-model:page="localPage"
-        v-model:items-per-page="localItemsPerPage" :items-length="totalItems" items-per-page-text="每页行数"
-        page-text="{0}-{1} 共 {2}" @update:options="onOptionsUpdate" class="elevation-0">
-        
-        <!-- 转发所有插槽给父组件 -->
+      <!-- 客户端模式：v-data-table 自己处理分页/排序/搜索 -->
+      <v-data-table v-if="clientSide" :headers="headers" :items="filteredItems" :loading="loading"
+        v-model:page="localPage" v-model:items-per-page="localItemsPerPage"
+        items-per-page-text="每页行数" page-text="{0}-{1} 共 {2}" class="elevation-0">
         <template v-for="(_, name) in $slots" #[name]="slotProps">
           <slot :name="name" v-bind="slotProps"></slot>
         </template>
+      </v-data-table>
 
+      <!-- 服务端模式：v-data-table-server 由外部控制分页 -->
+      <v-data-table-server v-else :headers="headers" :items="filteredItems" :loading="loading" v-model:page="localPage"
+        v-model:items-per-page="localItemsPerPage" :items-length="totalItems" items-per-page-text="每页行数"
+        page-text="{0}-{1} 共 {2}" @update:options="onOptionsUpdate" class="elevation-0">
+        <template v-for="(_, name) in $slots" #[name]="slotProps">
+          <slot :name="name" v-bind="slotProps"></slot>
+        </template>
       </v-data-table-server>
     </v-card>
   </div>
@@ -64,6 +71,7 @@ const props = defineProps<{
   showSearch?: boolean
   showFilter?: boolean
   searchLabel?: string
+  clientSide?: boolean
 }>()
 
 const emit = defineEmits(['update:options', 'update:page', 'update:itemsPerPage', 'reset'])

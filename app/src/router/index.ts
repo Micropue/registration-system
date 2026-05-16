@@ -99,7 +99,8 @@ const router = createRouter({
           meta: { title: '系统设置' },
           children: [
             { path: '', component: () => import("@/pages/admin/settings/welcome.vue") },
-            { path: 'fields', component: () => import("@/pages/admin/settings/fields/index.vue"), meta: { title: '登记字段配置' } }
+            { path: 'fields', component: () => import("@/pages/admin/settings/fields/index.vue"), meta: { title: '登记字段配置' } },
+            { path: 'running-apps', component: () => import("@/pages/admin/settings/running-apps/index.vue"), meta: { title: '跑步APP配置' } }
           ]
         }
       ]

@@ -64,3 +64,12 @@ export interface RegistrationItem {
   status: 'pending' | 'approved' | 'rejected';
   registration_info: Record<string, any>;
 }
+
+/** 跑步APP配置 */
+export interface RunningApp {
+  id: number;
+  name: string;
+  normal_price: number;
+  morning_price: number;
+  note: string;
+}

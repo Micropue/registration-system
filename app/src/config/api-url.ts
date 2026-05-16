@@ -35,4 +35,42 @@ export enum ApiUrl {
   UPDATE_REGISTRATION_STATUS = '/api/admin/registrations',
   /** 删除登记记录 (管理员) */
   DELETE_REGISTRATION = '/api/admin/registrations',
+  /** 获取跑步APP配置 */
+  GET_RUNNING_APPS = '/api/admin/settings/running-apps',
+  /** 创建跑步APP配置 */
+  CREATE_RUNNING_APP = '/api/admin/settings/running-apps',
+  /** 修改跑步APP配置 */
+  UPDATE_RUNNING_APP = '/api/admin/settings/running-apps',
+  /** 删除跑步APP配置 */
+  DELETE_RUNNING_APP = '/api/admin/settings/running-apps',
+  /** 批量导入跑步APP配置 */
+  BULK_CREATE_RUNNING_APPS = '/api/admin/settings/running-apps/bulk',
+  /** 获取用户登记历史 */
+  GET_USER_REGISTRATIONS = '/api/registrations',
+  /** 获取单条登记详情 */
+  GET_REGISTRATION_DETAIL = '/api/registrations',
+  /** 重新提交被驳回的登记 */
+  RESUBMIT_REGISTRATION = '/api/registrations',
+  /** 获取跑步APP列表（公开） */
+  GET_PUBLIC_RUNNING_APPS = '/api/running-apps',
+  /** 创建工单 */
+  CREATE_FEEDBACK = '/api/feedbacks',
+  /** 获取用户工单 */
+  GET_USER_FEEDBACKS = '/api/feedbacks',
+  /** 获取工单详情 */
+  GET_FEEDBACK_DETAIL = '/api/feedbacks',
+  /** 回复工单 */
+  REPLY_FEEDBACK = '/api/feedbacks',
+  /** 管理员工单列表 */
+  ADMIN_GET_FEEDBACKS = '/api/admin/feedbacks',
+  /** 管理员工单状态 */
+  ADMIN_UPDATE_FEEDBACK_STATUS = '/api/admin/feedbacks',
+  /** 获取通知 */
+  GET_NOTIFICATIONS = '/api/notifications',
+  /** 未读通知数 */
+  UNREAD_NOTIFICATION_COUNT = '/api/notifications/unread-count',
+  /** 标记已读 */
+  MARK_NOTIFICATION_READ = '/api/notifications',
+  /** 全部已读 */
+  MARK_ALL_NOTIFICATIONS_READ = '/api/notifications/read-all',
 }

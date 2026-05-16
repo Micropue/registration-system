@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- 横向设置菜单 -->
-    <div class="bg-white border-b d-flex align-center px-4"
-      style="position: sticky; top: 0; z-index: 10; min-height: 48px;">
+    <div class="bg-white border-b d-flex align-center px-4 overflow-x-auto"
+      style="position: sticky; top: 0; z-index: 10; min-height: 48px; white-space: nowrap; flex-wrap: nowrap;">
       <v-btn
         v-for="item in settingsMenu"
         :key="item.to"
@@ -19,6 +19,7 @@
 
 <script setup lang="ts">
 const settingsMenu = [
-  { title: '登记字段配置', to: '/admin/settings/fields', icon: 'mdi-form-select' }
+  { title: '登记字段配置', to: '/admin/settings/fields', icon: 'mdi-form-select' },
+  { title: '跑步APP配置', to: '/admin/settings/running-apps', icon: 'mdi-run' }
 ]
 </script>

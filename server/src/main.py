@@ -38,6 +38,12 @@ class UpdateUserRequest(BaseModel):
     username: Optional[str] = None
     password: Optional[str] = None
 
+class RunningAppRequest(BaseModel):
+    name: str
+    normal_price: float
+    morning_price: float
+    note: str = ''
+
 @app.post("/admin/users")
 async def create_user(
     request: CreateUserRequest,
@@ -166,6 +172,7 @@ async def get_registrations(
 async def update_registration_status(
     uid: str,
     status: str = Form(...),
+    reject_reason: Optional[str] = Form(None),
     authorization: Optional[str] = Header(None)
 ):
     if not authorization:
@@ -176,7 +183,16 @@ async def update_registration_status(
         return api_response(403, "Forbidden: Admin access required")
         
     try:
-        account_service.update_registration_status(uid, status)
+        account_service.update_registration_status(uid, status, reject_reason)
+        if status == 'rejected':
+            session = account_service.get_login_session(token)
+            # Find the registration to get user_uid
+            with account_service._connect() as conn:
+                cur = conn.cursor(dictionary=True)
+                cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
+                reg = cur.fetchone()
+                if reg:
+                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '登记被驳回', reject_reason or '您的登记已被驳回', uid)
         return api_response(200, "Status updated successfully")
     except Exception as e:
         return api_response(500, f"Error updating status: {str(e)}")
@@ -303,6 +319,78 @@ async def get_fields(authorization: Optional[str] = Header(None)):
     fields = account_service.get_registration_fields()
     return api_response(200, "Success", fields)
 
+@app.get("/admin/settings/running-apps")
+async def get_running_apps(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    apps = account_service.get_running_apps()
+    return api_response(200, "Success", apps)
+
+@app.post("/admin/settings/running-apps")
+async def create_running_app(
+    request: RunningAppRequest,
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        app_id = account_service.create_running_app(request.name, request.normal_price, request.morning_price, request.note)
+        return api_response(200, "Running app created", {'id': app_id})
+    except Exception as e:
+        return api_response(500, f"Error creating running app: {str(e)}")
+
+@app.put("/admin/settings/running-apps/{app_id}")
+async def update_running_app(
+    app_id: int,
+    request: RunningAppRequest,
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        account_service.update_running_app(app_id, request.name, request.normal_price, request.morning_price, request.note)
+        return api_response(200, "Running app updated")
+    except Exception as e:
+        return api_response(500, f"Error updating running app: {str(e)}")
+
+@app.delete("/admin/settings/running-apps/{app_id}")
+async def delete_running_app(app_id: int, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        account_service.delete_running_app(app_id)
+        return api_response(200, "Running app deleted")
+    except Exception as e:
+        return api_response(500, f"Error deleting running app: {str(e)}")
+
+@app.post("/admin/settings/running-apps/bulk")
+async def bulk_create_running_apps(
+    apps: list[dict[str, Any]],
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        count = account_service.bulk_create_running_apps(apps)
+        return api_response(200, f"Successfully imported {count} running apps")
+    except Exception as e:
+        return api_response(500, f"Error bulk importing: {str(e)}")
+
 # --- 普通用户接口 ---
 
 @app.get("/fields")
@@ -314,13 +402,67 @@ async def get_public_fields():
     except Exception as e:
         return api_response(500, f"Error fetching fields: {str(e)}")
 
+@app.get("/running-apps")
+async def get_public_running_apps():
+    """获取跑步APP列表（公开接口）"""
+    try:
+        apps = account_service.get_running_apps()
+        return api_response(200, "Success", apps)
+    except Exception as e:
+        return api_response(500, f"Error fetching running apps: {str(e)}")
+
+@app.get("/registrations")
+async def get_user_registrations(
+    authorization: Optional[str] = Header(None),
+    page: int = 1, page_size: int = 20
+):
+    """获取当前用户的登记记录（分页）"""
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    data = account_service.get_user_registrations(session.user_uid, page, page_size)
+    return api_response(200, "Success", data)
+
+@app.get("/registrations/{uid}")
+async def get_registration_detail(uid: str, authorization: Optional[str] = Header(None)):
+    """获取单条登记详情"""
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    detail = account_service.get_registration_detail(uid, session.user_uid)
+    if not detail:
+        return api_response(404, "Registration not found")
+    return api_response(200, "Success", detail)
+
+@app.put("/registrations/{uid}")
+async def resubmit_registration(
+    uid: str,
+    data: dict[str, Any],
+    authorization: Optional[str] = Header(None)
+):
+    """重新提交被驳回的登记"""
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    try:
+        account_service.resubmit_registration(uid, session.user_uid, data)
+        return api_response(200, "Registration resubmitted successfully")
+    except AccountError as e:
+        return api_response(400, str(e))
+    except Exception as e:
+        return api_response(500, f"Error resubmitting registration: {str(e)}")
+
 @app.get("/registrations/check")
 async def check_registration_status(authorization: Optional[str] = Header(None)):
     if not authorization: return api_response(401, "Missing Authorization Header")
     token = get_token(authorization)
     session = account_service.get_login_session(token)
     if not session: return api_response(401, "Unauthorized")
-    
     exists = account_service.check_registration_exists(session.user_uid)
     return api_response(200, "Success", {"registered": exists})
 
@@ -330,7 +472,6 @@ async def get_latest_registration(authorization: Optional[str] = Header(None)):
     token = get_token(authorization)
     session = account_service.get_login_session(token)
     if not session: return api_response(401, "Unauthorized")
-    
     data = account_service.get_latest_registration(session.user_uid)
     return api_response(200, "Success", data or {})
 
@@ -350,11 +491,165 @@ async def submit_registration(
         
     try:
         account_service.submit_registration(session.user_uid, data)
+        account_service.create_notification_for_admins("new_registration", f"新登记", f"用户 {session.username} 提交了新登记")
         return api_response(200, "Registration submitted successfully")
     except AccountError as e:
         return api_response(400, str(e))
     except Exception as e:
         return api_response(500, f"Error submitting registration: {str(e)}")
+
+# --- 反馈/工单接口 ---
+
+@app.post("/feedbacks")
+async def create_feedback(
+    title: str = Form(...),
+    content: str = Form(...),
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    try:
+        uid = account_service.create_feedback(session.user_uid, title, content)
+        account_service.create_notification_for_admins("new_feedback", "新工单", f"用户 {session.username} 提交了工单: {title}")
+        return api_response(200, "Feedback created", {'id': uid})
+    except Exception as e:
+        return api_response(500, f"Error: {str(e)}")
+
+@app.get("/feedbacks")
+async def get_user_feedbacks(
+    authorization: Optional[str] = Header(None),
+    page: int = 1, page_size: int = 20
+):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    data = account_service.get_user_feedbacks(session.user_uid, page, page_size)
+    return api_response(200, "Success", data)
+
+@app.get("/feedbacks/{uid}")
+async def get_feedback(uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    detail = account_service.get_feedback_detail(uid)
+    if not detail: return api_response(404, "Not found")
+    if session.account_type != 'admin' and detail['user_uid'] != session.user_uid:
+        return api_response(403, "Forbidden")
+    return api_response(200, "Success", detail)
+
+@app.post("/feedbacks/{uid}/reply")
+async def reply_feedback(
+    uid: str,
+    content: str = Form(...),
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    is_admin = session.account_type == 'admin'
+    try:
+        detail = account_service.get_feedback_detail(uid)
+        if not detail: return api_response(404, "Not found")
+        if not is_admin and detail['user_uid'] != session.user_uid:
+            return api_response(403, "Forbidden")
+        account_service.add_feedback_reply(uid, session.user_uid, content, is_admin)
+        # Notify the other party
+        if is_admin:
+            account_service.create_notification(detail['user_uid'], 'feedback_replied', '工单有新回复', f'管理员回复了您的工单: {detail["title"]}', uid)
+        else:
+            account_service.create_notification_for_admins('feedback_replied', '工单有新回复', f'用户 {session.username} 回复了工单: {detail["title"]}')
+        return api_response(200, "Reply added")
+    except Exception as e:
+        return api_response(500, f"Error: {str(e)}")
+
+# --- 管理员工单接口 ---
+
+@app.get("/admin/feedbacks")
+async def admin_get_feedbacks(
+    authorization: Optional[str] = Header(None),
+    page: int = 1, page_size: int = 20
+):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden")
+    data = account_service.get_all_feedbacks(page, page_size)
+    return api_response(200, "Success", data)
+
+@app.post("/admin/feedbacks/{uid}/status")
+async def admin_update_feedback_status(
+    uid: str,
+    status: str = Form(...),
+    authorization: Optional[str] = Header(None)
+):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden")
+    try:
+        account_service.update_feedback_status(uid, status)
+        detail = account_service.get_feedback_detail(uid)
+        if detail:
+            st = {'resolved': '已处理', 'rejected': '已驳回', 'pending': '待处理'}.get(status, status)
+            account_service.create_notification(detail['user_uid'], 'feedback_status', f'工单状态更新', f'您的工单 "{detail["title"]}" 状态已更新为: {st}', uid)
+        return api_response(200, "Status updated")
+    except Exception as e:
+        return api_response(500, f"Error: {str(e)}")
+
+@app.delete("/admin/feedbacks/{uid}")
+async def admin_delete_feedback(uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden")
+    try:
+        account_service.delete_feedback(uid)
+        return api_response(200, "Deleted")
+    except Exception as e:
+        return api_response(500, f"Error: {str(e)}")
+
+# --- 通知接口 ---
+
+@app.get("/notifications")
+async def get_notifications(authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    notifications = account_service.get_user_notifications(session.user_uid)
+    return api_response(200, "Success", notifications)
+
+@app.get("/notifications/unread-count")
+async def unread_count(authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    count = account_service.get_unread_notification_count(session.user_uid)
+    return api_response(200, "Success", {'count': count})
+
+@app.post("/notifications/{uid}/read")
+async def mark_read(uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    account_service.mark_notification_read(uid)
+    return api_response(200, "Marked read")
+
+@app.post("/notifications/read-all")
+async def mark_all_read(authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    account_service.mark_all_notifications_read(session.user_uid)
+    return api_response(200, "All marked read")
 
 if __name__ == "__main__":
 

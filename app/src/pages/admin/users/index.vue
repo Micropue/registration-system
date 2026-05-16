@@ -1,13 +1,15 @@
 <template>
   <v-container fluid class="pa-0 d-flex flex-column align-center">
     <div class="table-wrapper mt-4">
-      <div class="d-flex justify-space-between align-center mb-4">
-        <h1 class="text-h4">账户管理</h1>
-        <div class="d-flex gap-2">
+      <v-row align="center" class="mb-4">
+        <v-col cols="12" sm="auto">
+          <h1 class="text-h4">账户管理</h1>
+        </v-col>
+        <v-col cols="12" sm class="d-flex flex-wrap ga-2 justify-sm-end">
           <v-btn color="secondary" variant="tonal" @click="bulkDialog.show = true" prepend-icon="mdi-file-upload">批量新增</v-btn>
           <v-btn color="primary" @click="dialog = true" prepend-icon="mdi-plus">新建账户</v-btn>
-        </div>
-      </div>
+        </v-col>
+      </v-row>
 
       <!-- 使用封装后的通用表格组件 -->
       <app-data-table :headers="headers" :items="users" :total-items="totalUsers" :loading="loading"
