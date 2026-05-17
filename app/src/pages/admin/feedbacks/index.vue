@@ -10,6 +10,7 @@
         v-model:page="currentPage" v-model:items-per-page="itemsPerPage"
         show-search show-filter search-label="搜索标题/用户名"
         @update:options="loadFeedbacks" @reset="loadFeedbacks"
+        :row-props="({ item }: any) => item.status !== 'pending' ? { class: 'row-processed' } : {}"
       >
         <template v-slot:item.status="{ item }">
           <v-chip :color="getStatusColor(item.status)" size="small">{{ getStatusText(item.status) }}</v-chip>
@@ -18,26 +19,13 @@
           {{ formatDate(item.created_at) }}
         </template>
         <template v-slot:item.actions="{ item }">
-          <v-menu location="bottom">
-            <template v-slot:activator="{ props }">
-              <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props"></v-btn>
-            </template>
-            <v-list density="compact">
-              <v-list-item @click="openDetail(item)">查看/回复</v-list-item>
-              <v-menu location="right">
-                <template v-slot:activator="{ props: p }">
-                  <v-list-item v-bind="p" append-icon="mdi-chevron-right">更新状态</v-list-item>
-                </template>
-                <v-list density="compact">
-                  <v-list-item @click="updateStatus(item, 'resolved')" class="text-success">已处理</v-list-item>
-                  <v-list-item @click="updateStatus(item, 'rejected')" class="text-error">驳回</v-list-item>
-                  <v-list-item @click="updateStatus(item, 'pending')">待处理</v-list-item>
-                </v-list>
-              </v-menu>
-              <v-divider></v-divider>
-              <v-list-item @click="confirmDelete(item)" class="text-error">删除</v-list-item>
-            </v-list>
-          </v-menu>
+          <div class="d-flex ga-1">
+            <v-btn variant="tonal" rounded color="primary" @click="openDetail(item)">查看/回复</v-btn>
+            <v-btn variant="tonal" rounded color="success" @click="updateStatus(item, 'resolved')">已处理</v-btn>
+            <v-btn variant="tonal" rounded color="error" @click="updateStatus(item, 'rejected')">驳回</v-btn>
+            <v-btn variant="tonal" rounded color="warning" @click="updateStatus(item, 'pending')">待处理</v-btn>
+            <v-btn variant="tonal" rounded color="error" @click="confirmDelete(item)">删除</v-btn>
+          </div>
         </template>
       </app-data-table>
     </div>
@@ -101,14 +89,18 @@
 
 <style scoped>
 .table-wrapper { width: 90%; max-width: 1100px; }
+:deep(.row-processed) { opacity: 0.5; }
 </style>
 
 <script lang="ts" setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import AppDataTable from '@/components/AppDataTable.vue'
 import { ApiUrl } from '@/config/api-url'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
+
+const route = useRoute()
 
 interface FeedbackItem {
   id: string; username: string; title: string; content: string; status: string; created_at: string
@@ -135,9 +127,9 @@ function showMsg(text: string, color: string = 'success') {
 const headers = [
   { title: '标题', key: 'title', searchable: true },
   { title: '用户', key: 'username', searchable: true, filterable: true },
-  { title: '创建时间', key: 'created_at', sortable: true },
   { title: '状态', key: 'status', sortable: true, filterable: true },
   { title: '操作', key: 'actions', sortable: false },
+  { title: '创建时间', key: 'created_at', sortable: true },
 ]
 
 function getStatusColor(s: string) { return s === 'resolved' ? 'success' : s === 'rejected' ? 'error' : 'warning' }
@@ -148,8 +140,11 @@ async function loadFeedbacks(options: any = { page: 1, itemsPerPage: 20 }) {
   const page = options.page || currentPage.value
   const pageSize = options.itemsPerPage || itemsPerPage.value
   loading.value = true; currentPage.value = page; itemsPerPage.value = pageSize
+  const username = route.query.username as string || ''
+  let url = `${ApiUrl.ADMIN_GET_FEEDBACKS}?page=${page}&page_size=${pageSize}`
+  if (username) url += `&username=${encodeURIComponent(username)}`
   try {
-    const res = await ajax(`${ApiUrl.ADMIN_GET_FEEDBACKS}?page=${page}&page_size=${pageSize}`, {
+    const res = await ajax(url, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) {

@@ -1,5 +1,5 @@
 import uvicorn
-from fastapi import FastAPI, Form, Request, Header, HTTPException
+from fastapi import FastAPI, Form, Request, Header, HTTPException, WebSocket, WebSocketDisconnect, Query
 from fastapi.responses import JSONResponse
 from typing import Any, Optional
 from contextlib import asynccontextmanager
@@ -43,6 +43,7 @@ class RunningAppRequest(BaseModel):
     normal_price: float
     morning_price: float
     note: str = ''
+    accent_color: str = '#1976D2'
 
 @app.post("/admin/users")
 async def create_user(
@@ -156,7 +157,9 @@ async def get_registrations(
     page: int = 1, 
     page_size: int = 20, 
     sort_by: Optional[str] = None, 
-    order: str = "desc"
+    order: str = "desc",
+    running_app: Optional[str] = None,
+    username: Optional[str] = None
 ):
     if not authorization:
         return api_response(401, "Missing Authorization Header")
@@ -165,8 +168,18 @@ async def get_registrations(
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "Forbidden: Admin access required")
 
-    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order)
+    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=running_app, username=username)
     return api_response(200, "Success", data)
+
+@app.get("/admin/registrations/stats")
+async def get_registration_stats(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    stats = account_service.get_registration_stats()
+    return api_response(200, "Success", stats)
 
 @app.post("/admin/registrations/{uid}/status")
 async def update_registration_status(
@@ -340,7 +353,7 @@ async def create_running_app(
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "Forbidden: Admin access required")
     try:
-        app_id = account_service.create_running_app(request.name, request.normal_price, request.morning_price, request.note)
+        app_id = account_service.create_running_app(request.name, request.normal_price, request.morning_price, request.note, request.accent_color)
         return api_response(200, "Running app created", {'id': app_id})
     except Exception as e:
         return api_response(500, f"Error creating running app: {str(e)}")
@@ -357,7 +370,7 @@ async def update_running_app(
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "Forbidden: Admin access required")
     try:
-        account_service.update_running_app(app_id, request.name, request.normal_price, request.morning_price, request.note)
+        account_service.update_running_app(app_id, request.name, request.normal_price, request.morning_price, request.note, request.accent_color)
         return api_response(200, "Running app updated")
     except Exception as e:
         return api_response(500, f"Error updating running app: {str(e)}")
@@ -572,13 +585,14 @@ async def reply_feedback(
 @app.get("/admin/feedbacks")
 async def admin_get_feedbacks(
     authorization: Optional[str] = Header(None),
-    page: int = 1, page_size: int = 20
+    page: int = 1, page_size: int = 20,
+    username: Optional[str] = None
 ):
     if not authorization: return api_response(401, "Missing Authorization Header")
     token = get_token(authorization)
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "Forbidden")
-    data = account_service.get_all_feedbacks(page, page_size)
+    data = account_service.get_all_feedbacks(page, page_size, username)
     return api_response(200, "Success", data)
 
 @app.post("/admin/feedbacks/{uid}/status")
@@ -650,6 +664,87 @@ async def mark_all_read(authorization: Optional[str] = Header(None)):
     if not session: return api_response(401, "Unauthorized")
     account_service.mark_all_notifications_read(session.user_uid)
     return api_response(200, "All marked read")
+
+# --- 登记聊天 WebSocket ---
+
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, registration_uid: str, websocket: WebSocket):
+        await websocket.accept()
+        if registration_uid not in self.active_connections:
+            self.active_connections[registration_uid] = []
+        self.active_connections[registration_uid].append(websocket)
+
+    def disconnect(self, registration_uid: str, websocket: WebSocket):
+        if registration_uid in self.active_connections:
+            try:
+                self.active_connections[registration_uid].remove(websocket)
+            except ValueError:
+                pass
+
+    async def broadcast(self, registration_uid: str, message: dict):
+        if registration_uid in self.active_connections:
+            for connection in self.active_connections[registration_uid][:]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    self.disconnect(registration_uid, connection)
+
+manager = ConnectionManager()
+
+@app.websocket("/ws/chat/{registration_uid}")
+async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str = Query(...)):
+    session = account_service.get_login_session(token)
+    if not session:
+        await websocket.close(code=4001)
+        return
+    # Verify access: admin can access any, user can only access own
+    if session.account_type != 'admin':
+        detail = account_service.get_registration_detail(registration_uid)
+        if not detail or detail['user_uid'] != session.user_uid:
+            await websocket.close(code=4003)
+            return
+    await manager.connect(registration_uid, websocket)
+    try:
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get('type', 'text')
+            msg = account_service.save_chat_message(registration_uid, session.user_uid, data.get('message', ''), msg_type)
+            msg['username'] = session.username
+            msg['is_admin'] = session.account_type == 'admin'
+            msg['msg_type'] = msg_type
+            # Notify the other party
+            try:
+                detail = account_service.get_registration_detail(registration_uid)
+                if detail:
+                    if session.account_type == 'admin':
+                        account_service.create_notification(detail['user_uid'], 'chat_message', '登记聊天新消息', f'管理员回复了您的登记', registration_uid)
+                    else:
+                        account_service.create_notification_for_admins('chat_message', '登记聊天新消息', f'用户 {session.username} 发送了新消息')
+            except Exception:
+                pass
+            await manager.broadcast(registration_uid, msg)
+    except WebSocketDisconnect:
+        manager.disconnect(registration_uid, websocket)
+    except Exception:
+        manager.disconnect(registration_uid, websocket)
+
+@app.get("/chat/{registration_uid}")
+async def get_chat_history(registration_uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    if session.account_type != 'admin':
+        detail = account_service.get_registration_detail(registration_uid)
+        if not detail or detail['user_uid'] != session.user_uid:
+            return api_response(403, "Forbidden")
+    messages = account_service.get_chat_history(registration_uid)
+    return api_response(200, "Success", messages)
 
 if __name__ == "__main__":
 

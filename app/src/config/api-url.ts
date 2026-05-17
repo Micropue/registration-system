@@ -35,6 +35,10 @@ export enum ApiUrl {
   UPDATE_REGISTRATION_STATUS = '/api/admin/registrations',
   /** 删除登记记录 (管理员) */
   DELETE_REGISTRATION = '/api/admin/registrations',
+  /** 获取各APP登记统计 */
+  REGISTRATION_STATS = '/api/admin/registrations/stats',
+  /** 获取登记聊天记录 */
+  REGISTRATION_CHAT = '/api/chat',
   /** 获取跑步APP配置 */
   GET_RUNNING_APPS = '/api/admin/settings/running-apps',
   /** 创建跑步APP配置 */

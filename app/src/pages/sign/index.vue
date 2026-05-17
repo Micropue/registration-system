@@ -222,6 +222,7 @@
         </v-chip>
         <div class="d-flex ga-1 flex-shrink-0">
           <v-btn variant="text" size="x-small" color="primary" @click="openDetailDialog(item)">查看</v-btn>
+          <v-btn variant="text" size="x-small" color="secondary" prepend-icon="mdi-chat" @click="chatStore.open(item.id, '登记沟通', false, appStore.userInfo?.username || '')">联系管理员</v-btn>
           <v-btn v-if="item.status === 'rejected'" variant="text" size="x-small" color="warning" @click="openResubmitDialog(item)">重新提交</v-btn>
         </div>
       </div>
@@ -233,7 +234,12 @@
     <!-- 详情查看对话框 -->
     <v-dialog v-model="detailDialog.show" max-width="500">
       <v-card class="pa-4">
-        <v-card-title>登记详情</v-card-title>
+        <v-card-title class="d-flex align-center">
+          登记详情
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" color="primary" size="small" prepend-icon="mdi-chat"
+            @click="openChatFromDetail(); detailDialog.show = false">联系管理员</v-btn>
+        </v-card-title>
         <v-card-text>
           <v-table density="compact">
             <tbody>
@@ -271,6 +277,8 @@ import { ref, onMounted, reactive, computed } from 'vue'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
+import { useAppStore } from '@/stores/app'
+import { useChatStore } from '@/stores/chat'
 
 
 interface FormField {
@@ -299,6 +307,8 @@ interface RegistrationItem {
 
 const isLoading = ref(true)
 const historyLoading = ref(false)
+const appStore = useAppStore()
+const chatStore = useChatStore()
 const loadingMore = ref(false)
 const historyPage = ref(1)
 const hasMoreHistory = ref(false)
@@ -334,6 +344,7 @@ const resubmitFormDialog = reactive({
 
 const detailDialog = reactive({
   show: false,
+  id: '',
   data: {} as Record<string, any>,
   status: '',
   createdAt: '',
@@ -517,11 +528,16 @@ function loadMoreHistory() {
 }
 
 function openDetailDialog(item: RegistrationItem) {
+  detailDialog.id = item.id
   detailDialog.data = item.data
   detailDialog.status = item.status
   detailDialog.createdAt = item.created_at
   detailDialog.rejectReason = item.reject_reason || ''
   detailDialog.show = true
+}
+
+function openChatFromDetail() {
+  chatStore.open(detailDialog.id, '登记沟通', false, appStore.userInfo?.username || '')
 }
 
 function openResubmitDialog(item: RegistrationItem) {

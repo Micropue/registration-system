@@ -32,21 +32,18 @@
           {{ formatDate(item.last_login_time) }}
         </template>
 
+        <template v-slot:item.login_device="{ item }">
+          <span class="text-caption" :title="item.login_device">{{ formatUA(item.login_device) }}</span>
+        </template>
+
         <!-- 自定义槽位：操作 -->
         <template v-slot:item.actions="{ item }">
-          <v-menu location="bottom">
-            <template v-slot:activator="{ props }">
-              <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props"></v-btn>
-            </template>
-            <v-list density="compact">
-              <v-list-item @click="handleAction('修改', item)">修改</v-list-item>
-              <v-list-item @click="handleAction('删除', item)" class="text-error"
-                :disabled="isCurrentUser(item)">删除</v-list-item>
-              <v-list-item @click="handleAction('查找工单', item)">查找工单</v-list-item>
-              <v-list-item @click="handleAction('强制下线', item)">强制下线</v-list-item>
-              <v-list-item @click="handleAction('登记检查', item)">登记检查</v-list-item>
-            </v-list>
-          </v-menu>
+          <div class="d-flex ga-1">
+            <v-btn variant="tonal" rounded color="primary" @click="handleAction('修改', item)">修改</v-btn>
+            <v-btn variant="tonal" rounded color="error" :disabled="isCurrentUser(item)" @click="handleAction('删除', item)">删除</v-btn>
+            <v-btn variant="tonal" rounded @click="handleAction('查找工单', item)" v-if="item.type !== 'admin'">查找工单</v-btn>
+            <v-btn variant="tonal" rounded color="warning" @click="handleAction('强制下线', item)">强制下线</v-btn>
+          </div>
         </template>
       </app-data-table>
     </div>
@@ -269,6 +266,7 @@
 
 <script lang="ts" setup>
 import { ref, reactive, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import * as XLSX from 'xlsx'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
@@ -281,6 +279,7 @@ import { useAppStore } from '@/stores/app'
 interface PaginatedUsers { total: number; page: number; page_size: number; items: UserItem[]; }
 
 const appStore = useAppStore()
+const router = useRouter()
 const users = ref<UserItem[]>([])
 const loading = ref(false)
 const totalUsers = ref(0)
@@ -372,8 +371,8 @@ function handleAction(action: string, user: UserItem) {
     logoutDialog.uid = user.uid
     logoutDialog.username = user.username
     logoutDialog.show = true
-  } else {
-    showMsg(`执行操作: ${action} - ${user.username}`)
+  } else if (action === '查找工单') {
+    router.push({ path: '/admin/feedbacks', query: { username: user.username } })
   }
 }
 
@@ -507,17 +506,33 @@ const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
   { title: '活跃会话', key: 'session_count', sortable: true },
   { title: '类型', key: 'type', sortable: false, filterable: true, filterFormatter: (v: string) => v === 'admin' ? '管理员' : '普通' },
-  { title: '注册时间', key: 'register_time', sortable: true, filterable: true, filterFormatter: (v: string) => formatDate(v) },
-  { title: '最后登录', key: 'last_login_time', sortable: true, filterable: true, filterFormatter: (v: string) => formatDate(v) },
   { title: '登录IP', key: 'login_ip', sortable: false, searchable: true, filterable: true },
   { title: '登录设备', key: 'login_device', sortable: false, searchable: true, filterable: true },
   { title: '操作', key: 'actions', sortable: false },
+  { title: '注册时间', key: 'register_time', sortable: true, filterable: true, filterFormatter: (v: string) => formatDate(v) },
+  { title: '最后登录', key: 'last_login_time', sortable: true, filterable: true, filterFormatter: (v: string) => formatDate(v) },
 ]
 
 function formatDate(isoString: string | null) {
   if (!isoString) return '-'
   const date = new Date(isoString)
   return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0') + ' ' + String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0') + ':' + String(date.getSeconds()).padStart(2, '0')
+}
+
+function formatUA(ua: string | null): string {
+  if (!ua) return '-'
+  const parts: string[] = []
+  if (/Windows/i.test(ua)) parts.push('Windows')
+  else if (/Mac/i.test(ua)) parts.push('Mac')
+  else if (/Linux/i.test(ua) && !/Android/i.test(ua)) parts.push('Linux')
+  if (/iPhone/i.test(ua)) parts.push('iPhone')
+  else if (/iPad/i.test(ua)) parts.push('iPad')
+  else if (/Android/i.test(ua)) parts.push('Android')
+  if (/Edg\//i.test(ua)) parts.push('Edge')
+  else if (/Chrome/i.test(ua) && !/Edg\//i.test(ua)) parts.push('Chrome')
+  else if (/Safari/i.test(ua) && !/Chrome/i.test(ua)) parts.push('Safari')
+  else if (/Firefox/i.test(ua)) parts.push('Firefox')
+  return parts.length > 0 ? parts.join(' / ') : ua.slice(0, 50)
 }
 
 async function createAccount() {

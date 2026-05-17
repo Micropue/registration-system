@@ -72,4 +72,5 @@ export interface RunningApp {
   normal_price: number;
   morning_price: number;
   note: string;
+  accent_color: string;
 }

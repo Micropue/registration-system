@@ -129,6 +129,7 @@
       <div class="main-gradient-bg"></div>
       <RouterView />
     </v-main>
+    <ChatDrawer />
   </v-app>
 </template>
 
@@ -141,11 +142,15 @@ import { cookie } from '@/api/cookie'
 import { ajax } from '@/api/ajax'
 import { functions } from '@/config/functions'
 import { useAppStore } from '@/stores/app'
+import { useChatStore } from '@/stores/chat'
+import ChatDrawer from '@/components/ChatDrawer.vue'
 import type { CheckLoginData } from '@/config/api-type'
 
 const router = useRouter()
 const route = useRoute()
+const { mobile } = useDisplay()
 const appStore = useAppStore()
+const chatStore = useChatStore()
 const { mdAndUp } = useDisplay()
 const sideOpen = ref(false)
 const user = ref<CheckLoginData | null>(null)
@@ -165,6 +170,10 @@ async function fetchUser() {
   isAuthChecking.value = true
   user.value = await checkLoginStatus()
   appStore.setUserInfo(user.value)
+  if (user.value) {
+    chatStore.currentUsername = user.value.username
+    chatStore.isAdminView = user.value.type === 'admin'
+  }
   isAuthChecking.value = false
 }
 

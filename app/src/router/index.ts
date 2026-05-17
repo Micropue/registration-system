@@ -91,7 +91,7 @@ const router = createRouter({
       meta: { title: '后台管理' },
       children: [
         { path: 'users', component: () => import("@/pages/admin/users/index.vue"), meta: { title: '账户管理' } },
-        { path: 'registers', component: () => import("@/pages/admin/registers/index.vue"), meta: { title: '登记处理' } },
+        { path: 'registers/:appName?', component: () => import("@/pages/admin/registers/index.vue"), meta: { title: '登记处理' } },
         { path: 'feedbacks', component: () => import("@/pages/admin/feedbacks/index.vue"), meta: { title: '工单处理' } },
         {
           path: 'settings',

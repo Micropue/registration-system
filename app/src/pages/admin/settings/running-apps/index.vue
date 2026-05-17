@@ -26,16 +26,15 @@
         <template v-slot:item.morning_price="{ item }">
           {{ item.morning_price.toFixed(2) }}
         </template>
+        <template v-slot:item.accent_color="{ item }">
+          <span class="color-dot" :style="{ backgroundColor: item.accent_color || '#1976D2' }"></span>
+          {{ item.accent_color || '#1976D2' }}
+        </template>
         <template v-slot:item.actions="{ item }">
-          <v-menu location="bottom">
-            <template v-slot:activator="{ props }">
-              <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props"></v-btn>
-            </template>
-            <v-list density="compact">
-              <v-list-item @click="openEditDialog(item)">修改</v-list-item>
-              <v-list-item @click="confirmDeleteDialog(item)" class="text-error">删除</v-list-item>
-            </v-list>
-          </v-menu>
+          <div class="d-flex ga-1">
+            <v-btn variant="tonal" rounded color="primary" @click="openEditDialog(item)">修改</v-btn>
+            <v-btn variant="tonal" rounded color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
+          </div>
         </template>
       </app-data-table>
     </div>
@@ -53,6 +52,13 @@
             <v-text-field v-model.number="dialog.morning_price" label="晨跑价格" type="number" variant="outlined"
               :rules="[v => v !== '' || '价格必填', v => v >= 0 || '价格不能为负']" hide-details="auto" class="mb-4" required></v-text-field>
             <v-textarea v-model="dialog.note" label="备注" variant="outlined" rows="3" hide-details="auto"></v-textarea>
+            <div class="d-flex align-center ga-3 mt-4">
+              <label class="color-picker-label">
+                <div class="color-preview" :style="{ backgroundColor: dialog.accent_color || '#1976D2' }"></div>
+                <input type="color" v-model="dialog.accent_color" class="hidden-input">
+              </label>
+              <span class="text-body-2">{{ dialog.accent_color || '#1976D2' }}</span>
+            </div>
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -90,8 +96,8 @@
           <div class="mb-4">
             <div class="text-subtitle-2 mb-2">2. 格式要求</div>
             <v-list density="compact">
-              <v-list-item prepend-icon="mdi-check-circle" title="第一行为表头：APP名称、普通跑步价格、晨跑价格、备注"></v-list-item>
-              <v-list-item prepend-icon="mdi-check-circle" title="价格字段为数字，备注可选"></v-list-item>
+              <v-list-item prepend-icon="mdi-check-circle" title="第一行为表头：APP名称、普通跑步价格、晨跑价格、备注、强调色"></v-list-item>
+              <v-list-item prepend-icon="mdi-check-circle" title="价格字段为数字，备注和强调色可选，强调色格式#RRGGBB"></v-list-item>
             </v-list>
           </div>
           <div class="mb-4">
@@ -165,6 +171,11 @@
 <style scoped>
 .table-wrapper { width: 90%; max-width: 1000px; }
 .preview-list { max-height: 300px; overflow-y: auto; overflow-x: auto; }
+.color-picker-label { position: relative; cursor: pointer; }
+.color-picker-label .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.color-preview { width: 36px; height: 36px; border-radius: 8px; border: 2px solid rgba(0,0,0,.2); cursor: pointer; transition: transform .15s; }
+.color-preview:hover { transform: scale(1.1); }
+.color-dot { display: inline-block; width: 14px; height: 14px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 </style>
 
 <script lang="ts" setup>
@@ -187,7 +198,8 @@ const dialog = reactive({
   name: '',
   normal_price: 0,
   morning_price: 0,
-  note: ''
+  note: '',
+  accent_color: '#1976D2'
 })
 
 const deleteDialog = reactive({ show: false, id: 0, name: '' })
@@ -212,6 +224,7 @@ const headers = [
   { title: '普通跑步价格', key: 'normal_price', sortable: true },
   { title: '晨跑价格', key: 'morning_price', sortable: true },
   { title: '备注', key: 'note', searchable: true },
+  { title: '强调色', key: 'accent_color', sortable: false },
   { title: '操作', key: 'actions', sortable: false }
 ]
 
@@ -241,7 +254,8 @@ function parseFile(file: File) {
           name: String(row[0] || ''),
           normal_price: parseFloat(row[1]) || 0,
           morning_price: parseFloat(row[2]) || 0,
-          note: String(row[3] || '')
+          note: String(row[3] || ''),
+          accent_color: String(row[4] || '#1976D2')
         }))
     } catch (err) {
       showMsg('文件解析失败', 'error')
@@ -254,9 +268,9 @@ function parseFile(file: File) {
 
 function downloadTemplate() {
   const data = [
-    ['APP名称', '普通跑步价格', '晨跑价格', '备注'],
-    ['校园跑', '3.00', '2.50', '基础跑步APP'],
-    ['乐跑', '5.00', '4.00', '']
+    ['APP名称', '普通跑步价格', '晨跑价格', '备注', '强调色'],
+    ['校园跑', '3.00', '2.50', '基础跑步APP', '#1976D2'],
+    ['乐跑', '5.00', '4.00', '', '#E53935']
   ]
   const ws = XLSX.utils.aoa_to_sheet(data)
   const wb = XLSX.utils.book_new()
@@ -299,6 +313,7 @@ function openCreateDialog() {
   dialog.normal_price = 0
   dialog.morning_price = 0
   dialog.note = ''
+  dialog.accent_color = '#1976D2'
 }
 
 function openEditDialog(item: RunningApp) {
@@ -309,6 +324,7 @@ function openEditDialog(item: RunningApp) {
   dialog.normal_price = item.normal_price
   dialog.morning_price = item.morning_price
   dialog.note = item.note
+  dialog.accent_color = item.accent_color || '#1976D2'
 }
 
 async function submitApp() {
@@ -319,7 +335,7 @@ async function submitApp() {
     if (dialog.isEdit) {
       const res = await ajax(`${ApiUrl.UPDATE_RUNNING_APP}/${dialog.editId}`, {
         method: 'PUT',
-        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note },
+        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('修改成功'); dialog.show = false; loadApps() }
@@ -327,7 +343,7 @@ async function submitApp() {
     } else {
       const res = await ajax(ApiUrl.CREATE_RUNNING_APP, {
         method: 'POST',
-        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note },
+        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('创建成功'); dialog.show = false; loadApps() }

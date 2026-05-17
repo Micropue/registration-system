@@ -1,19 +1,38 @@
 <template>
   <v-container fluid class="pa-0 d-flex flex-column align-center">
     <div class="table-wrapper mt-4">
-      <div class="d-flex justify-space-between align-center mb-4">
+      <div class="d-flex justify-space-between align-center mb-2">
         <h1 class="text-h4">登记处理</h1>
+      </div>
+
+      <div class="d-flex flex-wrap ga-2 mb-4">
+        <v-badge
+          v-for="app in runningApps"
+          :key="app.id"
+          :content="appStats[app.name]?.pending || 0"
+          color="error"
+          offset-x="-6"
+          offset-y="-6"
+          :model-value="(appStats[app.name]?.pending || 0) > 0"
+        >
+          <v-btn
+            :to="`/admin/registers/${encodeURIComponent(app.name)}`"
+            :variant="selectedApp === app.name ? 'tonal' : 'text'"
+            :color="selectedApp === app.name ? 'primary' : ''"
+            rounded
+            size="small"
+          >
+            <span class="color-dot" :style="{ backgroundColor: app.accent_color || '#1976D2' }"></span>
+            {{ app.name }}
+          </v-btn>
+        </v-badge>
       </div>
 
       <!-- 使用封装后的通用表格组件 -->
       <app-data-table :headers="headers" :items="registers" :total-items="totalRegisters" :loading="loading"
         v-model:page="currentPage" v-model:items-per-page="itemsPerPage" show-search show-filter search-label="搜索用户名"
-        @update:options="loadRegisters" @reset="loadRegisters">
-
-        <!-- 自定义槽位：跑步APP -->
-        <template v-slot:item.app="{ item }">
-          {{ item.registration_info?.['跑步APP'] || '-' }}
-        </template>
+        @update:options="loadRegisters" @reset="loadRegisters"
+        :row-props="({ item }: any) => item.status !== 'pending' ? { class: 'row-processed' } : {}">
 
         <!-- 自定义槽位：创建时间 -->
         <template v-slot:item.created_at="{ item }">
@@ -34,49 +53,36 @@
 
         <!-- 自定义槽位：操作 -->
         <template v-slot:item.actions="{ item }">
-          <v-menu location="bottom">
-            <template v-slot:activator="{ props }">
-              <v-btn icon="mdi-dots-vertical" variant="text" size="small" v-bind="props"></v-btn>
-            </template>
-            <v-list density="compact">
-              <v-list-item @click="handleView(item)">查看详情</v-list-item>
-              <v-menu location="right">
-                <template v-slot:activator="{ props }">
-                  <v-list-item v-bind="props" append-icon="mdi-chevron-right">更新状态</v-list-item>
-                </template>
-                <v-list density="compact">
-                  <v-list-item @click="updateStatus(item, 'approved')" class="text-success">已处理</v-list-item>
-                  <v-list-item @click="openReject(item)" class="text-error">驳回</v-list-item>
-                  <v-list-item @click="updateStatus(item, 'pending')">未处理</v-list-item>
-                </v-list>
-              </v-menu>
-              <v-divider></v-divider>
-              <v-list-item @click="confirmDelete(item)" class="text-error">
-                删除记录
-              </v-list-item>
-            </v-list>
-          </v-menu>
+          <div class="d-flex ga-1">
+            <v-btn variant="tonal" rounded color="primary" @click="openChat(item)">聊天</v-btn>
+            <v-btn variant="tonal" rounded color="success" @click="updateStatus(item, 'approved')">已处理</v-btn>
+            <v-btn variant="tonal" rounded color="error" @click="openReject(item)">驳回</v-btn>
+            <v-btn variant="tonal" rounded color="warning" @click="updateStatus(item, 'pending')">未处理</v-btn>
+            <v-btn variant="tonal" rounded color="grey" @click="handleView(item)">详情</v-btn>
+            <v-btn variant="tonal" rounded color="error" @click="confirmDelete(item)">删除记录</v-btn>
+          </div>
         </template>
       </app-data-table>
     </div>
 
     <!-- 登记信息详情 Dialog -->
-    <v-dialog v-model="detailsDialog.show" max-width="600">
-      <v-card class="pa-2">
-        <v-card-title>登记信息 - {{ detailsDialog.item?.username }}</v-card-title>
+    <v-dialog v-model="detailsDialog.show" max-width="650">
+      <v-card class="pa-4">
+        <v-card-title class="d-flex align-center">
+          登记信息 - {{ detailsDialog.item?.username }}
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" color="primary" size="small" prepend-icon="mdi-chat"
+            @click="openChat(detailsDialog.item); detailsDialog.show = false">打开聊天</v-btn>
+        </v-card-title>
         <v-card-text>
           <v-table density="compact" border>
             <thead>
-              <tr>
-                <th class="text-left">字段</th>
-                <th class="text-left">内容</th>
-              </tr>
+              <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
             </thead>
             <tbody>
-                <tr v-for="row in detailFields" :key="row.key">
-                  <td>{{ row.key }}</td>
-                  <td>{{ row.value }}</td>
-                </tr>
+              <tr v-for="row in detailFields" :key="row.key">
+                <td>{{ row.key }}</td><td>{{ row.value }}</td>
+              </tr>
             </tbody>
           </v-table>
           <v-alert v-if="detailsDialog.item?.reject_reason" type="error" variant="tonal" class="mt-3" density="compact">
@@ -135,14 +141,20 @@
   max-width: 1000px;
   overflow-x: auto;
 }
+:deep(.row-processed) { opacity: 0.5; }
+.color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
 </style>
 
 <script lang="ts" setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import AppDataTable from '@/components/AppDataTable.vue'
 import { ApiUrl } from '@/config/api-url'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
+import type { RunningApp } from '@/config/api-type'
+import { useAppStore } from '@/stores/app'
+import { useChatStore } from '@/stores/chat'
 // 类型定义
 interface RegistrationItem {
   id: string
@@ -155,6 +167,15 @@ interface RegistrationItem {
 }
 
 // 状态管理
+const route = useRoute()
+const router = useRouter()
+const appStore = useAppStore()
+const chatStore = useChatStore()
+
+const runningApps = ref<RunningApp[]>([])
+const appStats = ref<Record<string, { pending: number }>>({})
+const selectedApp = computed(() => decodeURIComponent(route.params.appName as string || ''))
+
 const registers = ref<RegistrationItem[]>([])
 const loading = ref(false)
 const totalRegisters = ref(0)
@@ -196,6 +217,30 @@ function showMsg(text: string, color: string = 'success') {
   snackbar.show = true
 }
 
+async function loadRunningApps() {
+  try {
+    const res = await ajax<RunningApp[]>(ApiUrl.GET_RUNNING_APPS, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) runningApps.value = res.data
+  } catch (err) { /* ignore */ }
+}
+
+async function loadStats() {
+  try {
+    const res = await ajax<{ app: string; pending: number }[]>(ApiUrl.REGISTRATION_STATS, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      const map: Record<string, { pending: number }> = {}
+      for (const s of res.data) {
+        map[s.app] = { pending: s.pending }
+      }
+      appStats.value = map
+    }
+  } catch (err) { /* ignore */ }
+}
+
 async function loadFieldOrder() {
   try {
     const res = await ajax<any[]>('/api/fields')
@@ -205,13 +250,36 @@ async function loadFieldOrder() {
   } catch (err) { /* ignore */ }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadFieldOrder()
+  await loadRunningApps()
+  await loadStats()
+  if (runningApps.value.length > 0) {
+    if (!selectedApp.value) {
+      router.replace({ path: `/admin/registers/${encodeURIComponent(runningApps.value[0].name)}`, query: route.query })
+      return
+    }
+    if (!runningApps.value.find(a => a.name === selectedApp.value)) {
+      router.replace({ path: `/admin/registers/${encodeURIComponent(runningApps.value[0].name)}`, query: route.query })
+      return
+    }
+  }
+  await loadRegisters()
+})
+
+watch(selectedApp, () => {
+  currentPage.value = 1
+  loadRegisters()
 })
 
 function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.item = item
   detailsDialog.show = true
+}
+
+function openChat(item: any) {
+  const username = item.username || '未知'
+  chatStore.open(item.id || item.uid, `登记 - ${username}`, true, appStore.userInfo?.username || '')
 }
 
 function confirmDelete(item: RegistrationItem) {
@@ -222,11 +290,10 @@ function confirmDelete(item: RegistrationItem) {
 // 配置化表头
 const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
-  { title: '跑步APP', key: 'app', sortable: false, filterable: true },
   { title: '登记信息', key: 'details', sortable: false },
-  { title: '创建时间', key: 'created_at', sortable: true },
   { title: '登记状态', key: 'status', sortable: true, filterable: true },
   { title: '操作', key: 'actions', sortable: false },
+  { title: '创建时间', key: 'created_at', sortable: true },
 ]
 
 // 工具函数
@@ -370,8 +437,17 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
   currentPage.value = page
   itemsPerPage.value = pageSize
 
+  let url = `${ApiUrl.GET_REGISTRATIONS}?page=${page}&page_size=${pageSize}`
+  if (selectedApp.value) {
+    url += `&running_app=${encodeURIComponent(selectedApp.value)}`
+  }
+  const username = route.query.username as string || ''
+  if (username) {
+    url += `&username=${encodeURIComponent(username)}`
+  }
+
   try {
-    const res = await ajax(`${ApiUrl.GET_REGISTRATIONS}?page=${page}&page_size=${pageSize}`, {
+    const res = await ajax(url, {
       method: 'GET',
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
@@ -381,6 +457,7 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
         app: item.registration_info?.['跑步APP'] || ''
       }))
       totalRegisters.value = res.data.total
+      loadStats()
     }
   } catch (err) {
     showMsg('加载登记数据失败', 'error')
