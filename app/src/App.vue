@@ -200,7 +200,16 @@ async function fetchNotifications() {
       ajax<any[]>('/api/notifications', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } })
     ])
     if (countRes.code === 200) unreadCount.value = countRes.data.count
-    if (listRes.code === 200) notifications.value = listRes.data
+    if (listRes.code === 200) {
+      notifications.value = listRes.data
+      const counts: Record<string, number> = {}
+      for (const n of listRes.data) {
+        if (n.type === 'chat_message' && !n.is_read && n.reference_id) {
+          counts[n.reference_id] = (counts[n.reference_id] || 0) + 1
+        }
+      }
+      chatStore.setUnreadCounts(counts)
+    }
   } catch (e) { /* ignore */ }
 }
 
@@ -229,6 +238,14 @@ async function handleNotificationClick(n: any) {
     } catch (e) { /* ignore */ }
   }
   if (n.type === 'registration_rejected' || n.type === 'new_registration') router.push('/admin/registers')
+  else if (n.type === 'chat_message') {
+    const targetPath = user.value?.type === 'admin' ? '/admin/registers' : '/sign'
+    if (n.reference_id) {
+      router.push({ path: targetPath, query: { chat: n.reference_id } })
+    } else {
+      router.push(targetPath)
+    }
+  }
   else if (n.type === 'feedback_replied' || n.type === 'new_feedback' || n.type === 'feedback_status') {
     router.push(user.value?.type === 'admin' ? '/admin/feedbacks' : '/feedback')
   }
@@ -245,12 +262,31 @@ function formatNotifDate(iso: string) {
 }
 
 onMounted(() => {
-  fetchUser()
+  fetchUser().then(() => {
+    handleChatQuery()
+  })
   if (mdAndUp.value) {
     sideOpen.value = true
   }
   notifTimer = setInterval(fetchNotifications, 30000)
   setTimeout(fetchNotifications, 2000)
+})
+
+function handleChatQuery() {
+  const chatId = route.query.chat
+  if (chatId && typeof chatId === 'string' && user.value) {
+    chatStore.open(chatId, '订单聊天', user.value.type === 'admin', user.value.username)
+  }
+}
+
+watch(() => route.query.chat, () => {
+  handleChatQuery()
+})
+
+watch(() => chatStore.isOpen, (v) => {
+  if (!v && route.query.chat) {
+    router.replace({ query: { ...route.query, chat: undefined } })
+  }
 })
 
 onUnmounted(() => {
@@ -294,6 +330,13 @@ html, body, #app {
 :deep(.v-list-item--active) {
   background: rgba(24, 103, 192, 0.1) !important;
   color: #1867C0 !important;
+}
+
+:deep(.v-navigation-drawer .v-list-item) {
+  font-size: 14px;
+}
+:deep(.v-navigation-drawer .v-list-item .v-list-item-title) {
+  font-size: 14px;
 }
 
 .gap-2 {

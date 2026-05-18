@@ -88,7 +88,7 @@
 </template>
 
 <style scoped>
-.table-wrapper { width: 90%; max-width: 1100px; }
+.table-wrapper { width: 90%; }
 :deep(.row-processed) { opacity: 0.5; }
 </style>
 

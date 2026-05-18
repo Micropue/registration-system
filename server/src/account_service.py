@@ -148,6 +148,12 @@ class AccountService:
             cursor.execute("SHOW COLUMNS FROM registrations LIKE 'reject_reason'")
             if not cursor.fetchone():
                 cursor.execute("ALTER TABLE registrations ADD COLUMN reject_reason TEXT")
+            cursor.execute("SHOW COLUMNS FROM registrations LIKE 'priority'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE registrations ADD COLUMN priority ENUM('low', 'medium', 'high') DEFAULT 'low'")
+            cursor.execute("SHOW COLUMNS FROM registrations LIKE 'template_uid'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE registrations ADD COLUMN template_uid VARCHAR(64)")
             connection.commit()
             try:
                 self.create_account("admin", "admin-123456", account_type="admin")
@@ -183,6 +189,25 @@ class AccountService:
             cursor.execute("ALTER TABLE running_apps ADD COLUMN accent_color VARCHAR(7) DEFAULT '#1976D2'")
         except:
             pass
+        cursor.execute("SHOW COLUMNS FROM running_apps LIKE 'uid'")
+        if not cursor.fetchone():
+            cursor.execute("ALTER TABLE running_apps ADD COLUMN uid VARCHAR(64) UNIQUE")
+            # Backfill existing rows
+            cursor.execute("SELECT id FROM running_apps WHERE uid IS NULL")
+            for (rid,) in cursor.fetchall():
+                cursor.execute("UPDATE running_apps SET uid = %s WHERE id = %s", (self._new_uid(), rid))
+            cursor.execute("ALTER TABLE running_apps MODIFY COLUMN uid VARCHAR(64) UNIQUE NOT NULL")
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS app_templates (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                uid VARCHAR(64) UNIQUE NOT NULL,
+                app_id INT NOT NULL,
+                version_name VARCHAR(100) NOT NULL,
+                fields JSON NOT NULL,
+                create_time DATETIME NOT NULL,
+                FOREIGN KEY (app_id) REFERENCES running_apps(id) ON DELETE CASCADE
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+        """)
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS feedbacks (
                 id INT AUTO_INCREMENT PRIMARY KEY,
@@ -410,12 +435,12 @@ class AccountService:
 
     # ---- Registrations ----
 
-    def submit_registration(self, user_uid: str, data: dict[str, Any]) -> str:
+    def submit_registration(self, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '') -> str:
         uid = self._new_uid()
         now = self._now()
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO registrations (uid, user_uid, data, create_time, status) VALUES (%s, %s, %s, %s, 'pending')", (uid, user_uid, json.dumps(data, ensure_ascii=False), now))
+            cursor.execute("INSERT INTO registrations (uid, user_uid, data, create_time, status, priority, template_uid) VALUES (%s, %s, %s, %s, 'pending', %s, %s)", (uid, user_uid, json.dumps(data, ensure_ascii=False), now, priority, template_uid))
             connection.commit()
         return uid
 
@@ -425,19 +450,21 @@ class AccountService:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM registrations WHERE user_uid = %s", (user_uid,))
             total = cursor.fetchone()["total"]
-            cursor.execute("SELECT uid, data, create_time, status, reject_reason FROM registrations WHERE user_uid = %s ORDER BY create_time DESC LIMIT %s OFFSET %s", (user_uid, page_size, offset))
+            cursor.execute("SELECT uid, data, create_time, status, reject_reason, priority, template_uid FROM registrations WHERE user_uid = %s ORDER BY create_time DESC LIMIT %s OFFSET %s", (user_uid, page_size, offset))
             rows = cursor.fetchall()
         items = [{
             "id": row["uid"], "created_at": row["create_time"].isoformat(),
             "status": row["status"], "data": json.loads(row["data"]),
-            "reject_reason": row.get("reject_reason") or ""
+            "reject_reason": row.get("reject_reason") or "",
+            "priority": row.get("priority") or "low",
+            "template_uid": row.get("template_uid") or ""
         } for row in rows]
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def get_registration_detail(self, uid: str, user_uid: str | None = None) -> dict[str, Any] | None:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, u.username, r.user_uid FROM registrations r JOIN users u ON r.user_uid = u.uid WHERE r.uid = %s", (uid,))
+            cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, u.username, r.user_uid FROM registrations r JOIN users u ON r.user_uid = u.uid WHERE r.uid = %s", (uid,))
             row = cursor.fetchone()
             if not row:
                 return None
@@ -447,7 +474,9 @@ class AccountService:
             "id": row["uid"], "username": row["username"], "user_uid": row["user_uid"],
             "created_at": row["create_time"].isoformat(), "status": row["status"],
             "data": json.loads(row["data"]),
-            "reject_reason": row.get("reject_reason") or ""
+            "reject_reason": row.get("reject_reason") or "",
+            "priority": row.get("priority") or "low",
+            "template_uid": row.get("template_uid") or ""
         }
 
     def check_registration_exists(self, user_uid: str) -> bool:
@@ -459,17 +488,19 @@ class AccountService:
     def get_latest_registration(self, user_uid: str) -> dict[str, Any] | None:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT uid, data, create_time, status, reject_reason FROM registrations WHERE user_uid = %s ORDER BY create_time DESC LIMIT 1", (user_uid,))
+            cursor.execute("SELECT uid, data, create_time, status, reject_reason, priority, template_uid FROM registrations WHERE user_uid = %s ORDER BY create_time DESC LIMIT 1", (user_uid,))
             row = cursor.fetchone()
         if not row:
             return None
         return {
             "id": row["uid"], "created_at": row["create_time"].isoformat(),
             "status": row["status"], "data": json.loads(row["data"]),
-            "reject_reason": row.get("reject_reason") or ""
+            "reject_reason": row.get("reject_reason") or "",
+            "priority": row.get("priority") or "low",
+            "template_uid": row.get("template_uid") or ""
         }
 
-    def resubmit_registration(self, uid: str, user_uid: str, data: dict[str, Any]) -> None:
+    def resubmit_registration(self, uid: str, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '') -> None:
         now = self._now()
         with self._connect() as connection:
             cursor = connection.cursor()
@@ -477,7 +508,7 @@ class AccountService:
             row = cursor.fetchone()
             if not row or row[0] != user_uid:
                 raise AccountError("登记记录不存在")
-            cursor.execute("UPDATE registrations SET data = %s, create_time = %s, status = 'pending', reject_reason = NULL WHERE uid = %s", (json.dumps(data, ensure_ascii=False), now, uid))
+            cursor.execute("UPDATE registrations SET data = %s, create_time = %s, status = 'pending', reject_reason = NULL, priority = %s, template_uid = %s WHERE uid = %s", (json.dumps(data, ensure_ascii=False), now, priority, template_uid, uid))
             connection.commit()
 
     # ---- Admin Registrations ----
@@ -493,17 +524,21 @@ class AccountService:
             where_parts.append("u.username = %s")
             params.append(username)
         where_clause = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
+        if sort_by == 'priority':
+            order_clause = "FIELD(r.priority, 'high', 'medium', 'low') ASC, r.create_time DESC"
+        else:
+            order_clause = "CASE r.status WHEN 'pending' THEN 0 ELSE 1 END ASC, r.create_time DESC"
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
             count_sql = "SELECT COUNT(*) as total FROM registrations r" + where_clause
             cursor.execute(count_sql, tuple(params))
             total = cursor.fetchone()["total"]
             sql = f"""
-                SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, u.username
+                SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, u.username
                 FROM registrations r
                 JOIN users u ON r.user_uid = u.uid
                 {where_clause}
-                ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END ASC, r.create_time DESC
+                ORDER BY {order_clause}
                 LIMIT {page_size} OFFSET {offset}
             """
             cursor.execute(sql, tuple(params))
@@ -512,7 +547,9 @@ class AccountService:
             "id": row["uid"], "username": row["username"],
             "created_at": row["create_time"].isoformat(), "status": row["status"],
             "registration_info": json.loads(row["data"]),
-            "reject_reason": row.get("reject_reason") or ""
+            "reject_reason": row.get("reject_reason") or "",
+            "priority": row.get("priority") or "low",
+            "template_uid": row.get("template_uid") or ""
         } for row in rows]
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
@@ -584,20 +621,32 @@ class AccountService:
     def get_running_apps(self) -> list[dict[str, Any]]:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT id, name, normal_price, morning_price, note, accent_color FROM running_apps ORDER BY id ASC")
+            cursor.execute("SELECT id, uid, name, normal_price, morning_price, note, accent_color FROM running_apps ORDER BY id ASC")
             rows = cursor.fetchall()
         return [{
-            'id': row['id'], 'name': row['name'],
+            'id': row['id'], 'uid': row['uid'],
+            'name': row['name'],
             'normal_price': float(row['normal_price']),
             'morning_price': float(row['morning_price']),
             'note': row['note'] or '',
-            'accent_color': row['accent_color'] or '#1976D2'
+            'accent_color': row['accent_color'] or '#1976D2',
+            'template_count': self.get_app_template_count(row['id'])
         } for row in rows]
 
+    def get_running_app_by_uid(self, uid: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT id, uid, name FROM running_apps WHERE uid = %s", (uid,))
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {'id': row['id'], 'uid': row['uid'], 'name': row['name']}
+
     def create_running_app(self, name: str, normal_price: float, morning_price: float, note: str, accent_color: str = '#1976D2') -> int:
+        uid = self._new_uid()
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color) VALUES (%s, %s, %s, %s, %s)", (name, normal_price, morning_price, note, accent_color))
+            cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color, uid) VALUES (%s, %s, %s, %s, %s, %s)", (name, normal_price, morning_price, note, accent_color, uid))
             connection.commit()
             return cursor.lastrowid or 0
 
@@ -620,10 +669,102 @@ class AccountService:
             cursor = connection.cursor()
             count = 0
             for app in apps:
-                cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color) VALUES (%s, %s, %s, %s, %s)", (app['name'], app['normal_price'], app['morning_price'], app.get('note', ''), app.get('accent_color', '#1976D2')))
+                cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color, uid) VALUES (%s, %s, %s, %s, %s, %s)", (app['name'], app['normal_price'], app['morning_price'], app.get('note', ''), app.get('accent_color', '#1976D2'), self._new_uid()))
                 count += 1
             connection.commit()
             return count
+
+    # ---- App Templates ----
+
+    def create_app_template(self, app_id: int, version_name: str, fields: list[dict[str, Any]]) -> str:
+        uid = self._new_uid()
+        now = self._now()
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO app_templates (uid, app_id, version_name, fields, create_time) VALUES (%s, %s, %s, %s, %s)", (uid, app_id, version_name, json.dumps(fields, ensure_ascii=False), now))
+            connection.commit()
+        return uid
+
+    def get_app_templates(self, app_id: int) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, app_id, version_name, fields, create_time FROM app_templates WHERE app_id = %s ORDER BY create_time DESC", (app_id,))
+            rows = cursor.fetchall()
+        return [{
+            'uid': row['uid'], 'app_id': row['app_id'],
+            'version_name': row['version_name'],
+            'fields': json.loads(row['fields']),
+            'create_time': row['create_time'].isoformat()
+        } for row in rows]
+
+    def get_app_template(self, uid: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, app_id, version_name, fields, create_time FROM app_templates WHERE uid = %s", (uid,))
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'uid': row['uid'], 'app_id': row['app_id'],
+            'version_name': row['version_name'],
+            'fields': json.loads(row['fields']),
+            'create_time': row['create_time'].isoformat()
+        }
+
+    def update_app_template(self, uid: str, version_name: str, fields: list[dict[str, Any]]) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE app_templates SET version_name = %s, fields = %s WHERE uid = %s", (version_name, json.dumps(fields, ensure_ascii=False), uid))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def delete_app_template(self, uid: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM app_templates WHERE uid = %s", (uid,))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def get_app_template_count(self, app_id: int) -> int:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM app_templates WHERE app_id = %s", (app_id,))
+            return cursor.fetchone()[0]
+
+    def get_dashboard_stats(self) -> dict[str, Any]:
+        now = self._now()
+        today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM users")
+            total_users = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM registrations")
+            total_registrations = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM registrations WHERE status = 'pending'")
+            pending_registrations = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM feedbacks")
+            total_feedbacks = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM feedbacks WHERE status = 'pending'")
+            pending_feedbacks = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM registrations WHERE create_time >= %s", (today_start,))
+            today_registrations = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM feedbacks WHERE create_time >= %s", (today_start,))
+            today_feedbacks = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM running_apps")
+            total_apps = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM registration_chats WHERE created_at >= %s", (today_start,))
+            today_chats = cursor.fetchone()[0]
+        return {
+            'total_users': total_users,
+            'total_registrations': total_registrations,
+            'pending_registrations': pending_registrations,
+            'total_feedbacks': total_feedbacks,
+            'pending_feedbacks': pending_feedbacks,
+            'today_registrations': today_registrations,
+            'today_feedbacks': today_feedbacks,
+            'total_apps': total_apps,
+            'today_chats': today_chats
+        }
 
     # ---- Feedbacks ----
 
@@ -738,7 +879,7 @@ class AccountService:
             cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s", (user_uid,))
             connection.commit()
 
-    def create_notification_for_admins(self, type: str, title: str, content: str = "") -> None:
+    def create_notification_for_admins(self, type: str, title: str, content: str = "", reference_id: str = "") -> None:
         with self._connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT uid FROM users WHERE type = 'admin'")
@@ -746,5 +887,5 @@ class AccountService:
             for (admin_uid,) in admins:
                 uid = self._new_uid()
                 now = self._now()
-                cursor.execute("INSERT INTO notifications (uid, user_uid, type, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, FALSE, %s)", (uid, admin_uid, type, title, content, now))
+                cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)", (uid, admin_uid, type, reference_id, title, content, now))
             connection.commit()

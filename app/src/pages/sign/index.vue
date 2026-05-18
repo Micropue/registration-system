@@ -1,5 +1,6 @@
 <template>
-  <div class="sign-page px-3 px-sm-6 py-4 py-sm-6" style="max-width: 800px; margin: 0 auto;">
+  <div class="sign-page px-3 px-sm-6 py-4 py-sm-6 d-flex flex-column align-center">
+    <div class="table-wrapper" style="width: 90%;">
     <!-- 顶部操作区 -->
     <div class="d-flex justify-space-between align-center mb-4">
       <h1 class="text-h5 text-sm-h4">数据登记</h1>
@@ -20,6 +21,15 @@
           <v-chip size="x-small" color="primary" label>{{ selectedApp }}</v-chip>
         </div>
         <v-divider class="mb-4"></v-divider>
+
+        <div class="mb-4">
+          <div class="text-subtitle-2 mb-2 text-medium-emphasis">优先级</div>
+          <v-btn-toggle v-model="priority" mandatory density="comfortable" variant="outlined" divided color="primary">
+            <v-btn value="low" size="small">低</v-btn>
+            <v-btn value="medium" size="small">中</v-btn>
+            <v-btn value="high" size="small">高</v-btn>
+          </v-btn-toggle>
+        </div>
 
         <div v-if="isLoading" class="d-flex flex-column align-center py-6">
           <v-progress-circular indeterminate color="primary" size="40" width="4"></v-progress-circular>
@@ -98,7 +108,7 @@
       <v-card class="pa-4">
         <v-card-title class="text-h5">新建登记</v-card-title>
         <v-card-text>
-          <v-form ref="selectFormRef" v-model="selectFormValid" @submit.prevent="startNewRegistration">
+          <v-form ref="selectFormRef" v-model="selectFormValid" @submit.prevent="goSelectTemplate">
             <v-autocomplete v-model="newDialog.app" :items="runningApps" item-title="name" item-value="name"
               label="搜索跑步APP" :rules="[v => !!v || '请选择跑步APP']"
               variant="outlined" density="comfortable" hide-no-data></v-autocomplete>
@@ -107,8 +117,40 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="tonal" @click="newDialog.show = false">取消</v-btn>
-          <v-btn color="primary" variant="flat" :disabled="!selectFormValid" @click="startNewRegistration">
+          <v-btn color="primary" variant="flat" :disabled="!selectFormValid" :loading="loadingTemplates" @click="goSelectTemplate">
             下一步
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 选择模板版本的Dialog -->
+    <v-dialog v-model="templateDialog.show" max-width="500" persistent>
+      <v-card class="pa-4">
+        <v-card-title class="text-h5">选择模板版本</v-card-title>
+        <v-card-subtitle>已选APP：{{ selectedApp }}</v-card-subtitle>
+        <v-card-text>
+          <v-form ref="templateFormRef" v-model="templateFormValid">
+            <v-radio-group v-model="templateDialog.uid" :rules="[v => !!v || '请选择模板版本']">
+              <v-radio v-for="t in appTemplates" :key="t.uid" :value="t.uid" class="mb-2">
+                <template #label>
+                  <div>
+                    <span class="text-body-1 font-weight-medium">{{ t.version_name }}</span>
+                    <span class="text-caption text-medium-emphasis ml-2">{{ t.fields.length }} 个字段</span>
+                  </div>
+                </template>
+              </v-radio>
+            </v-radio-group>
+            <div v-if="appTemplates.length === 0" class="text-center py-4 text-medium-emphasis">
+              该APP暂无可用模板，请联系管理员配置
+            </div>
+          </v-form>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="templateDialog.show = false">取消</v-btn>
+          <v-btn color="primary" variant="flat" :disabled="!templateFormValid || appTemplates.length === 0" @click="startNewRegistration">
+            开始填写
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -118,7 +160,7 @@
     <v-dialog v-model="confirmDialog" max-width="400">
       <v-card class="pa-4">
         <v-card-title class="text-h6">确认提交</v-card-title>
-        <v-card-text>提交后登记信息将由管理员审核，确定提交吗？</v-card-text>
+        <v-card-text>提交后订单信息将由管理员审核，确定提交吗？</v-card-text>
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="confirmDialog = false">取消</v-btn>
@@ -158,6 +200,14 @@
         </v-card-title>
         <v-divider class="mb-4"></v-divider>
         <v-card-text>
+          <div class="mb-4">
+            <div class="text-subtitle-2 mb-2 text-medium-emphasis">优先级</div>
+            <v-btn-toggle v-model="resubmitPriority" mandatory density="comfortable" variant="outlined" divided color="primary">
+              <v-btn value="low" size="small">低</v-btn>
+              <v-btn value="medium" size="small">中</v-btn>
+              <v-btn value="high" size="small">高</v-btn>
+            </v-btn-toggle>
+          </div>
           <v-form ref="resubmitFormRef" v-model="resubmitFormValid">
             <v-row dense>
               <v-col v-for="field in formFields" :key="field.label" cols="12">
@@ -198,77 +248,94 @@
     <!-- 登记历史 -->
     <h2 class="text-h6 font-weight-bold mb-3">登记历史</h2>
 
-    <div v-if="historyLoading" class="d-flex justify-center py-8">
-      <v-progress-circular indeterminate color="primary" size="32"></v-progress-circular>
-    </div>
-    <div v-else-if="registrations.length === 0" class="text-center py-8 text-medium-emphasis">
-      <v-icon size="40" class="mb-2">mdi-inbox-outline</v-icon>
-      <div class="text-body-2">暂无登记记录</div>
-    </div>
-    <div v-else>
-      <div v-for="item in registrations" :key="item.id"
-        class="history-item mb-2 pa-3 rounded-lg d-flex flex-wrap align-center ga-3">
-        <div class="flex-grow-1" style="min-width: 0;">
-          <div class="d-flex flex-wrap gap-x-4 gap-y-1">
-            <span class="text-body-2">{{ item.data['跑步APP'] || '-' }}</span>
-            <span class="text-caption text-medium-emphasis">{{ formatDate(item.created_at) }}</span>
-          </div>
-          <div v-if="item.status === 'rejected' && item.reject_reason" class="text-caption text-error mt-1">
-            {{ item.reject_reason }}
-          </div>
-        </div>
-        <v-chip :color="getStatusColor(item.status)" size="x-small" class="flex-shrink-0">
+    <app-data-table
+      :headers="historyHeaders"
+      :items="registrations"
+      :total-items="totalRegistrations"
+      :loading="historyLoading"
+      v-model:page="currentPage"
+      v-model:items-per-page="itemsPerPage"
+      @update:options="loadHistory"
+      @reset="loadHistory"
+    >
+      <template v-slot:item.data="{ item }">
+        {{ item.data['跑步APP'] || '-' }}
+      </template>
+
+      <template v-slot:item.created_at="{ item }">
+        {{ formatDate(item.created_at) }}
+      </template>
+
+      <template v-slot:item.status="{ item }">
+        <v-chip :color="getStatusColor(item.status)" size="small" variant="tonal">
           {{ getStatusText(item.status) }}
         </v-chip>
-        <div class="d-flex ga-1 flex-shrink-0">
-          <v-btn variant="text" size="x-small" color="primary" @click="openDetailDialog(item)">查看</v-btn>
-          <v-btn variant="text" size="x-small" color="secondary" prepend-icon="mdi-chat" @click="chatStore.open(item.id, '登记沟通', false, appStore.userInfo?.username || '')">联系管理员</v-btn>
-          <v-btn v-if="item.status === 'rejected'" variant="text" size="x-small" color="warning" @click="openResubmitDialog(item)">重新提交</v-btn>
-        </div>
-      </div>
-      <div class="text-center py-4" v-if="hasMoreHistory">
-        <v-btn variant="tonal" :loading="loadingMore" @click="loadMoreHistory">加载更多</v-btn>
-      </div>
-    </div>
+      </template>
 
-    <!-- 详情查看对话框 -->
-    <v-dialog v-model="detailDialog.show" max-width="500">
-      <v-card class="pa-4">
-        <v-card-title class="d-flex align-center">
+      <template v-slot:item.priority="{ item }">
+        <v-chip :color="getPriorityColor(item.priority)" size="small" variant="tonal">
+          {{ getPriorityText(item.priority) }}
+        </v-chip>
+      </template>
+
+      <template v-slot:item.actions="{ item }">
+        <div class="d-flex ga-1">
+          <v-badge :model-value="chatStore.chatUnreadCounts[item.id] > 0" :content="chatStore.chatUnreadCounts[item.id]" color="error" offset-x="-4" offset-y="-4">
+            <v-btn variant="tonal" rounded size="small" color="primary" @click="openDetailDialog(item)">联系管理员</v-btn>
+          </v-badge>
+          <v-btn v-if="item.status === 'rejected'" variant="tonal" rounded size="small" color="warning" @click="openResubmitDialog(item)">重新提交</v-btn>
+        </div>
+      </template>
+    </app-data-table>
+
+    <!-- 详情查看对话框（集成聊天） -->
+    <v-dialog v-model="detailDialog.show" max-width="1100">
+      <v-card class="detail-card">
+        <v-card-title class="d-flex align-center pa-4 pb-0">
           登记详情
           <v-spacer></v-spacer>
-          <v-btn variant="tonal" color="primary" size="small" prepend-icon="mdi-chat"
-            @click="openChatFromDetail(); detailDialog.show = false">联系管理员</v-btn>
+          <v-chip :color="getStatusColor(detailDialog.status)" size="small" variant="tonal" class="me-2">
+            {{ getStatusText(detailDialog.status) }}
+          </v-chip>
+          <v-btn variant="text" size="small" @click="detailDialog.show = false">关闭</v-btn>
         </v-card-title>
-        <v-card-text>
-          <v-table density="compact">
-            <tbody>
-              <tr v-for="key in sortedDetailKeys" :key="key">
-                <td class="font-weight-bold">{{ key }}</td>
-                <td>{{ formatValue(detailDialog.data[key]) }}</td>
-              </tr>
-            </tbody>
-          </v-table>
-          <v-alert v-if="detailDialog.rejectReason" type="error" variant="tonal" class="mt-3" density="compact">
-            <strong>驳回原因：</strong>{{ detailDialog.rejectReason }}
-          </v-alert>
-          <div class="mt-3">
-            <v-chip :color="getStatusColor(detailDialog.status)" size="small">
-              {{ getStatusText(detailDialog.status) }}
-            </v-chip>
-            <span class="text-caption text-grey ml-2">{{ formatDate(detailDialog.createdAt) }}</span>
+
+        <div class="detail-body">
+          <div class="detail-info-panel">
+            <v-card-text class="pa-4 pt-2">
+              <v-table density="compact" border>
+                <thead>
+                  <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="key in sortedDetailKeys" :key="key">
+                    <td class="font-weight-bold">{{ key }}</td>
+                    <td>{{ formatValue(detailDialog.data[key]) }}</td>
+                  </tr>
+                </tbody>
+              </v-table>
+              <v-alert v-if="detailDialog.rejectReason" type="error" variant="tonal" class="mt-3" density="compact">
+                <strong>驳回原因：</strong>{{ detailDialog.rejectReason }}
+              </v-alert>
+            </v-card-text>
           </div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn variant="tonal" @click="detailDialog.show = false">关闭</v-btn>
-        </v-card-actions>
+
+          <div class="detail-chat-panel">
+            <RegistrationChat
+              v-if="detailDialog.id"
+              :registration-uid="detailDialog.id"
+              :is-admin-view="false"
+              :current-username="appStore.userInfo?.username || ''"
+            />
+          </div>
+        </div>
       </v-card>
     </v-dialog>
 
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
+    </div>
   </div>
 </template>
 
@@ -279,6 +346,8 @@ import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
 import { useAppStore } from '@/stores/app'
 import { useChatStore } from '@/stores/chat'
+import AppDataTable from '@/components/AppDataTable.vue'
+import RegistrationChat from '@/components/RegistrationChat.vue'
 
 
 interface FormField {
@@ -303,18 +372,29 @@ interface RegistrationItem {
   created_at: string
   status: string
   reject_reason?: string
+  priority?: string
+  template_uid?: string
 }
 
 const isLoading = ref(true)
 const historyLoading = ref(false)
 const appStore = useAppStore()
 const chatStore = useChatStore()
-const loadingMore = ref(false)
-const historyPage = ref(1)
-const hasMoreHistory = ref(false)
+const itemsPerPage = ref(20)
+const currentPage = ref(1)
+const totalRegistrations = ref(0)
 const isSubmitting = ref(false)
 const isFormValid = ref(false)
 const showForm = ref(false)
+const priority = ref('low')
+const resubmitPriority = ref('low')
+const resubmitTemplateUid = ref('')
+const selectedTemplate = ref('')
+const appTemplates = ref<any[]>([])
+const loadingTemplates = ref(false)
+const templateDialog = reactive({ show: false, uid: '' })
+const templateFormValid = ref(false)
+const templateFormRef = ref<any>(null)
 const confirmDialog = ref(false)
 
 const formRef = ref<any>(null)
@@ -388,6 +468,30 @@ function getStatusText(status: string) {
   }
 }
 
+function getPriorityColor(p: string) {
+  switch (p) {
+    case 'high': return 'error'
+    case 'medium': return 'warning'
+    default: return 'grey'
+  }
+}
+
+function getPriorityText(p: string) {
+  switch (p) {
+    case 'high': return '高'
+    case 'medium': return '中'
+    default: return '低'
+  }
+}
+
+const historyHeaders = [
+  { title: '跑步APP', key: 'data', sortable: false },
+  { title: '状态', key: 'status', sortable: false },
+  { title: '优先级', key: 'priority', sortable: false },
+  { title: '操作', key: 'actions', sortable: false },
+  { title: '创建时间', key: 'created_at', sortable: true },
+]
+
 function formatDate(iso: string) {
   if (!iso) return '-'
   const d = new Date(iso)
@@ -403,12 +507,8 @@ function formatValue(val: any): string {
 async function fetchConfig() {
   isLoading.value = true
   try {
-    const [appsRes, fieldsRes] = await Promise.all([
-      ajax<AppItem[]>(ApiUrl.GET_PUBLIC_RUNNING_APPS),
-      ajax<FormField[]>('/api/fields')
-    ])
+    const appsRes = await ajax<AppItem[]>(ApiUrl.GET_PUBLIC_RUNNING_APPS)
     if (appsRes.code === 200) runningApps.value = appsRes.data
-    if (fieldsRes.code === 200) formFields.value = fieldsRes.data
   } catch (err) {
     showMsg('获取配置失败', 'error')
   } finally {
@@ -448,10 +548,40 @@ function openNewDialog() {
   selectFormRef.value?.resetValidation()
 }
 
-function startNewRegistration() {
+async function loadAppTemplates(appName: string) {
+  loadingTemplates.value = true
+  const app = runningApps.value.find(a => a.name === appName)
+  if (!app) { loadingTemplates.value = false; return }
+  try {
+    const res = await ajax<any[]>(`${ApiUrl.GET_PUBLIC_APP_TEMPLATES}/${app.uid}/templates`)
+    if (res.code === 200) appTemplates.value = res.data || []
+    else appTemplates.value = []
+  } catch { appTemplates.value = [] }
+  finally { loadingTemplates.value = false }
+}
+
+async function goSelectTemplate() {
   if (!newDialog.app) return
   selectedApp.value = newDialog.app
+  await loadAppTemplates(newDialog.app)
+  if (appTemplates.value.length === 0) {
+    showMsg('该APP暂无可用模板', 'error')
+    return
+  }
   newDialog.show = false
+  templateDialog.uid = ''
+  templateDialog.show = true
+  templateFormValid.value = false
+  templateFormRef.value?.resetValidation()
+}
+
+function startNewRegistration() {
+  if (!templateDialog.uid) return
+  const tpl = appTemplates.value.find(t => t.uid === templateDialog.uid)
+  if (!tpl) return
+  selectedTemplate.value = templateDialog.uid
+  formFields.value = tpl.fields || []
+  templateDialog.show = false
   initFormData()
   showForm.value = true
   formRef.value?.resetValidation()
@@ -476,6 +606,8 @@ async function submitForm() {
   const token = cookie.get('token')
   const submissionData = {
     跑步APP: selectedApp.value,
+    priority: priority.value,
+    template_uid: selectedTemplate.value,
     ...formData
   }
   try {
@@ -489,7 +621,8 @@ async function submitForm() {
       showForm.value = false
       selectedApp.value = ''
       showMsg('登记提交成功')
-      loadHistory(true)
+      currentPage.value = 1
+      loadHistory({ page: 1, itemsPerPage: itemsPerPage.value })
     } else {
       showMsg(res.msg, 'error')
     }
@@ -500,31 +633,26 @@ async function submitForm() {
   }
 }
 
-async function loadHistory(reset = false) {
-  if (reset) { historyPage.value = 1; registrations.value = [] }
+async function loadHistory(options: any = { page: 1, itemsPerPage: 20 }) {
+  const page = options.page || currentPage.value
+  const pageSize = options.itemsPerPage || itemsPerPage.value
   historyLoading.value = true
+  currentPage.value = page
+  itemsPerPage.value = pageSize
   const token = cookie.get('token')
   try {
-    const res = await ajax<any>(`${ApiUrl.GET_USER_REGISTRATIONS}?page=${historyPage.value}&page_size=20`, {
+    const res = await ajax<any>(`${ApiUrl.GET_USER_REGISTRATIONS}?page=${page}&page_size=${pageSize}`, {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (res.code === 200) {
-      if (reset) registrations.value = res.data.items
-      else registrations.value.push(...res.data.items)
-      hasMoreHistory.value = registrations.value.length < res.data.total
+      registrations.value = res.data.items
+      totalRegistrations.value = res.data.total
     }
   } catch (err) {
     console.error('Failed to load history', err)
   } finally {
     historyLoading.value = false
-    loadingMore.value = false
   }
-}
-
-function loadMoreHistory() {
-  historyPage.value++
-  loadingMore.value = true
-  loadHistory()
 }
 
 function openDetailDialog(item: RegistrationItem) {
@@ -536,14 +664,12 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.show = true
 }
 
-function openChatFromDetail() {
-  chatStore.open(detailDialog.id, '登记沟通', false, appStore.userInfo?.username || '')
-}
-
 function openResubmitDialog(item: RegistrationItem) {
   resubmitDialog.uid = item.id
   resubmitDialog.app = item.data['跑步APP'] || ''
   resubmitDialog.oldData = { ...item.data }
+  resubmitPriority.value = item.priority || 'low'
+  resubmitTemplateUid.value = item.template_uid || ''
   resubmitDialog.show = true
   resubmitSelectValid.value = false
   resubmitSelectFormRef.value?.resetValidation()
@@ -574,6 +700,8 @@ async function doResubmit() {
   const token = cookie.get('token')
   const submissionData = {
     跑步APP: resubmitFormDialog.app,
+    priority: resubmitPriority.value,
+    template_uid: resubmitTemplateUid.value,
     ...resubmitFormDialog.data
   }
   try {
@@ -585,7 +713,8 @@ async function doResubmit() {
     if (res.code === 200) {
       resubmitFormDialog.show = false
       showMsg('重新提交成功')
-      loadHistory(true)
+      currentPage.value = 1
+      loadHistory({ page: 1, itemsPerPage: itemsPerPage.value })
     } else {
       showMsg(res.msg, 'error')
     }
@@ -598,7 +727,7 @@ async function doResubmit() {
 
 onMounted(() => {
   fetchConfig()
-  loadHistory(true)
+  loadHistory({ page: 1, itemsPerPage: 20 })
 })
 </script>
 
@@ -606,6 +735,10 @@ onMounted(() => {
 .sign-page {
   max-height: 100%;
   overflow-y: auto;
+}
+
+.table-wrapper {
+  overflow-x: auto;
 }
 
 .sign-page::-webkit-scrollbar {
@@ -617,9 +750,48 @@ onMounted(() => {
   border-radius: 12px;
 }
 
-.history-item {
-  background: #fff;
-  border-radius: 10px;
+.detail-card {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+.detail-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.detail-info-panel {
+  flex: 0 0 45%;
+  max-width: 45%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(0,0,0,0.08);
+  overflow-y: auto;
+}
+.detail-chat-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .detail-body {
+    flex-direction: column;
+  }
+  .detail-info-panel {
+    flex: 0 0 auto;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    max-height: 250px;
+  }
+  .detail-chat-panel {
+    flex: 1;
+    min-height: 350px;
+  }
 }
 
 .gap-x-4 {

@@ -26,7 +26,7 @@
               <v-icon size="22">mdi-file-document-outline</v-icon>
             </div>
             <div class="chat-card-body">
-              <div class="card-title">登记信息</div>
+              <div class="card-title">客户信息</div>
               <div class="card-text">{{ msg.message }}</div>
             </div>
           </div>
@@ -56,7 +56,7 @@
     <div class="chat-input-area">
       <div class="chat-input-row">
         <v-textarea v-model="input" density="compact" variant="solo-filled" flat
-          placeholder="输入消息... (按 Enter 发送)" hide-details
+          placeholder="输入消息... (Enter 发送，Shift+Enter 换行)" hide-details
           rows="1" auto-grow no-resize
           bg-color="#F4F5F7"
           class="chat-input"
@@ -172,8 +172,9 @@ defineExpose({ sendMessage })
 .registration-chat {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  background-color: #FAFAFB; /* 极浅的灰色背景，让白色气泡更立体 */
+  flex: 1;
+  min-height: 0;
+  background-color: #FAFAFB;
   border-radius: 12px;
 }
 
@@ -357,22 +358,25 @@ defineExpose({ sendMessage })
 /* ----- 底部输入区 ----- */
 .chat-input-area {
   flex-shrink: 0;
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: #FFFFFF;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
+  max-height: 40%;
+  overflow: hidden;
 }
 .chat-input-row {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 8px;
 }
 .chat-input {
   flex: 1;
+  min-width: 0;
 }
 .chat-input :deep(.v-field) {
-  border-radius: 24px !important;
+  border-radius: 20px !important;
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.02) !important;
   transition: all 0.3s ease;
 }
@@ -381,14 +385,18 @@ defineExpose({ sendMessage })
   box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2), inset 0 1px 3px rgba(0,0,0,0.02) !important;
 }
 .chat-input :deep(.v-field__input) {
-  padding-top: 10px !important;
-  padding-bottom: 10px !important;
-  min-height: 40px !important;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+  min-height: 38px !important;
   font-size: 0.9rem;
+  line-height: 1.4;
+  max-height: 150px;
+  overflow-y: auto !important;
 }
 
 .send-btn {
   flex-shrink: 0;
+  margin-top: 2px;
   border-radius: 50% !important;
   transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
 }

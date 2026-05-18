@@ -90,8 +90,9 @@ const router = createRouter({
       beforeEnter: requireAdmin,
       meta: { title: '后台管理' },
       children: [
+        { path: '', component: () => import("@/pages/admin/dashboard.vue"), meta: { title: '仪表盘' } },
         { path: 'users', component: () => import("@/pages/admin/users/index.vue"), meta: { title: '账户管理' } },
-        { path: 'registers/:appName?', component: () => import("@/pages/admin/registers/index.vue"), meta: { title: '登记处理' } },
+        { path: 'registers/:appName?', component: () => import("@/pages/admin/registers/index.vue"), meta: { title: '订单处理' } },
         { path: 'feedbacks', component: () => import("@/pages/admin/feedbacks/index.vue"), meta: { title: '工单处理' } },
         {
           path: 'settings',
@@ -99,8 +100,8 @@ const router = createRouter({
           meta: { title: '系统设置' },
           children: [
             { path: '', component: () => import("@/pages/admin/settings/welcome.vue") },
-            { path: 'fields', component: () => import("@/pages/admin/settings/fields/index.vue"), meta: { title: '登记字段配置' } },
-            { path: 'running-apps', component: () => import("@/pages/admin/settings/running-apps/index.vue"), meta: { title: '跑步APP配置' } }
+            { path: 'running-apps', component: () => import("@/pages/admin/settings/running-apps/index.vue"), meta: { title: '跑步APP配置' } },
+            { path: 'running-apps/:appUid/templates', component: () => import("@/pages/admin/settings/running-apps/templates/index.vue"), meta: { title: '模板管理' } }
           ]
         }
       ]

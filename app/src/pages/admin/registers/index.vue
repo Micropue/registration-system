@@ -2,7 +2,7 @@
   <v-container fluid class="pa-0 d-flex flex-column align-center">
     <div class="table-wrapper mt-4">
       <div class="d-flex justify-space-between align-center mb-2">
-        <h1 class="text-h4">登记处理</h1>
+        <h1 class="text-h4">订单处理</h1>
       </div>
 
       <div class="d-flex flex-wrap ga-2 mb-4">
@@ -16,7 +16,7 @@
           :model-value="(appStats[app.name]?.pending || 0) > 0"
         >
           <v-btn
-            :to="`/admin/registers/${encodeURIComponent(app.name)}`"
+            :to="{ path: `/admin/registers/${encodeURIComponent(app.name)}`, query: route.query }"
             :variant="selectedApp === app.name ? 'tonal' : 'text'"
             :color="selectedApp === app.name ? 'primary' : ''"
             rounded
@@ -46,7 +46,14 @@
           </v-chip>
         </template>
 
-        <!-- 自定义槽位：登记信息 -->
+        <!-- 自定义槽位：优先级 -->
+        <template v-slot:item.priority="{ item }">
+          <v-chip :color="getPriorityColor(item.priority)" size="small" variant="tonal">
+            {{ getPriorityText(item.priority) }}
+          </v-chip>
+        </template>
+
+        <!-- 自定义槽位：客户信息 -->
         <template v-slot:item.details="{ item }">
           <v-btn variant="text" size="small" color="primary" @click="openDetailsDialog(item)">查看信息</v-btn>
         </template>
@@ -54,46 +61,61 @@
         <!-- 自定义槽位：操作 -->
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn variant="tonal" rounded color="primary" @click="openChat(item)">聊天</v-btn>
+            <v-badge :model-value="chatUnreadCount(item.id) > 0" :content="chatUnreadCount(item.id)" color="error" offset-x="-4" offset-y="-4">
+              <v-btn variant="tonal" rounded color="primary" @click="openDetailsDialog(item)">聊天</v-btn>
+            </v-badge>
             <v-btn variant="tonal" rounded color="success" @click="updateStatus(item, 'approved')">已处理</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="openReject(item)">驳回</v-btn>
             <v-btn variant="tonal" rounded color="warning" @click="updateStatus(item, 'pending')">未处理</v-btn>
-            <v-btn variant="tonal" rounded color="grey" @click="handleView(item)">详情</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="confirmDelete(item)">删除记录</v-btn>
           </div>
         </template>
       </app-data-table>
     </div>
 
-    <!-- 登记信息详情 Dialog -->
-    <v-dialog v-model="detailsDialog.show" max-width="650">
-      <v-card class="pa-4">
-        <v-card-title class="d-flex align-center">
-          登记信息 - {{ detailsDialog.item?.username }}
+    <!-- 客户信息详情 Dialog（集成聊天） -->
+    <v-dialog v-model="detailsDialog.show" max-width="1100">
+      <v-card v-if="detailsDialog.item" class="detail-card">
+        <v-card-title class="d-flex align-center pa-4 pb-0">
+          客户信息 - {{ detailsDialog.item?.username }}
           <v-spacer></v-spacer>
-          <v-btn variant="tonal" color="primary" size="small" prepend-icon="mdi-chat"
-            @click="openChat(detailsDialog.item); detailsDialog.show = false">打开聊天</v-btn>
+          <v-chip :color="getPriorityColor(detailsDialog.item?.priority || 'low')" size="small" variant="tonal" class="me-2">
+            {{ getPriorityText(detailsDialog.item?.priority || 'low') }}
+          </v-chip>
+          <v-btn variant="text" size="small" @click="detailsDialog.show = false">关闭</v-btn>
         </v-card-title>
-        <v-card-text>
-          <v-table density="compact" border>
-            <thead>
-              <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in detailFields" :key="row.key">
-                <td>{{ row.key }}</td><td>{{ row.value }}</td>
-              </tr>
-            </tbody>
-          </v-table>
-          <v-alert v-if="detailsDialog.item?.reject_reason" type="error" variant="tonal" class="mt-3" density="compact">
-            <strong>驳回原因：</strong>{{ detailsDialog.item.reject_reason }}
-          </v-alert>
-        </v-card-text>
-        <v-card-actions>
-          <v-btn variant="text" size="small" prepend-icon="mdi-content-copy" @click="copyDetailText">复制为文本</v-btn>
-          <v-spacer></v-spacer>
-          <v-btn variant="tonal" @click="detailsDialog.show = false">关闭</v-btn>
-        </v-card-actions>
+
+        <div class="detail-body">
+          <div class="detail-info-panel">
+            <v-card-text class="pa-4 pt-2">
+              <v-table density="compact" border>
+                <thead>
+                  <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in detailFields" :key="row.key">
+                    <td>{{ row.key }}</td><td>{{ row.value }}</td>
+                  </tr>
+                </tbody>
+              </v-table>
+              <v-alert v-if="detailsDialog.item?.reject_reason" type="error" variant="tonal" class="mt-3" density="compact">
+                <strong>驳回原因：</strong>{{ detailsDialog.item.reject_reason }}
+              </v-alert>
+            </v-card-text>
+            <v-card-actions class="pa-4 pt-0">
+              <v-btn variant="text" size="small" prepend-icon="mdi-content-copy" @click="copyDetailText">复制为文本</v-btn>
+            </v-card-actions>
+          </div>
+
+          <div class="detail-chat-panel">
+            <RegistrationChat
+              v-if="detailsDialog.item?.id"
+              :registration-uid="detailsDialog.item.id"
+              :is-admin-view="true"
+              :current-username="appStore.userInfo?.username || ''"
+            />
+          </div>
+        </div>
       </v-card>
     </v-dialog>
 
@@ -138,17 +160,61 @@
 <style scoped>
 .table-wrapper {
   width: 90%;
-  max-width: 1000px;
   overflow-x: auto;
 }
 :deep(.row-processed) { opacity: 0.5; }
 .color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+
+.detail-card {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+.detail-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.detail-info-panel {
+  flex: 0 0 45%;
+  max-width: 45%;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid rgba(0,0,0,0.08);
+  overflow-y: auto;
+}
+.detail-chat-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+@media (max-width: 768px) {
+  .detail-body {
+    flex-direction: column;
+  }
+  .detail-info-panel {
+    flex: 0 0 auto;
+    max-width: 100%;
+    border-right: none;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    max-height: 250px;
+  }
+  .detail-chat-panel {
+    flex: 1;
+    min-height: 350px;
+  }
+}
 </style>
 
 <script lang="ts" setup>
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppDataTable from '@/components/AppDataTable.vue'
+import RegistrationChat from '@/components/RegistrationChat.vue'
 import { ApiUrl } from '@/config/api-url'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
@@ -164,6 +230,8 @@ interface RegistrationItem {
   registration_info?: any
   reject_reason?: string
   app?: string
+  priority?: string
+  template_uid?: string
 }
 
 // 状态管理
@@ -255,11 +323,11 @@ onMounted(async () => {
   await loadRunningApps()
   await loadStats()
   if (runningApps.value.length > 0) {
-    if (!selectedApp.value) {
+    if (!selectedApp.value && !route.query.chat) {
       router.replace({ path: `/admin/registers/${encodeURIComponent(runningApps.value[0].name)}`, query: route.query })
       return
     }
-    if (!runningApps.value.find(a => a.name === selectedApp.value)) {
+    if (!runningApps.value.find(a => a.name === selectedApp.value) && !route.query.chat) {
       router.replace({ path: `/admin/registers/${encodeURIComponent(runningApps.value[0].name)}`, query: route.query })
       return
     }
@@ -279,7 +347,11 @@ function openDetailsDialog(item: RegistrationItem) {
 
 function openChat(item: any) {
   const username = item.username || '未知'
-  chatStore.open(item.id || item.uid, `登记 - ${username}`, true, appStore.userInfo?.username || '')
+  chatStore.open(item.id || item.uid, `订单 - ${username}`, true, appStore.userInfo?.username || '')
+}
+
+function chatUnreadCount(id: string) {
+  return chatStore.chatUnreadCounts[id] || 0
 }
 
 function confirmDelete(item: RegistrationItem) {
@@ -290,8 +362,9 @@ function confirmDelete(item: RegistrationItem) {
 // 配置化表头
 const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
-  { title: '登记信息', key: 'details', sortable: false },
+  { title: '客户信息', key: 'details', sortable: false },
   { title: '登记状态', key: 'status', sortable: true, filterable: true },
+  { title: '优先级', key: 'priority', sortable: true, filterable: true },
   { title: '操作', key: 'actions', sortable: false },
   { title: '创建时间', key: 'created_at', sortable: true },
 ]
@@ -319,11 +392,23 @@ function getStatusText(status: string) {
   }
 }
 
-// 事件处理
-function handleView(item: RegistrationItem) {
-  openDetailsDialog(item)
+function getPriorityColor(priority: string) {
+  switch (priority) {
+    case 'high': return 'error'
+    case 'medium': return 'warning'
+    default: return 'grey'
+  }
 }
 
+function getPriorityText(priority: string) {
+  switch (priority) {
+    case 'high': return '高'
+    case 'medium': return '中'
+    default: return '低'
+  }
+}
+
+// 事件处理
 async function copyDetailText() {
   const item = detailsDialog.item
   if (!item?.registration_info) return
@@ -444,6 +529,9 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
   const username = route.query.username as string || ''
   if (username) {
     url += `&username=${encodeURIComponent(username)}`
+  }
+  if (options.sortBy && options.sortBy.length > 0) {
+    url += `&sort_by=${encodeURIComponent(options.sortBy[0].key)}&order=${options.sortBy[0].order}`
   }
 
   try {

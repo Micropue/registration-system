@@ -224,7 +224,6 @@
 <style scoped>
 .table-wrapper {
   width: 90%;
-  max-width: 1000px;
 }
 
 .compact-select .v-field__input,

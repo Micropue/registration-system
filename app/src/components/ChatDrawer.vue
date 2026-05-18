@@ -4,7 +4,7 @@
     width="420"
     temporary
     :model-value="chatStore.isOpen"
-    @update:model-value="(v: boolean) => { if (!v) chatStore.close() }"
+    @update:model-value="(v: boolean) => { if (!v) handleDrawerClose() }"
   >
     <template v-if="chatStore.isOpen">
       <div class="d-flex flex-column fill-height">
@@ -12,7 +12,7 @@
           <v-icon start size="20" class="ml-1">mdi-chat-processing</v-icon>
           <v-toolbar-title class="text-body-2">{{ chatStore.title }}</v-toolbar-title>
           <v-spacer></v-spacer>
-          <v-btn icon="mdi-close" variant="text" size="small" @click="chatStore.close()"></v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="closeDrawer"></v-btn>
         </v-toolbar>
 
         <div class="chat-body flex-1-1 overflow-hidden" v-if="chatStore.registrationUid">
@@ -25,7 +25,7 @@
           >
             <template v-if="!chatStore.isAdminView" #quickActions>
               <v-btn size="x-small" variant="tonal" color="primary" rounded prepend-icon="mdi-file-document-outline"
-                @click="showRegPick = true">发送登记信息</v-btn>
+                @click="showRegPick = true">发送客户信息</v-btn>
               <v-btn size="x-small" variant="tonal" color="secondary" rounded prepend-icon="mdi-message-text-outline"
                 @click="showFbPick = true">发送工单</v-btn>
             </template>
@@ -38,10 +38,10 @@
       </div>
     </template>
 
-    <!-- 登记信息选择 Dialog -->
+    <!-- 客户信息选择 Dialog -->
     <v-dialog v-model="showRegPick" max-width="420">
       <v-card class="rounded-lg">
-        <v-card-title class="pa-4 pb-1 text-body-1">选择要发送的登记信息</v-card-title>
+        <v-card-title class="pa-4 pb-1 text-body-1">选择要发送的客户信息</v-card-title>
         <v-card-text class="pa-4 pt-1">
           <div v-if="regList.length === 0" class="text-center pa-6 text-medium-emphasis">暂无登记记录</div>
           <v-radio-group v-else v-model="pickedReg" hide-details>
@@ -105,7 +105,8 @@
 </style>
 
 <script lang="ts" setup>
-import { ref, watch } from 'vue'
+import { ref, watch, nextTick } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import RegistrationChat from '@/components/RegistrationChat.vue'
 import { useChatStore } from '@/stores/chat'
 import { ajax } from '@/api/ajax'
@@ -113,6 +114,8 @@ import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
 
 const chatStore = useChatStore()
+const route = useRoute()
+const router = useRouter()
 const chatComp = ref<InstanceType<typeof RegistrationChat> | null>(null)
 const showRegPick = ref(false)
 const showFbPick = ref(false)
@@ -121,6 +124,21 @@ const pickedFb = ref('')
 const regList = ref<any[]>([])
 const fbList = ref<any[]>([])
 const token = cookie.get('token') || ''
+
+function handleDrawerClose() {
+  if (route.query.chat) {
+    nextTick(() => { chatStore.isOpen = true })
+    return
+  }
+  chatStore.close()
+}
+
+function closeDrawer() {
+  if (route.query.chat) {
+    router.replace({ query: { ...route.query, chat: undefined } })
+  }
+  chatStore.close()
+}
 
 function formatDate(iso: string) {
   if (!iso) return ''
@@ -167,7 +185,7 @@ function sendPickedReg() {
   if (!r) return
   const data = r.data || {}
   const text = Object.entries(data).map(([k, v]: [string, any]) => `${k}：${v ?? ''}`).join('\n')
-  chatComp.value?.sendMessage(`【登记信息】${r.app}\n${text}`, 'registration_card')
+  chatComp.value?.sendMessage(`【客户信息】${r.app}\n${text}`, 'registration_card')
   showRegPick.value = false
   pickedReg.value = ''
 }
@@ -182,4 +200,10 @@ function sendPickedFb() {
 
 watch(showRegPick, (v) => { if (v) { pickedReg.value = ''; loadRegList() } })
 watch(showFbPick, (v) => { if (v) { pickedFb.value = ''; loadFbList() } })
+
+watch(() => route.query.chat, (chatId) => {
+  if (chatId && typeof chatId === 'string') {
+    if (!chatStore.isOpen) chatStore.isOpen = true
+  }
+}, { immediate: true })
 </script>

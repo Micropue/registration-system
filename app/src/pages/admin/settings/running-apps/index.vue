@@ -32,6 +32,7 @@
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
+            <v-btn variant="tonal" rounded color="secondary" :to="`/admin/settings/running-apps/${item.uid}/templates`">模板管理</v-btn>
             <v-btn variant="tonal" rounded color="primary" @click="openEditDialog(item)">修改</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
           </div>
@@ -169,7 +170,7 @@
 </template>
 
 <style scoped>
-.table-wrapper { width: 90%; max-width: 1000px; }
+.table-wrapper { width: 90%; }
 .preview-list { max-height: 300px; overflow-y: auto; overflow-x: auto; }
 .color-picker-label { position: relative; cursor: pointer; }
 .color-picker-label .hidden-input { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
@@ -225,6 +226,7 @@ const headers = [
   { title: '晨跑价格', key: 'morning_price', sortable: true },
   { title: '备注', key: 'note', searchable: true },
   { title: '强调色', key: 'accent_color', sortable: false },
+  { title: '模板数', key: 'template_count', sortable: true },
   { title: '操作', key: 'actions', sortable: false }
 ]
 

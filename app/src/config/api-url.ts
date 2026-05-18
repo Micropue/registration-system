@@ -49,6 +49,12 @@ export enum ApiUrl {
   DELETE_RUNNING_APP = '/api/admin/settings/running-apps',
   /** 批量导入跑步APP配置 */
   BULK_CREATE_RUNNING_APPS = '/api/admin/settings/running-apps/bulk',
+  /** 获取APP模板列表 */
+  GET_APP_TEMPLATES = '/api/admin/settings/running-apps',
+  /** 获取公开APP模板 */
+  GET_PUBLIC_APP_TEMPLATES = '/api/running-apps',
+  /** 仪表盘统计数据 */
+  DASHBOARD_STATS = '/api/admin/dashboard/stats',
   /** 获取用户登记历史 */
   GET_USER_REGISTRATIONS = '/api/registrations',
   /** 获取单条登记详情 */

@@ -404,7 +404,88 @@ async def bulk_create_running_apps(
     except Exception as e:
         return api_response(500, f"Error bulk importing: {str(e)}")
 
+# --- App Template 接口 ---
+
+@app.get("/admin/dashboard/stats")
+async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    stats = account_service.get_dashboard_stats()
+    return api_response(200, "Success", stats)
+
+def _get_app_id(app_uid: str) -> int:
+    app = account_service.get_running_app_by_uid(app_uid)
+    if not app:
+        raise Exception("App not found")
+    return app['id']
+
+@app.get("/admin/settings/running-apps/{app_uid}/templates")
+async def get_app_templates(app_uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        app_id = _get_app_id(app_uid)
+        templates = account_service.get_app_templates(app_id)
+        return api_response(200, "Success", templates)
+    except Exception as e:
+        return api_response(500, str(e))
+
+@app.post("/admin/settings/running-apps/{app_uid}/templates")
+async def create_app_template(app_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        app_id = _get_app_id(app_uid)
+        uid = account_service.create_app_template(app_id, data.get('version_name', ''), data.get('fields', []))
+        return api_response(200, "Template created", {'uid': uid})
+    except Exception as e:
+        return api_response(500, str(e))
+
+@app.put("/admin/settings/running-apps/{app_uid}/templates/{uid}")
+async def update_app_template(app_uid: str, uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        account_service.update_app_template(uid, data.get('version_name', ''), data.get('fields', []))
+        return api_response(200, "Template updated")
+    except Exception as e:
+        return api_response(500, str(e))
+
+@app.delete("/admin/settings/running-apps/{app_uid}/templates/{uid}")
+async def delete_app_template(app_uid: str, uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    if not account_service.verify_account_type(token, "admin"):
+        return api_response(403, "Forbidden: Admin access required")
+    try:
+        account_service.delete_app_template(uid)
+        return api_response(200, "Template deleted")
+    except Exception as e:
+        return api_response(500, str(e))
+
 # --- 普通用户接口 ---
+
+@app.get("/running-apps/{app_uid}/templates")
+async def get_public_app_templates(app_uid: str):
+    try:
+        app_id = _get_app_id(app_uid)
+        templates = account_service.get_app_templates(app_id)
+        return api_response(200, "Success", templates)
+    except Exception as e:
+        return api_response(500, str(e))
 
 @app.get("/fields")
 async def get_public_fields():
@@ -463,7 +544,9 @@ async def resubmit_registration(
     if not session:
         return api_response(401, "Unauthorized")
     try:
-        account_service.resubmit_registration(uid, session.user_uid, data)
+        priority = data.pop('priority', 'low') if isinstance(data, dict) else 'low'
+        template_uid = data.pop('template_uid', '') if isinstance(data, dict) else ''
+        account_service.resubmit_registration(uid, session.user_uid, data, priority, template_uid)
         return api_response(200, "Registration resubmitted successfully")
     except AccountError as e:
         return api_response(400, str(e))
@@ -503,7 +586,9 @@ async def submit_registration(
         return api_response(401, "Unauthorized")
         
     try:
-        account_service.submit_registration(session.user_uid, data)
+        priority = data.pop('priority', 'low') if isinstance(data, dict) else 'low'
+        template_uid = data.pop('template_uid', '') if isinstance(data, dict) else ''
+        account_service.submit_registration(session.user_uid, data, priority, template_uid)
         account_service.create_notification_for_admins("new_registration", f"新登记", f"用户 {session.username} 提交了新登记")
         return api_response(200, "Registration submitted successfully")
     except AccountError as e:
@@ -715,6 +800,7 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
             msg['username'] = session.username
             msg['is_admin'] = session.account_type == 'admin'
             msg['msg_type'] = msg_type
+            account_service.update_registration_status(registration_uid, 'pending')
             # Notify the other party
             try:
                 detail = account_service.get_registration_detail(registration_uid)
@@ -722,7 +808,7 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
                     if session.account_type == 'admin':
                         account_service.create_notification(detail['user_uid'], 'chat_message', '登记聊天新消息', f'管理员回复了您的登记', registration_uid)
                     else:
-                        account_service.create_notification_for_admins('chat_message', '登记聊天新消息', f'用户 {session.username} 发送了新消息')
+                        account_service.create_notification_for_admins('chat_message', '登记聊天新消息', f'用户 {session.username} 发送了新消息', registration_uid)
             except Exception:
                 pass
             await manager.broadcast(registration_uid, msg)

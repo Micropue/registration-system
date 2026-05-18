@@ -14,7 +14,6 @@
               8 年专业校园跑服务，安全稳定、千人信赖<br />
               为你的校园生活解锁高效与自由
             </p>
-            <v-btn class="btn-pill hero-cta" to="/login">开始使用</v-btn>
           </div>
         </div>
 

@@ -63,6 +63,7 @@ export interface RegistrationItem {
   created_at: string;
   status: 'pending' | 'approved' | 'rejected';
   registration_info: Record<string, any>;
+  priority?: 'low' | 'medium' | 'high';
 }
 
 /** 跑步APP配置 */
@@ -73,4 +74,14 @@ export interface RunningApp {
   morning_price: number;
   note: string;
   accent_color: string;
+  template_count?: number;
+}
+
+/** APP模板 */
+export interface AppTemplate {
+  uid: string;
+  app_id: number;
+  version_name: string;
+  fields: any[];
+  create_time: string;
 }

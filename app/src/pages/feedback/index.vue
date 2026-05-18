@@ -1,35 +1,42 @@
 <template>
-  <div class="feedback-page px-3 px-sm-6 py-4 py-sm-6" style="max-width: 800px; margin: 0 auto;">
+  <div class="feedback-page px-3 px-sm-6 py-4 py-sm-6 d-flex flex-column align-center">
+    <div class="table-wrapper" style="width: 90%;">
     <div class="d-flex justify-space-between align-center mb-4">
       <h1 class="text-h5 text-sm-h4">工单反馈</h1>
       <v-btn color="primary" prepend-icon="mdi-plus" @click="openNewDialog">新建工单</v-btn>
     </div>
 
-    <div v-if="loading && feedbacks.length === 0" class="d-flex justify-center py-8">
-      <v-progress-circular indeterminate color="primary"></v-progress-circular>
-    </div>
-
-    <div v-else-if="feedbacks.length === 0" class="text-center py-8 text-medium-emphasis">
-      <v-icon size="40" class="mb-2">mdi-inbox-outline</v-icon>
-      <div>暂无工单</div>
-    </div>
-
-    <div v-else>
-      <div v-for="item in feedbacks" :key="item.id"
-        class="feedback-card pa-4 mb-3 rounded-lg" @click="openDetail(item.id)">
-        <div class="d-flex align-center ga-3 mb-1">
-          <span class="text-body-1 font-weight-bold">{{ item.title }}</span>
-          <v-badge v-if="item.reply_count > 0 && !viewedIds.has(item.id)" :content="item.reply_count" color="error" inline></v-badge>
-          <v-chip :color="getStatusColor(item.status)" size="x-small">{{ getStatusText(item.status) }}</v-chip>
+    <app-data-table
+      :headers="feedbackHeaders"
+      :items="feedbacks"
+      :total-items="totalFeedbacks"
+      :loading="loading"
+      v-model:page="currentPage"
+      v-model:items-per-page="itemsPerPage"
+      @update:options="loadFeedbacks"
+      @reset="loadFeedbacks"
+    >
+      <template v-slot:item.title="{ item }">
+        <div class="d-flex align-center">
+          <span class="text-body-2 font-weight-bold">{{ item.title }}</span>
+          <v-badge v-if="item.reply_count > 0 && !viewedIds.has(item.id)" :content="item.reply_count" color="error" inline class="ml-2"></v-badge>
         </div>
-        <div class="text-caption text-medium-emphasis">{{ formatDate(item.created_at) }}</div>
-        <div class="text-body-2 mt-2 text-medium-emphasis" style="white-space: pre-wrap; max-height: 60px; overflow: hidden;">{{ item.content }}</div>
-      </div>
+      </template>
 
-      <div class="text-center py-4" v-if="hasMore">
-        <v-btn variant="tonal" :loading="loadingMore" @click="loadMore">加载更多</v-btn>
-      </div>
-    </div>
+      <template v-slot:item.created_at="{ item }">
+        {{ formatDate(item.created_at) }}
+      </template>
+
+      <template v-slot:item.status="{ item }">
+        <v-chip :color="getStatusColor(item.status)" size="small" variant="tonal">
+          {{ getStatusText(item.status) }}
+        </v-chip>
+      </template>
+
+      <template v-slot:item.actions="{ item }">
+        <v-btn variant="tonal" rounded size="small" color="primary" @click="openDetail(item.id)">查看详情</v-btn>
+      </template>
+    </app-data-table>
 
     <!-- 工单详情 Dialog -->
     <v-dialog v-model="detailDialog.show" max-width="650" scrollable>
@@ -92,6 +99,7 @@
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
+    </div>
   </div>
 </template>
 
@@ -100,6 +108,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
+import AppDataTable from '@/components/AppDataTable.vue'
 
 interface FeedbackItem {
   id: string
@@ -122,9 +131,9 @@ interface FeedbackDetail {
 
 const feedbacks = ref<FeedbackItem[]>([])
 const loading = ref(false)
-const loadingMore = ref(false)
-const page = ref(1)
-const hasMore = ref(false)
+const itemsPerPage = ref(20)
+const currentPage = ref(1)
+const totalFeedbacks = ref(0)
 const replyLoading = ref(false)
 const newLoading = ref(false)
 const newFormValid = ref(false)
@@ -150,27 +159,30 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleString('zh-CN')
 }
 
-async function loadFeedbacks(reset = false) {
-  if (reset) { page.value = 1; feedbacks.value = [] }
+async function loadFeedbacks(options: any = { page: 1, itemsPerPage: 20 }) {
+  const p = options.page || currentPage.value
+  const pageSize = options.itemsPerPage || itemsPerPage.value
   loading.value = true
+  currentPage.value = p
+  itemsPerPage.value = pageSize
   try {
-    const res = await ajax<any>(`${ApiUrl.GET_USER_FEEDBACKS}?page=${page.value}&page_size=20`, {
+    const res = await ajax<any>(`${ApiUrl.GET_USER_FEEDBACKS}?page=${p}&page_size=${pageSize}`, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) {
-      if (reset) feedbacks.value = res.data.items
-      else feedbacks.value.push(...res.data.items)
-      hasMore.value = feedbacks.value.length < res.data.total
+      feedbacks.value = res.data.items
+      totalFeedbacks.value = res.data.total
     }
   } catch (err) { showMsg('加载失败', 'error') }
-  finally { loading.value = false; loadingMore.value = false }
+  finally { loading.value = false }
 }
 
-function loadMore() {
-  page.value++
-  loadingMore.value = true
-  loadFeedbacks()
-}
+const feedbackHeaders = [
+  { title: '标题', key: 'title', sortable: false },
+  { title: '状态', key: 'status', sortable: false },
+  { title: '操作', key: 'actions', sortable: false },
+  { title: '创建时间', key: 'created_at', sortable: true },
+]
 
 async function openDetail(id: string) {
   viewedIds.add(id)
@@ -224,22 +236,18 @@ async function createFeedback() {
     if (res.code === 200) {
       newDialog.show = false
       showMsg('工单已提交')
-      loadFeedbacks(true)
+      currentPage.value = 1
+      loadFeedbacks({ page: 1, itemsPerPage: itemsPerPage.value })
     } else showMsg(res.msg, 'error')
   } catch (err) { showMsg('提交失败', 'error') }
   finally { newLoading.value = false }
 }
 
-onMounted(() => loadFeedbacks(true))
+onMounted(() => loadFeedbacks({ page: 1, itemsPerPage: 20 }))
 </script>
 
 <style scoped lang="scss">
 .feedback-page { max-height: 100%; overflow-y: auto; }
 .feedback-page::-webkit-scrollbar { display: none; }
-.feedback-card {
-  background: #fff;
-  cursor: pointer;
-  transition: box-shadow 0.2s;
-  &:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-}
+.table-wrapper { overflow-x: auto; }
 </style>

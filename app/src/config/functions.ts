@@ -27,13 +27,19 @@ export const functions: NavFunction[] = [
     role: 'default'
   },
   {
+    title: '仪表盘',
+    to: '/admin',
+    icon: 'mdi-view-dashboard-outline',
+    role: 'admin'
+  },
+  {
     title: '账户管理',
     to: '/admin/users',
     icon: 'mdi-account-group-outline',
     role: 'admin'
   },
   {
-    title: '登记处理',
+    title: '订单处理',
     to: '/admin/registers',
     icon: 'mdi-file-document-edit-outline',
     role: 'admin'

@@ -19,7 +19,6 @@
 
 <script setup lang="ts">
 const settingsMenu = [
-  { title: '登记字段配置', to: '/admin/settings/fields', icon: 'mdi-form-select' },
   { title: '跑步APP配置', to: '/admin/settings/running-apps', icon: 'mdi-run' }
 ]
 </script>
