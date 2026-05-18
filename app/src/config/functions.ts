@@ -11,6 +11,8 @@ export interface NavFunction {
   icon?: string;
   /** 允许访问的角色 (可选，不填则默认 default 可见) */
   role?: 'admin' | 'default';
+  /** 精确匹配（默认 false，即前缀匹配） */
+  exact?: boolean;
 }
 
 export const functions: NavFunction[] = [
@@ -30,7 +32,8 @@ export const functions: NavFunction[] = [
     title: '仪表盘',
     to: '/admin',
     icon: 'mdi-view-dashboard-outline',
-    role: 'admin'
+    role: 'admin',
+    exact: true
   },
   {
     title: '账户管理',

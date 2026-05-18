@@ -82,7 +82,7 @@
           <v-chip :color="getPriorityColor(detailsDialog.item?.priority || 'low')" size="small" variant="tonal" class="me-2">
             {{ getPriorityText(detailsDialog.item?.priority || 'low') }}
           </v-chip>
-          <v-btn variant="text" size="small" @click="detailsDialog.show = false">关闭</v-btn>
+          <v-btn variant="text" size="small" @click="handleDetailsClose">关闭</v-btn>
         </v-card-title>
 
         <div class="detail-body">
@@ -333,6 +333,7 @@ onMounted(async () => {
     }
   }
   await loadRegisters()
+  openChatFromQuery()
 })
 
 watch(selectedApp, () => {
@@ -345,10 +346,24 @@ function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.show = true
 }
 
-function openChat(item: any) {
-  const username = item.username || '未知'
-  chatStore.open(item.id || item.uid, `订单 - ${username}`, true, appStore.userInfo?.username || '')
+function handleDetailsClose() {
+  detailsDialog.show = false
+  if (route.query.chat) {
+    router.replace({ query: { ...route.query, chat: undefined } })
+  }
 }
+
+function openChatFromQuery() {
+  const chatId = route.query.chat
+  if (chatId && typeof chatId === 'string') {
+    const item = registers.value.find(r => String(r.id) === String(chatId))
+    if (item) openDetailsDialog(item)
+  }
+}
+
+watch(() => route.query.chat, () => {
+  openChatFromQuery()
+})
 
 function chatUnreadCount(id: string) {
   return chatStore.chatUnreadCounts[id] || 0

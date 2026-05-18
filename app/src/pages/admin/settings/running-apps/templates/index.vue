@@ -693,7 +693,7 @@ async function loadAppName() {
   try {
     const res = await ajax<any[]>('/api/admin/settings/running-apps', { headers: authHeaders() })
     if (res.code === 200) {
-      const app = res.data.find((a: any) => String(a.id) === String(appUid))
+      const app = res.data.find((a: any) => String(a.uid) === String(appUid))
       if (app) appName.value = app.name
     }
   } catch { /* ignore */ }

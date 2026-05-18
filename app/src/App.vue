@@ -34,6 +34,7 @@
           :prepend-icon="item.icon"
           :title="item.title"
           :to="item.to"
+          :exact="item.exact"
           rounded="xl"
           active-color="primary"
           class="mb-1"
@@ -129,7 +130,6 @@
       <div class="main-gradient-bg"></div>
       <RouterView />
     </v-main>
-    <ChatDrawer />
   </v-app>
 </template>
 
@@ -143,7 +143,6 @@ import { ajax } from '@/api/ajax'
 import { functions } from '@/config/functions'
 import { useAppStore } from '@/stores/app'
 import { useChatStore } from '@/stores/chat'
-import ChatDrawer from '@/components/ChatDrawer.vue'
 import type { CheckLoginData } from '@/config/api-type'
 
 const router = useRouter()
@@ -171,8 +170,6 @@ async function fetchUser() {
   user.value = await checkLoginStatus()
   appStore.setUserInfo(user.value)
   if (user.value) {
-    chatStore.currentUsername = user.value.username
-    chatStore.isAdminView = user.value.type === 'admin'
   }
   isAuthChecking.value = false
 }
@@ -262,31 +259,12 @@ function formatNotifDate(iso: string) {
 }
 
 onMounted(() => {
-  fetchUser().then(() => {
-    handleChatQuery()
-  })
+  fetchUser()
   if (mdAndUp.value) {
     sideOpen.value = true
   }
   notifTimer = setInterval(fetchNotifications, 30000)
   setTimeout(fetchNotifications, 2000)
-})
-
-function handleChatQuery() {
-  const chatId = route.query.chat
-  if (chatId && typeof chatId === 'string' && user.value) {
-    chatStore.open(chatId, '订单聊天', user.value.type === 'admin', user.value.username)
-  }
-}
-
-watch(() => route.query.chat, () => {
-  handleChatQuery()
-})
-
-watch(() => chatStore.isOpen, (v) => {
-  if (!v && route.query.chat) {
-    router.replace({ query: { ...route.query, chat: undefined } })
-  }
 })
 
 onUnmounted(() => {

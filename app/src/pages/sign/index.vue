@@ -297,7 +297,7 @@
           <v-chip :color="getStatusColor(detailDialog.status)" size="small" variant="tonal" class="me-2">
             {{ getStatusText(detailDialog.status) }}
           </v-chip>
-          <v-btn variant="text" size="small" @click="detailDialog.show = false">关闭</v-btn>
+          <v-btn variant="text" size="small" @click="handleDetailClose">关闭</v-btn>
         </v-card-title>
 
         <div class="detail-body">
@@ -340,7 +340,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed } from 'vue'
+import { ref, onMounted, reactive, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
@@ -380,6 +381,8 @@ const isLoading = ref(true)
 const historyLoading = ref(false)
 const appStore = useAppStore()
 const chatStore = useChatStore()
+const route = useRoute()
+const router = useRouter()
 const itemsPerPage = ref(20)
 const currentPage = ref(1)
 const totalRegistrations = ref(0)
@@ -664,6 +667,25 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.show = true
 }
 
+function handleDetailClose() {
+  detailDialog.show = false
+  if (route.query.chat) {
+    router.replace({ query: { ...route.query, chat: undefined } })
+  }
+}
+
+function openChatFromQuery() {
+  const chatId = route.query.chat
+  if (chatId && typeof chatId === 'string') {
+    const item = registrations.value.find(r => String(r.id) === String(chatId))
+    if (item) openDetailDialog(item)
+  }
+}
+
+watch(() => route.query.chat, () => {
+  openChatFromQuery()
+})
+
 function openResubmitDialog(item: RegistrationItem) {
   resubmitDialog.uid = item.id
   resubmitDialog.app = item.data['跑步APP'] || ''
@@ -725,9 +747,10 @@ async function doResubmit() {
   }
 }
 
-onMounted(() => {
-  fetchConfig()
-  loadHistory({ page: 1, itemsPerPage: 20 })
+onMounted(async () => {
+  await fetchConfig()
+  await loadHistory({ page: 1, itemsPerPage: 20 })
+  openChatFromQuery()
 })
 </script>
 
