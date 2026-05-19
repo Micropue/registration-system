@@ -94,16 +94,11 @@ const router = createRouter({
         { path: 'users', component: () => import("@/pages/admin/users/index.vue"), meta: { title: '账户管理' } },
         { path: 'registers/:appName?', component: () => import("@/pages/admin/registers/index.vue"), meta: { title: '订单处理' } },
         { path: 'feedbacks', component: () => import("@/pages/admin/feedbacks/index.vue"), meta: { title: '工单处理' } },
-        {
-          path: 'settings',
-          component: () => import("@/pages/admin/settings/index.vue"),
-          meta: { title: '系统设置' },
-          children: [
-            { path: '', component: () => import("@/pages/admin/settings/welcome.vue") },
-            { path: 'running-apps', component: () => import("@/pages/admin/settings/running-apps/index.vue"), meta: { title: '跑步APP配置' } },
-            { path: 'running-apps/:appUid/templates', component: () => import("@/pages/admin/settings/running-apps/templates/index.vue"), meta: { title: '模板管理' } }
-          ]
-        }
+        { path: 'running-apps', component: () => import("@/pages/admin/settings/running-apps/index.vue"), meta: { title: '跑步APP配置' } },
+        { path: 'running-apps/:appUid/templates', component: () => import("@/pages/admin/settings/running-apps/templates/index.vue"), meta: { title: '模板管理' } },
+        { path: 'settings/running-apps/:appUid/templates', redirect: (to: any) => `/admin/running-apps/${to.params.appUid}/templates` },
+        { path: 'settings/running-apps', redirect: '/admin/running-apps' },
+        { path: 'settings', redirect: '/admin' },
       ]
     }
   ],

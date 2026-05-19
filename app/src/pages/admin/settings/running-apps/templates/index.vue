@@ -30,8 +30,8 @@
       <template v-slot:item.field_count="{ item }">
         <v-chip size="small" variant="tonal" color="primary">{{ item.fields?.length || 0 }}</v-chip>
       </template>
-      <template v-slot:item.created_at="{ item }">
-        {{ formatDate(item.created_at) }}
+      <template v-slot:item.create_time="{ item }">
+        {{ formatDate(item.create_time) }}
       </template>
       <template v-slot:item.actions="{ item }">
         <div class="d-flex ga-1">
@@ -74,13 +74,16 @@
           <v-icon color="primary" class="mr-2">mdi-pencil-box</v-icon>
           <span class="text-h6">编辑模板字段</span>
           <v-chip class="ml-3" color="primary" variant="tonal" size="small">
-            {{ editorDialog.versionName }}
+            {{ editorDialog.versionName || currentTemplate?.version_name }}
           </v-chip>
           <v-spacer></v-spacer>
           <v-btn icon="mdi-close" variant="text" density="comfortable" @click="editorDialog.show = false"></v-btn>
         </v-card-title>
 
         <v-card-text class="pa-4 pa-sm-5" style="max-height: 60vh;">
+          <v-text-field v-model="editorDialog.editVersionName" label="模板版本名称" variant="outlined" density="comfortable"
+            :rules="[v => !!v || '版本名称必填']" class="mb-4" hide-details="auto"></v-text-field>
+
           <div v-if="fields.length === 0" class="d-flex flex-column align-center py-8">
             <v-icon size="48" color="grey-lighten-1">mdi-playlist-remove</v-icon>
             <div class="text-body-2 text-grey mt-3">暂无字段，点击下方按钮添加</div>
@@ -385,7 +388,7 @@ interface Template {
   uid: string
   version_name: string
   fields: Field[]
-  created_at: string
+  create_time: string
 }
 
 const route = useRoute()
@@ -403,7 +406,7 @@ const snackbar = reactive({ show: false, text: '', color: 'success' })
 
 const createDialog = reactive({ show: false, versionName: '' })
 
-const editorDialog = reactive({ show: false, versionName: '' })
+const editorDialog = reactive({ show: false, versionName: '', editVersionName: '' })
 
 const fieldDialog = reactive({ show: false, isEdit: false, editIndex: -1 })
 
@@ -434,7 +437,7 @@ function formatDate(iso: string) {
 const templateHeaders = [
   { title: '版本名称', key: 'version_name', sortable: true },
   { title: '字段数量', key: 'field_count', sortable: false },
-  { title: '创建时间', key: 'created_at', sortable: true },
+  { title: '创建时间', key: 'create_time', sortable: true },
   { title: '操作', key: 'actions', sortable: false }
 ]
 
@@ -553,6 +556,7 @@ function openEditDialog(tpl: Template) {
   fields.value = JSON.parse(JSON.stringify(tpl.fields || []))
   fields.value.forEach(f => { f._key = genKey() })
   editorDialog.versionName = tpl.version_name
+  editorDialog.editVersionName = tpl.version_name
   editorDialog.show = true
 }
 
@@ -566,7 +570,7 @@ async function saveFields() {
       `/api/admin/settings/running-apps/${appUid}/templates/${currentTemplate.value.uid}`,
       {
         method: 'PUT',
-        body: { version_name: currentTemplate.value.version_name, fields: cleanFields },
+        body: { version_name: editorDialog.editVersionName || currentTemplate.value.version_name, fields: cleanFields },
         headers: authHeaders()
       }
     )

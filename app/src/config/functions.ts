@@ -54,9 +54,9 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
-    title: '系统设置',
-    to: '/admin/settings',
-    icon: 'mdi-cog-outline',
+    title: '跑步APP配置',
+    to: '/admin/running-apps',
+    icon: 'mdi-run',
     role: 'admin'
-  }
+  },
 ];

@@ -41,7 +41,7 @@
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn variant="tonal" rounded color="secondary" :to="`/admin/settings/running-apps/${item.uid}/templates`">模板管理</v-btn>
+            <v-btn variant="tonal" rounded color="secondary" :to="`/admin/running-apps/${item.uid}/templates`">模板管理</v-btn>
             <v-btn variant="tonal" rounded color="primary" @click="openEditDialog(item)">修改</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
           </div>
