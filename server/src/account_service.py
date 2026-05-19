@@ -189,6 +189,10 @@ class AccountService:
             cursor.execute("ALTER TABLE running_apps ADD COLUMN accent_color VARCHAR(7) DEFAULT '#1976D2'")
         except:
             pass
+        try:
+            cursor.execute("ALTER TABLE running_apps ADD COLUMN icon VARCHAR(500) DEFAULT ''")
+        except:
+            pass
         cursor.execute("SHOW COLUMNS FROM running_apps LIKE 'uid'")
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE running_apps ADD COLUMN uid VARCHAR(64) UNIQUE")
@@ -621,7 +625,7 @@ class AccountService:
     def get_running_apps(self) -> list[dict[str, Any]]:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT id, uid, name, normal_price, morning_price, note, accent_color FROM running_apps ORDER BY id ASC")
+            cursor.execute("SELECT id, uid, name, normal_price, morning_price, note, accent_color, icon FROM running_apps ORDER BY id ASC")
             rows = cursor.fetchall()
         return [{
             'id': row['id'], 'uid': row['uid'],
@@ -630,6 +634,7 @@ class AccountService:
             'morning_price': float(row['morning_price']),
             'note': row['note'] or '',
             'accent_color': row['accent_color'] or '#1976D2',
+            'icon': row.get('icon') or '',
             'template_count': self.get_app_template_count(row['id'])
         } for row in rows]
 
@@ -642,18 +647,18 @@ class AccountService:
             return None
         return {'id': row['id'], 'uid': row['uid'], 'name': row['name']}
 
-    def create_running_app(self, name: str, normal_price: float, morning_price: float, note: str, accent_color: str = '#1976D2') -> int:
+    def create_running_app(self, name: str, normal_price: float, morning_price: float, note: str, accent_color: str = '#1976D2', icon: str = '') -> int:
         uid = self._new_uid()
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color, uid) VALUES (%s, %s, %s, %s, %s, %s)", (name, normal_price, morning_price, note, accent_color, uid))
+            cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color, icon, uid) VALUES (%s, %s, %s, %s, %s, %s, %s)", (name, normal_price, morning_price, note, accent_color, icon, uid))
             connection.commit()
             return cursor.lastrowid or 0
 
-    def update_running_app(self, app_id: int, name: str, normal_price: float, morning_price: float, note: str, accent_color: str) -> bool:
+    def update_running_app(self, app_id: int, name: str, normal_price: float, morning_price: float, note: str, accent_color: str, icon: str = '') -> bool:
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("UPDATE running_apps SET name = %s, normal_price = %s, morning_price = %s, note = %s, accent_color = %s WHERE id = %s", (name, normal_price, morning_price, note, accent_color, app_id))
+            cursor.execute("UPDATE running_apps SET name = %s, normal_price = %s, morning_price = %s, note = %s, accent_color = %s, icon = %s WHERE id = %s", (name, normal_price, morning_price, note, accent_color, icon, app_id))
             connection.commit()
             return cursor.rowcount > 0
 

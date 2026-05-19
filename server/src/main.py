@@ -1,6 +1,12 @@
 import uvicorn
-from fastapi import FastAPI, Form, Request, Header, HTTPException, WebSocket, WebSocketDisconnect, Query
+import uuid
+import os
+import mimetypes
+from pathlib import Path
+from fastapi import FastAPI, Form, Request, Header, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from typing import Any, Optional
 from contextlib import asynccontextmanager
 
@@ -29,6 +35,35 @@ from typing import Any, Optional, cast
 app = FastAPI(lifespan=lifespan)
 account_service = AccountService()
 
+MEDIA_DIR = Path(os.environ.get("MEDIA_DIR", str(Path(__file__).resolve().parent.parent / "media")))
+os.makedirs(MEDIA_DIR, exist_ok=True)
+
+ALLOWED_ORIGINS = {"http://localhost:3000", "https://huhurun.micropue.com.cn"}
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=list(ALLOWED_ORIGINS),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.mount("/media", StaticFiles(directory=str(MEDIA_DIR)), name="media")
+ALLOWED_MIME_TYPES = {
+    "image/webp", "image/jpeg", "image/png", "image/gif",
+    "image/heic", "image/heif"
+}
+MAX_IMAGE_SIZE = 5 * 1024 * 1024
+
+MIME_TO_EXT = {
+    "image/webp": ".webp",
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/gif": ".gif",
+    "image/heic": ".heic",
+    "image/heif": ".heif",
+}
+
 class CreateUserRequest(BaseModel):
     username: str
     password: str
@@ -44,6 +79,61 @@ class RunningAppRequest(BaseModel):
     morning_price: float
     note: str = ''
     accent_color: str = '#1976D2'
+    icon: str = ''
+
+@app.post("/upload/image")
+async def upload_image(
+    file: UploadFile = File(...),
+    request: Request = None,
+    user_agent: Optional[str] = Header(None),
+    origin: Optional[str] = Header(None)
+):
+    if origin and origin not in ALLOWED_ORIGINS:
+        return api_response(403, "Origin not allowed")
+    referer = request.headers.get("referer", "") if request else ""
+    if origin is None and not referer:
+        return api_response(403, "Direct access not allowed")
+
+    ua = (user_agent or "").lower()
+    if any(kw in ua for kw in ("curl", "libcurl", "wget", "python-requests", "python-urllib", "go-http-client", "okhttp/", "axios/")):
+        return api_response(403, "Automated requests not allowed")
+
+    if not file.filename:
+        return api_response(400, "No file selected")
+
+    content_type = file.content_type or ""
+    if content_type not in ALLOWED_MIME_TYPES:
+        ext = Path(file.filename).suffix.lower()
+        guessed = mimetypes.guess_type(file.filename)[0]
+        if guessed not in ALLOWED_MIME_TYPES and ext not in (".webp", ".jpg", ".jpeg", ".png", ".gif", ".heic", ".heif"):
+            return api_response(400, f"Unsupported image type: {content_type}")
+
+    contents = await file.read()
+    if len(contents) > MAX_IMAGE_SIZE:
+        return api_response(400, "Image size exceeds 5MB limit")
+
+    magic = contents[:12]
+    if magic[:4] == b'\x89PNG':
+        ext = '.png'
+    elif magic[:2] == b'\xff\xd8':
+        ext = '.jpg'
+    elif magic[:4] == b'GIF8':
+        ext = '.gif'
+    elif magic[:4] == b'RIFF' and magic[8:12] == b'WEBP':
+        ext = '.webp'
+    elif magic[4:8] == b'ftyp' and (b'heic' in magic[8:12].lower() or b'heif' in magic[8:12].lower() or b'mif1' in magic[8:12].lower()):
+        ext = '.heic'
+    else:
+        ext = Path(file.filename).suffix.lower()
+        if ext not in ('.webp', '.jpg', '.jpeg', '.png', '.gif', '.heic', '.heif'):
+            return api_response(400, "Cannot determine image type")
+
+    filename = f"{uuid.uuid4().hex}{ext}"
+    filepath = MEDIA_DIR / filename
+    with open(filepath, "wb") as f:
+        f.write(contents)
+
+    return api_response(200, "Upload success", {"url": f"/media/{filename}"})
 
 @app.post("/admin/users")
 async def create_user(
@@ -353,7 +443,7 @@ async def create_running_app(
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "Forbidden: Admin access required")
     try:
-        app_id = account_service.create_running_app(request.name, request.normal_price, request.morning_price, request.note, request.accent_color)
+        app_id = account_service.create_running_app(request.name, request.normal_price, request.morning_price, request.note, request.accent_color, request.icon)
         return api_response(200, "Running app created", {'id': app_id})
     except Exception as e:
         return api_response(500, f"Error creating running app: {str(e)}")
@@ -370,7 +460,7 @@ async def update_running_app(
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "Forbidden: Admin access required")
     try:
-        account_service.update_running_app(app_id, request.name, request.normal_price, request.morning_price, request.note, request.accent_color)
+        account_service.update_running_app(app_id, request.name, request.normal_price, request.morning_price, request.note, request.accent_color, request.icon)
         return api_response(200, "Running app updated")
     except Exception as e:
         return api_response(500, f"Error updating running app: {str(e)}")

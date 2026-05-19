@@ -69,11 +69,13 @@ export interface RegistrationItem {
 /** 跑步APP配置 */
 export interface RunningApp {
   id: number;
+  uid: string;
   name: string;
   normal_price: number;
   morning_price: number;
   note: string;
   accent_color: string;
+  icon?: string;
   template_count?: number;
 }
 

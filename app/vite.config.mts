@@ -3,6 +3,7 @@ import Vue from '@vitejs/plugin-vue'
 import Fonts from 'unplugin-fonts/vite'
 import { defineConfig } from 'vite'
 import Vuetify, { transformAssetUrls } from 'vite-plugin-vuetify'
+import viteCompression from 'vite-plugin-compression'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -28,6 +29,7 @@ export default defineConfig({
         ],
       },
     }),
+    viteCompression({ algorithm: 'gzip', ext: '.gz', deleteOriginalAssets: true, threshold: 0, filter: /\.(js|mjs|css|html|json|svg|xml|txt|ico)$/i }),
   ],
   define: { 'process.env': {} },
   resolve: {
@@ -48,12 +50,16 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target:"http://localhost:8000/",
+        target:"http://localhost:8001/",
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, '')
       },
+      '/media': {
+        target: 'http://localhost:8001/',
+        changeOrigin: true
+      },
       '/ws': {
-        target: 'ws://localhost:8000',
+        target: 'ws://localhost:8001',
         ws: true,
         changeOrigin: true
       }

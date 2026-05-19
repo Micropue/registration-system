@@ -20,6 +20,15 @@
         show-search show-filter
         search-label="搜索APP名称/备注"
       >
+        <template v-slot:item.name="{ item }">
+          <div class="d-flex align-center ga-2">
+            <v-avatar v-if="item.icon" size="28" rounded>
+              <v-img :src="item.icon" cover></v-img>
+            </v-avatar>
+            <v-icon v-else size="20" color="grey">mdi-run-fast</v-icon>
+            {{ item.name }}
+          </div>
+        </template>
         <template v-slot:item.normal_price="{ item }">
           {{ item.normal_price.toFixed(2) }}
         </template>
@@ -41,13 +50,26 @@
     </div>
 
     <!-- 新增/编辑 Dialog -->
-    <v-dialog v-model="dialog.show" max-width="500">
+    <v-dialog v-model="dialog.show" max-width="520">
       <v-card class="pa-4">
         <v-card-title>{{ dialog.isEdit ? '修改APP' : '新增APP' }}</v-card-title>
         <v-card-text>
           <v-form ref="formRef" @submit.prevent="submitApp">
-            <v-text-field v-model="dialog.name" label="APP名称" variant="outlined"
-              :rules="[v => !!v || 'APP名称必填']" hide-details="auto" class="mb-4" required></v-text-field>
+            <div class="d-flex align-start ga-4 mb-4">
+              <div class="d-flex flex-column align-center ga-2">
+                <v-avatar size="72" rounded class="bg-grey-lighten-3">
+                  <v-img v-if="dialog.iconPreview" :src="dialog.iconPreview" cover></v-img>
+                  <v-icon v-else size="36" color="grey-lighten-1">mdi-image-outline</v-icon>
+                </v-avatar>
+                <v-btn size="x-small" variant="tonal" color="secondary" @click="uploadRef?.click()">
+                  {{ dialog.iconPreview ? '更换图标' : '上传图标' }}
+                </v-btn>
+                <v-btn v-if="dialog.iconPreview" size="x-small" variant="text" color="error" @click="dialog.iconPreview = ''; dialog.icon = ''">移除</v-btn>
+                <input ref="uploadRef" type="file" accept="image/webp,image/jpeg,image/png,image/gif,image/heic,image/heif" style="display:none" @change="handleIconUpload">
+              </div>
+              <div class="flex-fill">
+                <v-text-field v-model="dialog.name" label="APP名称" variant="outlined"
+                  :rules="[v => !!v || 'APP名称必填']" hide-details="auto" class="mb-4" required></v-text-field>
             <v-text-field v-model.number="dialog.normal_price" label="普通跑步价格" type="number" variant="outlined"
               :rules="[v => v !== '' || '价格必填', v => v >= 0 || '价格不能为负']" hide-details="auto" class="mb-4" required></v-text-field>
             <v-text-field v-model.number="dialog.morning_price" label="晨跑价格" type="number" variant="outlined"
@@ -59,6 +81,8 @@
                 <input type="color" v-model="dialog.accent_color" class="hidden-input">
               </label>
               <span class="text-body-2">{{ dialog.accent_color || '#1976D2' }}</span>
+            </div>
+              </div>
             </div>
           </v-form>
         </v-card-text>
@@ -190,7 +214,9 @@ import AppDataTable from '@/components/AppDataTable.vue'
 
 const apps = ref<RunningApp[]>([])
 const loading = ref(false)
+const iconUploading = ref(false)
 const formRef = ref<any>(null)
+const uploadRef = ref<HTMLInputElement | null>(null)
 
 const dialog = reactive({
   show: false,
@@ -200,7 +226,9 @@ const dialog = reactive({
   normal_price: 0,
   morning_price: 0,
   note: '',
-  accent_color: '#1976D2'
+  accent_color: '#1976D2',
+  icon: '',
+  iconPreview: ''
 })
 
 const deleteDialog = reactive({ show: false, id: 0, name: '' })
@@ -316,6 +344,8 @@ function openCreateDialog() {
   dialog.morning_price = 0
   dialog.note = ''
   dialog.accent_color = '#1976D2'
+  dialog.icon = ''
+  dialog.iconPreview = ''
 }
 
 function openEditDialog(item: RunningApp) {
@@ -327,6 +357,8 @@ function openEditDialog(item: RunningApp) {
   dialog.morning_price = item.morning_price
   dialog.note = item.note
   dialog.accent_color = item.accent_color || '#1976D2'
+  dialog.icon = item.icon || ''
+  dialog.iconPreview = item.icon || ''
 }
 
 async function submitApp() {
@@ -337,7 +369,7 @@ async function submitApp() {
     if (dialog.isEdit) {
       const res = await ajax(`${ApiUrl.UPDATE_RUNNING_APP}/${dialog.editId}`, {
         method: 'PUT',
-        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color },
+        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('修改成功'); dialog.show = false; loadApps() }
@@ -345,7 +377,7 @@ async function submitApp() {
     } else {
       const res = await ajax(ApiUrl.CREATE_RUNNING_APP, {
         method: 'POST',
-        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color },
+        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('创建成功'); dialog.show = false; loadApps() }
@@ -354,6 +386,41 @@ async function submitApp() {
   } catch (err) {
     showMsg('请求失败，请稍后再试', 'error')
   } finally { loading.value = false }
+}
+
+async function handleIconUpload(e: Event) {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  const allowedTypes = ['image/webp', 'image/jpeg', 'image/png', 'image/gif', 'image/heic', 'image/heif']
+  if (!allowedTypes.includes(file.type)) {
+    showMsg('不支持的图片格式，仅支持 WebP/JPEG/PNG/GIF/HEIC', 'error')
+    return
+  }
+  if (file.size > 5 * 1024 * 1024) {
+    showMsg('图片大小不能超过 5MB', 'error')
+    return
+  }
+  iconUploading.value = true
+  try {
+    const res = await ajax(ApiUrl.UPLOAD_IMAGE, {
+      method: 'POST',
+      isFormData: true,
+      body: { file },
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      dialog.icon = res.data.url
+      dialog.iconPreview = res.data.url
+    } else {
+      showMsg(res.msg || '上传失败', 'error')
+    }
+  } catch {
+    showMsg('上传失败，请稍后再试', 'error')
+  } finally {
+    iconUploading.value = false
+    input.value = ''
+  }
 }
 
 function confirmDeleteDialog(item: RunningApp) {

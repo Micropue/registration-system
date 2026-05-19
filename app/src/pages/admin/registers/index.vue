@@ -22,6 +22,9 @@
             rounded
             size="small"
           >
+            <v-avatar v-if="app.icon" size="20" rounded class="me-1">
+              <v-img :src="app.icon" cover></v-img>
+            </v-avatar>
             <span class="color-dot" :style="{ backgroundColor: app.accent_color || '#1976D2' }"></span>
             {{ app.name }}
           </v-btn>
@@ -344,6 +347,7 @@ watch(selectedApp, () => {
 function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.item = item
   detailsDialog.show = true
+  chatStore.clearUnreadCount(item.id)
 }
 
 function handleDetailsClose() {

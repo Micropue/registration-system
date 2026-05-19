@@ -19,7 +19,7 @@
       <template v-slot:item.title="{ item }">
         <div class="d-flex align-center">
           <span class="text-body-2 font-weight-bold">{{ item.title }}</span>
-          <v-badge v-if="item.reply_count > 0 && !viewedIds.has(item.id)" :content="item.reply_count" color="error" inline class="ml-2"></v-badge>
+          <v-badge v-if="item.reply_count > 0 && !isViewed(item.id)" :content="item.reply_count" color="error" inline class="ml-2"></v-badge>
         </div>
       </template>
 
@@ -141,7 +141,21 @@ const newFormRef = ref<any>(null)
 
 const newDialog = reactive({ show: false, title: '', content: '' })
 const detailDialog = reactive({ show: false, data: null as FeedbackDetail | null, replyContent: '' })
-const viewedIds = reactive(new Set<string>())
+
+const VIEWED_KEY = 'feedback_viewed_ids'
+function getViewedIds(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(VIEWED_KEY) || '[]'))
+  } catch { return new Set() }
+}
+function markViewed(id: string) {
+  const ids = getViewedIds()
+  ids.add(id)
+  localStorage.setItem(VIEWED_KEY, JSON.stringify([...ids]))
+}
+function isViewed(id: string): boolean {
+  return getViewedIds().has(id)
+}
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 function showMsg(text: string, color: string = 'success') {
@@ -185,7 +199,7 @@ const feedbackHeaders = [
 ]
 
 async function openDetail(id: string) {
-  viewedIds.add(id)
+  markViewed(id)
   try {
     const res = await ajax<FeedbackDetail>(`${ApiUrl.GET_FEEDBACK_DETAIL}/${id}`, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }

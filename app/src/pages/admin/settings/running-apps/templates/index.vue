@@ -20,6 +20,7 @@
     <app-data-table
       :headers="templateHeaders"
       :items="templates"
+      :total-items="templates.length"
       :loading="loading"
       client-side
     >

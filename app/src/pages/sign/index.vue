@@ -111,7 +111,8 @@
           <v-form ref="selectFormRef" v-model="selectFormValid" @submit.prevent="goSelectTemplate">
             <v-autocomplete v-model="newDialog.app" :items="runningApps" item-title="name" item-value="name"
               label="搜索跑步APP" :rules="[v => !!v || '请选择跑步APP']"
-              variant="outlined" density="comfortable" hide-no-data></v-autocomplete>
+              variant="outlined" density="comfortable" hide-no-data
+              :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : { prependIcon: 'mdi-run-fast' }" />
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -128,19 +129,20 @@
     <v-dialog v-model="templateDialog.show" max-width="500" persistent>
       <v-card class="pa-4">
         <v-card-title class="text-h5">选择模板版本</v-card-title>
-        <v-card-subtitle>已选APP：{{ selectedApp }}</v-card-subtitle>
+        <v-card-subtitle>
+          <div class="d-flex align-center ga-2">
+            <v-avatar v-if="selectedAppIcon" size="24" rounded>
+              <v-img :src="selectedAppIcon" cover></v-img>
+            </v-avatar>
+            <span>已选APP：{{ selectedApp }}</span>
+          </div>
+        </v-card-subtitle>
         <v-card-text>
           <v-form ref="templateFormRef" v-model="templateFormValid">
-            <v-radio-group v-model="templateDialog.uid" :rules="[v => !!v || '请选择模板版本']">
-              <v-radio v-for="t in appTemplates" :key="t.uid" :value="t.uid" class="mb-2">
-                <template #label>
-                  <div>
-                    <span class="text-body-1 font-weight-medium">{{ t.version_name }}</span>
-                    <span class="text-caption text-medium-emphasis ml-2">{{ t.fields.length }} 个字段</span>
-                  </div>
-                </template>
-              </v-radio>
-            </v-radio-group>
+            <v-autocomplete v-model="templateDialog.uid" :items="appTemplates" item-title="version_name" item-value="uid"
+              label="选择模板版本" :rules="[v => !!v || '请选择模板版本']"
+              variant="outlined" density="comfortable" hide-no-data
+              :item-props="(item: any) => ({ subtitle: `${item.fields?.length || 0} 个字段` })" />
             <div v-if="appTemplates.length === 0" class="text-center py-4 text-medium-emphasis">
               该APP暂无可用模板，请联系管理员配置
             </div>
@@ -149,7 +151,7 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="tonal" @click="templateDialog.show = false">取消</v-btn>
-          <v-btn color="primary" variant="flat" :disabled="!templateFormValid || appTemplates.length === 0" @click="startNewRegistration">
+          <v-btn color="primary" variant="flat" :disabled="!templateFormValid || appTemplates.length === 0" @click="isResubmitMode ? startResubmitRegistration() : startNewRegistration()">
             开始填写
           </v-btn>
         </v-card-actions>
@@ -177,7 +179,8 @@
           <v-form ref="resubmitSelectFormRef" v-model="resubmitSelectValid">
             <v-autocomplete v-model="resubmitDialog.app" :items="runningApps" item-title="name" item-value="name"
               label="搜索跑步APP" :rules="[v => !!v || '请选择跑步APP']"
-              variant="outlined" density="comfortable" hide-no-data></v-autocomplete>
+              variant="outlined" density="comfortable" hide-no-data
+              :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : { prependIcon: 'mdi-run-fast' }" />
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -196,6 +199,9 @@
         <v-card-title class="d-flex align-center">
           <span class="text-h5">重新提交登记</span>
           <v-spacer></v-spacer>
+          <v-avatar v-if="resubmitFormAppIcon" size="22" rounded class="me-1">
+            <v-img :src="resubmitFormAppIcon" cover></v-img>
+          </v-avatar>
           <v-chip size="small" color="warning" label>{{ resubmitFormDialog.app }}</v-chip>
         </v-card-title>
         <v-divider class="mb-4"></v-divider>
@@ -340,7 +346,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed, watch } from 'vue'
+import { ref, onMounted, reactive, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
@@ -361,10 +367,12 @@ interface FormField {
 
 interface AppItem {
   id: number
+  uid: string
   name: string
   normal_price: number
   morning_price: number
   note: string
+  icon?: string
 }
 
 interface RegistrationItem {
@@ -393,6 +401,7 @@ const priority = ref('low')
 const resubmitPriority = ref('low')
 const resubmitTemplateUid = ref('')
 const selectedTemplate = ref('')
+const isResubmitMode = ref(false)
 const appTemplates = ref<any[]>([])
 const loadingTemplates = ref(false)
 const templateDialog = reactive({ show: false, uid: '' })
@@ -410,6 +419,10 @@ const formData = reactive<Record<string, any>>({})
 const runningApps = ref<AppItem[]>([])
 const registrations = ref<RegistrationItem[]>([])
 const selectedApp = ref('')
+const selectedAppIcon = computed(() => {
+  const app = runningApps.value.find(a => a.name === selectedApp.value)
+  return app?.icon || ''
+})
 
 const selectFormValid = ref(false)
 const resubmitSelectValid = ref(false)
@@ -423,6 +436,11 @@ const resubmitFormDialog = reactive({
   uid: '',
   app: '',
   data: {} as Record<string, any>
+})
+
+const resubmitFormAppIcon = computed(() => {
+  const app = runningApps.value.find(a => a.name === resubmitFormDialog.app)
+  return app?.icon || ''
 })
 
 const detailDialog = reactive({
@@ -532,23 +550,12 @@ function initFormData() {
   })
 }
 
-function initResubmitFormData() {
-  const data: Record<string, any> = {}
-  formFields.value.forEach(field => {
-    if (field.type === 'checkbox') {
-      data[field.label] = Array.isArray(field.default) ? [...field.default] : []
-    } else {
-      data[field.label] = field.default || ''
-    }
-  })
-  return data
-}
-
 function openNewDialog() {
   newDialog.app = ''
   newDialog.show = true
-  selectFormValid.value = false
-  selectFormRef.value?.resetValidation()
+  nextTick(() => {
+    selectFormRef.value?.resetValidation()
+  })
 }
 
 async function loadAppTemplates(appName: string) {
@@ -565,6 +572,7 @@ async function loadAppTemplates(appName: string) {
 
 async function goSelectTemplate() {
   if (!newDialog.app) return
+  isResubmitMode.value = false
   selectedApp.value = newDialog.app
   await loadAppTemplates(newDialog.app)
   if (appTemplates.value.length === 0) {
@@ -574,8 +582,9 @@ async function goSelectTemplate() {
   newDialog.show = false
   templateDialog.uid = ''
   templateDialog.show = true
-  templateFormValid.value = false
-  templateFormRef.value?.resetValidation()
+  nextTick(() => {
+    templateFormRef.value?.resetValidation()
+  })
 }
 
 function startNewRegistration() {
@@ -587,7 +596,9 @@ function startNewRegistration() {
   templateDialog.show = false
   initFormData()
   showForm.value = true
-  formRef.value?.resetValidation()
+  nextTick(() => {
+    formRef.value?.resetValidation()
+  })
   setTimeout(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }, 100)
@@ -665,6 +676,7 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.createdAt = item.created_at
   detailDialog.rejectReason = item.reject_reason || ''
   detailDialog.show = true
+  chatStore.clearUnreadCount(item.id)
 }
 
 function handleDetailClose() {
@@ -693,26 +705,56 @@ function openResubmitDialog(item: RegistrationItem) {
   resubmitPriority.value = item.priority || 'low'
   resubmitTemplateUid.value = item.template_uid || ''
   resubmitDialog.show = true
-  resubmitSelectValid.value = false
-  resubmitSelectFormRef.value?.resetValidation()
+  nextTick(() => {
+    resubmitSelectFormRef.value?.resetValidation()
+  })
 }
 
-function startResubmitForm() {
+async function startResubmitForm() {
   if (!resubmitDialog.app) return
-  resubmitFormDialog.uid = resubmitDialog.uid
-  resubmitFormDialog.app = resubmitDialog.app
-  const data = initResubmitFormData()
-  // 用旧数据预填
+  selectedApp.value = resubmitDialog.app
+  await loadAppTemplates(resubmitDialog.app)
+  if (appTemplates.value.length === 0) {
+    showMsg('该APP暂无可用模板', 'error')
+    return
+  }
+  isResubmitMode.value = true
+  resubmitDialog.show = false
+  templateDialog.uid = ''
+  templateDialog.show = true
+  nextTick(() => {
+    templateFormRef.value?.resetValidation()
+  })
+}
+
+function startResubmitRegistration() {
+  if (!templateDialog.uid) return
+  const tpl = appTemplates.value.find(t => t.uid === templateDialog.uid)
+  if (!tpl) return
+  resubmitTemplateUid.value = templateDialog.uid
+  formFields.value = tpl.fields || []
+  templateDialog.show = false
+  isResubmitMode.value = false
+  const data: Record<string, any> = {}
+  formFields.value.forEach(field => {
+    if (field.type === 'checkbox') {
+      data[field.label] = Array.isArray(field.default) ? [...field.default] : []
+    } else {
+      data[field.label] = field.default || ''
+    }
+  })
   for (const key of Object.keys(resubmitDialog.oldData)) {
     if (key !== '跑步APP' && key in data) {
       data[key] = resubmitDialog.oldData[key]
     }
   }
+  resubmitFormDialog.uid = resubmitDialog.uid
+  resubmitFormDialog.app = resubmitDialog.app
   resubmitFormDialog.data = data
-  resubmitDialog.show = false
   resubmitFormDialog.show = true
-  resubmitFormValid.value = false
-  resubmitFormRef.value?.resetValidation()
+  nextTick(() => {
+    resubmitFormRef.value?.resetValidation()
+  })
 }
 
 async function doResubmit() {

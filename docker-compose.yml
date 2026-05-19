@@ -12,6 +12,8 @@ services:
       - ./server/src:/server
     working_dir: /server
     environment:
+      - MEDIA_DIR=/data/media
+      - TZ=Asia/Shanghai
       - DB_URL=db:3306
       - DB_NAME=huhurun
       - DB_USERNAME=root
@@ -27,6 +29,8 @@ services:
     environment:
       - MYSQL_DATABASE=huhurun
       - MYSQL_ROOT_PASSWORD=root
+      - TZ=Asia/Shanghai
+    command: --default-time-zone='+08:00'
     ports:
       - "3308:3306"
     restart: always

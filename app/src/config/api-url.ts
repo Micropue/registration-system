@@ -83,4 +83,6 @@ export enum ApiUrl {
   MARK_NOTIFICATION_READ = '/api/notifications',
   /** 全部已读 */
   MARK_ALL_NOTIFICATIONS_READ = '/api/notifications/read-all',
+  /** 图片上传 */
+  UPLOAD_IMAGE = '/api/upload/image',
 }
