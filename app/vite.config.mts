@@ -29,7 +29,7 @@ export default defineConfig({
         ],
       },
     }),
-    viteCompression({ algorithm: 'gzip', ext: '.gz', deleteOriginalAssets: true, threshold: 0, filter: /\.(js|mjs|css|html|json|svg|xml|txt|ico)$/i }),
+    viteCompression({ algorithm: 'gzip', ext: '.gz', threshold: 0, filter: /\.(js|mjs|css|html|json|svg|xml|txt|ico)$/i }),
   ],
   define: { 'process.env': {} },
   resolve: {
