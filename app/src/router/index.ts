@@ -10,34 +10,39 @@ import Index from '@/pages/index.vue'
 import { checkLoginStatus } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
 
-/**
- * 路由守卫：要求必须登录且为普通用户
- */
-const requireDefault: NavigationGuard = async (to, from, next) => {
-  const userInfo = await checkLoginStatus()
-  if (!userInfo) {
-    return next('/login')
-  }
-  if (userInfo.type === 'default') {
-    next()
-  } else {
-    // 管理员尝试访问普通用户页面，重定向到管理员首页
-    next('/admin')
-  }
+const ADMIN_PERMISSION_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批']
+
+function hasAnyAdminPermission(permissions: Record<string, any> | undefined): boolean {
+  if (!permissions) return false
+  return ADMIN_PERMISSION_KEYS.some(key => {
+    const val = permissions[key]
+    if (typeof val === 'object' && val !== null) return Object.values(val).some(Boolean)
+    return !!val
+  })
 }
 
 /**
- * 路由守卫：要求必须登录且为管理员
+ * 路由守卫：要求必须登录（用户页面，含后台权限的用户也可访问）
  */
-const requireAdmin: NavigationGuard = async (to, from, next) => {
+const requireDefault: NavigationGuard = async (_to, _from, next) => {
   const userInfo = await checkLoginStatus()
   if (!userInfo) {
     return next('/login')
   }
-  if (userInfo.type === 'admin') {
+  next()
+}
+
+/**
+ * 路由守卫：要求必须登录且拥有任一后台权限
+ */
+const requireAdmin: NavigationGuard = async (_to, _from, next) => {
+  const userInfo = await checkLoginStatus()
+  if (!userInfo) {
+    return next('/login')
+  }
+  if (hasAnyAdminPermission(userInfo.permissions)) {
     next()
   } else {
-    // 普通用户尝试访问管理页面，重定向到普通用户首页
     next('/')
   }
 }
@@ -45,10 +50,10 @@ const requireAdmin: NavigationGuard = async (to, from, next) => {
 /**
  * 路由守卫：要求必须未登录 (访客状态)
  */
-const requireGuest: NavigationGuard = async (to, from, next) => {
+const requireGuest: NavigationGuard = async (_to, _from, next) => {
   const userInfo = await checkLoginStatus()
   if (userInfo) {
-    if (userInfo.type === 'admin') {
+    if (hasAnyAdminPermission(userInfo.permissions)) {
       next('/admin')
     } else {
       next('/')
@@ -85,6 +90,12 @@ const router = createRouter({
       meta: { title: '工单反馈' }
     },
     {
+      path: '/recharge',
+      component: () => import("@/pages/recharge/index.vue"),
+      beforeEnter: requireDefault,
+      meta: { title: '充值申请' }
+    },
+    {
       path: '/admin',
       component: () => import("@/pages/admin/index.vue"),
       beforeEnter: requireAdmin,
@@ -99,13 +110,16 @@ const router = createRouter({
         { path: 'settings/running-apps/:appUid/templates', redirect: (to: any) => `/admin/running-apps/${to.params.appUid}/templates` },
         { path: 'settings/running-apps', redirect: '/admin/running-apps' },
         { path: 'settings', redirect: '/admin' },
+        { path: 'groups', component: () => import("@/pages/admin/groups/index.vue"), meta: { title: '账户组管理' } },
+        { path: 'recharges', component: () => import("@/pages/admin/recharges/index.vue"), meta: { title: '充值审批' } },
+        { path: 'balance-transactions', component: () => import("@/pages/admin/balance-transactions/index.vue"), meta: { title: '余额流水' } },
       ]
     }
   ],
 })
 
 // 全局路由加载动画守卫
-router.beforeEach((to, from, next) => {
+router.beforeEach((_to, _from, next) => {
   const appStore = useAppStore()
   appStore.setPageLoading(true)
   next()
@@ -113,12 +127,10 @@ router.beforeEach((to, from, next) => {
 
 router.afterEach((to) => {
   const appStore = useAppStore()
-  // 延迟关闭以增加视觉反馈
   setTimeout(() => {
     appStore.setPageLoading(false)
   }, 400)
 
-  // 动态修改标题
   document.title = to.meta.title ? `${to.meta.title} - 哆啦A梦（校园跑版）` : '哆啦A梦（校园跑版）'
 })
 

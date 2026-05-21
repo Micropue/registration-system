@@ -29,15 +29,18 @@
             {{ item.name }}
           </div>
         </template>
-        <template v-slot:item.normal_price="{ item }">
-          {{ item.normal_price.toFixed(2) }}
-        </template>
-        <template v-slot:item.morning_price="{ item }">
-          {{ item.morning_price.toFixed(2) }}
-        </template>
         <template v-slot:item.accent_color="{ item }">
           <span class="color-dot" :style="{ backgroundColor: item.accent_color || '#1976D2' }"></span>
           {{ item.accent_color || '#1976D2' }}
+        </template>
+        <template v-slot:item.balance="{ item }">
+          <div class="d-flex align-center ga-1">
+            <v-chip size="x-small" :color="item.balance_mode === 'mileage' ? 'blue' : item.balance_mode === 'count' ? 'green' : 'grey'">
+              {{ item.balance_mode === 'mileage' ? '公里数' : item.balance_mode === 'count' ? '次数' : '未设置' }}
+            </v-chip>
+            <span class="text-body-2">{{ item.balance ?? 0 }}</span>
+            <v-btn icon="mdi-pencil" size="x-small" variant="text" color="primary" @click="openBalanceDialog(item)"></v-btn>
+          </div>
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
@@ -70,10 +73,6 @@
               <div class="flex-fill">
                 <v-text-field v-model="dialog.name" label="APP名称" variant="outlined"
                   :rules="[v => !!v || 'APP名称必填']" hide-details="auto" class="mb-4" required></v-text-field>
-            <v-text-field v-model.number="dialog.normal_price" label="普通跑步价格" type="number" variant="outlined"
-              :rules="[v => v !== '' || '价格必填', v => v >= 0 || '价格不能为负']" hide-details="auto" class="mb-4" required></v-text-field>
-            <v-text-field v-model.number="dialog.morning_price" label="晨跑价格" type="number" variant="outlined"
-              :rules="[v => v !== '' || '价格必填', v => v >= 0 || '价格不能为负']" hide-details="auto" class="mb-4" required></v-text-field>
             <v-textarea v-model="dialog.note" label="备注" variant="outlined" rows="3" hide-details="auto"></v-textarea>
             <div class="d-flex align-center ga-3 mt-4">
               <label class="color-picker-label">
@@ -121,7 +120,7 @@
           <div class="mb-4">
             <div class="text-subtitle-2 mb-2">2. 格式要求</div>
             <v-list density="compact">
-              <v-list-item prepend-icon="mdi-check-circle" title="第一行为表头：APP名称、普通跑步价格、晨跑价格、备注、强调色"></v-list-item>
+              <v-list-item prepend-icon="mdi-check-circle" title="第一行为表头：APP名称、备注、强调色"></v-list-item>
               <v-list-item prepend-icon="mdi-check-circle" title="价格字段为数字，备注和强调色可选，强调色格式#RRGGBB"></v-list-item>
             </v-list>
           </div>
@@ -142,16 +141,12 @@
                   <thead>
                     <tr>
                       <th class="text-left" style="width: 30%">APP名称</th>
-                      <th class="text-left" style="width: 25%">普通价格</th>
-                      <th class="text-left" style="width: 25%">晨跑价格</th>
                       <th style="width: 20%">备注</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr v-for="(item, index) in bulkDialog.parsedItems" :key="index">
                       <td class="pa-1">{{ item.name }}</td>
-                      <td class="pa-1">{{ item.normal_price }}</td>
-                      <td class="pa-1">{{ item.morning_price }}</td>
                       <td class="pa-1">{{ item.note }}</td>
                     </tr>
                   </tbody>
@@ -183,6 +178,25 @@
           <v-btn color="primary" variant="flat" :loading="loading" :disabled="!bulkDialog.file" @click="handleBulkImport">
             开始导入
           </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 余额调整 Dialog -->
+    <v-dialog v-model="balanceDialog.show" max-width="400">
+      <v-card class="pa-4">
+        <v-card-title>调整余额 - {{ balanceDialog.appName }}</v-card-title>
+        <v-card-text>
+          <v-select v-model="balanceDialog.balanceMode" :items="balanceModeOptions" label="余额计算模式" variant="outlined" density="comfortable" class="mb-3"></v-select>
+          <div class="text-subtitle-2 mb-2">当前余额: {{ balanceDialog.currentBalance }}</div>
+          <v-text-field v-model.number="balanceDialog.adjustAmount" label="增减数额（正数增加，负数减少）" type="number" variant="outlined" density="comfortable"
+            :rules="[v => v !== 0 || '请输入非零数值']" hide-details class="mb-3"></v-text-field>
+          <div class="text-caption text-medium-emphasis">调整后: {{ balanceDialog.currentBalance + (balanceDialog.adjustAmount || 0) }}</div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="balanceDialog.show = false">取消</v-btn>
+          <v-btn color="primary" variant="flat" :loading="balanceSaving" @click="saveBalance">确认调整</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -223,8 +237,6 @@ const dialog = reactive({
   isEdit: false,
   editId: 0,
   name: '',
-  normal_price: 0,
-  morning_price: 0,
   note: '',
   accent_color: '#1976D2',
   icon: '',
@@ -232,6 +244,36 @@ const dialog = reactive({
 })
 
 const deleteDialog = reactive({ show: false, id: 0, name: '' })
+
+const balanceDialog = reactive({ show: false, appUid: '', appName: '', currentBalance: 0, balanceMode: '', adjustAmount: 0 })
+const balanceModeOptions = [{ title: '未设置', value: '' }, { title: '公里数', value: 'mileage' }, { title: '次数', value: 'count' }]
+const balanceSaving = ref(false)
+
+function openBalanceDialog(app: RunningApp) {
+  balanceDialog.appUid = app.uid
+  balanceDialog.appName = app.name
+  balanceDialog.currentBalance = app.balance || 0
+  balanceDialog.balanceMode = app.balance_mode || ''
+  balanceDialog.adjustAmount = 0
+  balanceDialog.show = true
+}
+
+async function saveBalance() {
+  balanceSaving.value = true
+  try {
+    const res = await ajax(`${ApiUrl.UPDATE_APP_BALANCE}/${balanceDialog.appUid}/balance`, {
+      method: 'PATCH',
+      body: { balance_mode: balanceDialog.balanceMode, adjust_amount: balanceDialog.adjustAmount },
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      showMsg('余额已更新')
+      balanceDialog.show = false
+      loadApps()
+    } else showMsg(res.msg, 'error')
+  } catch (e) { showMsg('操作失败', 'error') }
+  finally { balanceSaving.value = false }
+}
 
 const bulkDialog = reactive({
   show: false,
@@ -250,11 +292,10 @@ function showMsg(text: string, color: string = 'success') {
 
 const headers = [
   { title: 'APP名称', key: 'name', searchable: true, filterable: true },
-  { title: '普通跑步价格', key: 'normal_price', sortable: true },
-  { title: '晨跑价格', key: 'morning_price', sortable: true },
   { title: '备注', key: 'note', searchable: true },
   { title: '强调色', key: 'accent_color', sortable: false },
   { title: '模板数', key: 'template_count', sortable: true },
+  { title: '余额', key: 'balance', sortable: false },
   { title: '操作', key: 'actions', sortable: false }
 ]
 
@@ -282,10 +323,8 @@ function parseFile(file: File) {
         .filter(row => row.length > 0 && row[0])
         .map(row => ({
           name: String(row[0] || ''),
-          normal_price: parseFloat(row[1]) || 0,
-          morning_price: parseFloat(row[2]) || 0,
-          note: String(row[3] || ''),
-          accent_color: String(row[4] || '#1976D2')
+          note: String(row[1] || ''),
+          accent_color: String(row[2] || '#1976D2')
         }))
     } catch (err) {
       showMsg('文件解析失败', 'error')
@@ -298,9 +337,9 @@ function parseFile(file: File) {
 
 function downloadTemplate() {
   const data = [
-    ['APP名称', '普通跑步价格', '晨跑价格', '备注', '强调色'],
-    ['校园跑', '3.00', '2.50', '基础跑步APP', '#1976D2'],
-    ['乐跑', '5.00', '4.00', '', '#E53935']
+    ['APP名称', '备注', '强调色'],
+    ['校园跑', '基础跑步APP', '#1976D2'],
+    ['乐跑', '', '#E53935']
   ]
   const ws = XLSX.utils.aoa_to_sheet(data)
   const wb = XLSX.utils.book_new()
@@ -340,8 +379,6 @@ function openCreateDialog() {
   dialog.isEdit = false
   dialog.editId = 0
   dialog.name = ''
-  dialog.normal_price = 0
-  dialog.morning_price = 0
   dialog.note = ''
   dialog.accent_color = '#1976D2'
   dialog.icon = ''
@@ -353,8 +390,6 @@ function openEditDialog(item: RunningApp) {
   dialog.isEdit = true
   dialog.editId = item.id
   dialog.name = item.name
-  dialog.normal_price = item.normal_price
-  dialog.morning_price = item.morning_price
   dialog.note = item.note
   dialog.accent_color = item.accent_color || '#1976D2'
   dialog.icon = item.icon || ''
@@ -369,7 +404,7 @@ async function submitApp() {
     if (dialog.isEdit) {
       const res = await ajax(`${ApiUrl.UPDATE_RUNNING_APP}/${dialog.editId}`, {
         method: 'PUT',
-        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
+        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('修改成功'); dialog.show = false; loadApps() }
@@ -377,7 +412,7 @@ async function submitApp() {
     } else {
       const res = await ajax(ApiUrl.CREATE_RUNNING_APP, {
         method: 'POST',
-        body: { name: dialog.name, normal_price: dialog.normal_price, morning_price: dialog.morning_price, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
+        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('创建成功'); dialog.show = false; loadApps() }

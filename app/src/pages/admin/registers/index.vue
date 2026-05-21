@@ -56,13 +56,24 @@
 
         <!-- 自定义槽位：跑步APP -->
         <template v-slot:item.app="{ item }">
-          <div class="d-flex align-center ga-1">
-            <v-avatar v-if="getAppInfo(item.app)?.icon" size="20" rounded>
+          <div class="d-flex align-center ga-1 app-name-cell">
+            <v-avatar v-if="getAppInfo(item.app)?.icon" size="22" rounded>
               <v-img :src="getAppInfo(item.app)?.icon" cover></v-img>
             </v-avatar>
             <span class="color-dot" :style="{ backgroundColor: getAppInfo(item.app)?.accent_color || '#1976D2' }"></span>
-            {{ item.app }}
+            <span class="font-weight-bold text-body-2 text-no-wrap">{{ item.app }}</span>
           </div>
+        </template>
+
+        <!-- 自定义槽位：模板 -->
+        <template v-slot:item.template_name="{ item }">
+          <span class="text-body-2">{{ item.template_name || '-' }}</span>
+        </template>
+
+        <!-- 自定义槽位：跑量 -->
+        <template v-slot:item.amount="{ item }">
+          <span v-if="item.amount != null" class="font-weight-bold text-primary">{{ item.amount }}{{ getAmountUnit(item.app) }}</span>
+          <span v-else class="text-grey">-</span>
         </template>
 
         <!-- 自定义槽位：创建时间 -->
@@ -194,7 +205,8 @@
   overflow-x: auto;
 }
 :deep(.row-processed) { opacity: 0.5; }
-.color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; }
+.color-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: middle; flex-shrink: 0; }
+.app-name-cell { min-width: 120px; white-space: nowrap; }
 
 .detail-card {
   overflow: hidden;
@@ -402,6 +414,13 @@ function getAppInfo(appName: string) {
   return runningApps.value.find(a => a.name === appName)
 }
 
+function getAmountUnit(appName: string): string {
+  const app = runningApps.value.find(a => a.name === appName)
+  if (app?.balance_mode === 'mileage') return ' 公里'
+  if (app?.balance_mode === 'count') return ' 次'
+  return ''
+}
+
 function confirmDelete(item: RegistrationItem) {
   deleteDialog.item = item
   deleteDialog.show = true
@@ -411,6 +430,8 @@ function confirmDelete(item: RegistrationItem) {
 const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
   { title: '跑步APP', key: 'app', sortable: true, filterable: true },
+  { title: '模板', key: 'template_name', sortable: true },
+  { title: '跑量', key: 'amount', sortable: true },
   { title: '客户信息', key: 'details', sortable: false },
   { title: '登记状态', key: 'status', sortable: true, filterable: true },
   { title: '优先级', key: 'priority', sortable: true, filterable: true },
@@ -591,7 +612,8 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
     if (res.code === 200) {
       registers.value = res.data.items.map((item: any) => ({
         ...item,
-        app: item.registration_info?.['跑步APP'] || ''
+        app: item.registration_info?.['跑步APP'] || '',
+        amount: item.amount ?? null
       }))
       totalRegisters.value = res.data.total
       loadStats()

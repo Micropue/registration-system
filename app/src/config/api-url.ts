@@ -85,6 +85,23 @@ export enum ApiUrl {
   MARK_ALL_NOTIFICATIONS_READ = '/api/notifications/read-all',
   /** 按关联ID标记已读 */
   READ_NOTIFICATIONS_BY_REF = '/api/notifications/read-by-reference',
+  /** 账户组管理 */
+  GET_GROUPS = '/api/admin/groups',
+  CREATE_GROUP = '/api/admin/groups',
+  UPDATE_GROUP = '/api/admin/groups',
+  DELETE_GROUP = '/api/admin/groups',
+  /** 用户分配组 */
+  ASSIGN_USER_GROUP = '/api/admin/users',
+  REMOVE_USER_GROUP = '/api/admin/users',
+  /** APP余额 */
+  UPDATE_APP_BALANCE = '/api/admin/running-apps',
+  /** 余额流水 */
+  GET_BALANCE_TRANSACTIONS = '/api/admin/balance-transactions',
+  /** 充值申请 */
+  CREATE_RECHARGE = '/api/balance-recharges',
+  GET_MY_RECHARGES = '/api/balance-recharges',
+  GET_ALL_RECHARGES = '/api/admin/balance-recharges',
+  PROCESS_RECHARGE = '/api/admin/balance-recharges',
   /** 图片上传 */
   UPLOAD_IMAGE = '/api/upload/image',
 }

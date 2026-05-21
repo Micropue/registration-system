@@ -48,7 +48,7 @@
             class="pa-3 mb-2 rounded" :class="reply.is_admin ? 'bg-blue-lighten-5' : 'bg-grey-lighten-4'">
             <div class="d-flex align-center ga-2 mb-1">
               <v-chip size="x-small" :color="reply.is_admin ? 'primary' : 'grey'">
-                {{ reply.is_admin ? '管理员' : '用户' }}
+                {{ reply.username }}（{{ reply.group_name }}）
               </v-chip>
               <span class="text-caption text-medium-emphasis">{{ formatDate(reply.created_at) }}</span>
             </div>
@@ -107,7 +107,7 @@ interface FeedbackItem {
 }
 interface FeedbackDetail {
   id: string; username: string; title: string; content: string; status: string; created_at: string
-  replies: { id: string; content: string; is_admin: boolean; created_at: string }[]
+  replies: { id: string; content: string; username: string; group_name: string; is_admin: boolean; created_at: string }[]
 }
 
 const feedbacks = ref<FeedbackItem[]>([])

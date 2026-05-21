@@ -209,6 +209,8 @@ onMounted(async () => {
 }
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+.v-card{
+  box-shadow: none;
 }
 </style>

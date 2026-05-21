@@ -16,8 +16,10 @@ export interface LoginData {
 /** 登录检测响应数据 */
 export interface CheckLoginData {
   username: string;
-  type: 'admin' | 'default';
+  role: 'super_admin' | 'admin' | 'default';
+  group_name?: string;
   token: string;
+  permissions?: Record<string, any>;
 }
 
 /** 用户列表项 */
@@ -25,11 +27,12 @@ export interface UserItem {
   uid: string;
   username: string;
   session_count: number;
-  type: 'admin' | 'default';
+  type: 'admin' | 'default' | 'super_admin';
   register_time: string;
   last_login_time: string | null;
   login_ip: string | null;
   login_device: string;
+  group_uid?: string;
 }
 
 /** 表单字段选项 */
@@ -71,12 +74,12 @@ export interface RunningApp {
   id: number;
   uid: string;
   name: string;
-  normal_price: number;
-  morning_price: number;
   note: string;
   accent_color: string;
   icon?: string;
   template_count?: number;
+  balance_mode?: string;
+  balance?: number;
 }
 
 /** APP模板 */
@@ -86,4 +89,26 @@ export interface AppTemplate {
   version_name: string;
   fields: any[];
   create_time: string;
+}
+
+/** 账户组 */
+export interface UserGroup {
+  uid: string;
+  name: string;
+  permissions: Record<string, any>;
+  created_at: string;
+}
+
+/** 充值申请 */
+export interface BalanceRecharge {
+  id: string;
+  username?: string;
+  app_name: string;
+  app_balance_mode: string;
+  amount: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reject_reason?: string;
+  created_at: string;
+  processed_at?: string | null;
 }

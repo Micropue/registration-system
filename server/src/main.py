@@ -67,7 +67,7 @@ MIME_TO_EXT = {
 class CreateUserRequest(BaseModel):
     username: str
     password: str
-    type: str
+    group_uid: Optional[str] = None
 
 class UpdateUserRequest(BaseModel):
     username: Optional[str] = None
@@ -75,8 +75,6 @@ class UpdateUserRequest(BaseModel):
 
 class RunningAppRequest(BaseModel):
     name: str
-    normal_price: float
-    morning_price: float
     note: str = ''
     accent_color: str = '#1976D2'
     icon: str = ''
@@ -140,18 +138,14 @@ async def create_user(
     request: CreateUserRequest,
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "账户管理", "创建")
+    if err: return err
         
     try:
         account_service.create_account(
             username=request.username,
             password=request.password,
-            account_type=cast(Any, request.type)
+            group_uid=request.group_uid
         )
         return api_response(200, "User created successfully")
     except AccountError as e:
@@ -174,6 +168,17 @@ def get_token(authorization: str) -> str:
         return authorization.split(" ")[1]
     return authorization
 
+def require_perm(authorization: Optional[str], *path: str):
+    if not authorization:
+        return None, api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return None, api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, *path):
+        return None, api_response(403, "您没有此操作权限")
+    return session, None
+
 
 @app.get("/admin/users")
 async def get_users(
@@ -183,13 +188,8 @@ async def get_users(
     sort_by: Optional[str] = None, 
     order: str = "desc"
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    # 验证管理员权限
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "账户管理", "查看")
+    if err: return err
 
     users_data = account_service.get_all_users(page=page, page_size=page_size, sort_by=sort_by, order=order)
     # 计算总页数
@@ -229,13 +229,18 @@ async def check_login(authorization: Optional[str] = Header(None)):
     session = account_service.get_login_session(token)
 
     if session:
+        perms = account_service._get_user_permissions(session.user_uid)
+        role = account_service._get_user_role(session.user_uid)
+        group_name = account_service._get_user_group_name(session.user_uid)
         return api_response(
             200,
             "Authorized",
             {
                 "username": session.username,
-                "type": session.account_type,
+                "role": role,
+                "group_name": group_name,
                 "token": session.uid,
+                "permissions": perms,
             },
         )
     return api_response(401, "Unauthorized")
@@ -251,23 +256,15 @@ async def get_registrations(
     running_app: Optional[str] = None,
     username: Optional[str] = None
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
-
+    session, err = require_perm(authorization, "订单处理", "查看")
+    if err: return err
     data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=running_app, username=username)
     return api_response(200, "Success", data)
 
 @app.get("/admin/registrations/stats")
 async def get_registration_stats(authorization: Optional[str] = Header(None)):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "订单处理", "查看")
+    if err: return err
     stats = account_service.get_registration_stats()
     return api_response(200, "Success", stats)
 
@@ -278,19 +275,18 @@ async def update_registration_status(
     reject_reason: Optional[str] = Form(None),
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "订单处理", status == 'approved' and "处理" or status == 'rejected' and "驳回" or "处理")
+    if err: return err
         
     try:
         account_service.update_registration_status(uid, status, reject_reason)
         if status == 'rejected':
-            session = account_service.get_login_session(token)
-            # Find the registration to get user_uid
             with account_service._connect() as conn:
+                cur = conn.cursor(dictionary=True)
+                cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
+                reg = cur.fetchone()
+                if reg:
+                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '登记被驳回', reject_reason or '您的登记已被驳回', uid)
                 cur = conn.cursor(dictionary=True)
                 cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
                 reg = cur.fetchone()
@@ -306,12 +302,8 @@ async def delete_registration(
     uid: str,
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "订单处理", "删除")
+    if err: return err
         
     try:
         success = account_service.delete_registration(uid)
@@ -328,14 +320,8 @@ async def delete_user(
     uid: str,
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    # 验证管理员权限
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
-
+    session, err = require_perm(authorization, "账户管理", "删除")
+    if err: return err
     try:
         account_service.delete_account(uid)
         return api_response(200, "User deleted successfully")
@@ -344,20 +330,14 @@ async def delete_user(
     except Exception as e:
         return api_response(500, f"Internal server error: {str(e)}")
 
-
 @app.patch("/admin/users/{uid}")
 async def update_user(
     uid: str,
     request: UpdateUserRequest,
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    # 验证管理员权限
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "账户管理", "修改")
+    if err: return err
 
     try:
         account_service.update_account(
@@ -377,13 +357,8 @@ async def force_logout_user(
     uid: str,
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-
-    token = get_token(authorization)
-    # 验证管理员权限
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "账户管理", "强制下线")
+    if err: return err
 
     try:
         account_service.force_logout(uid)
@@ -397,38 +372,20 @@ async def save_fields(
     fields: list[dict[str, Any]],
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
-        
-    try:
-        account_service.save_registration_fields(fields)
-        return api_response(200, "Fields configuration saved successfully")
-    except Exception as e:
-        return api_response(500, f"Error saving fields: {str(e)}")
+    session, err = require_perm(authorization, "APP配置", "修改")
+    if err: return err
 
 @app.get("/admin/settings/fields")
 async def get_fields(authorization: Optional[str] = Header(None)):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-        
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
-        
+    session, err = require_perm(authorization, "APP配置", "查看")
+    if err: return err
     fields = account_service.get_registration_fields()
     return api_response(200, "Success", fields)
 
 @app.get("/admin/settings/running-apps")
 async def get_running_apps(authorization: Optional[str] = Header(None)):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "APP配置", "查看")
+    if err: return err
     apps = account_service.get_running_apps()
     return api_response(200, "Success", apps)
 
@@ -437,13 +394,10 @@ async def create_running_app(
     request: RunningAppRequest,
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "APP配置", "修改")
+    if err: return err
     try:
-        app_id = account_service.create_running_app(request.name, request.normal_price, request.morning_price, request.note, request.accent_color, request.icon)
+        app_id = account_service.create_running_app(request.name, request.note, request.accent_color, request.icon)
         return api_response(200, "Running app created", {'id': app_id})
     except Exception as e:
         return api_response(500, f"Error creating running app: {str(e)}")
@@ -454,24 +408,18 @@ async def update_running_app(
     request: RunningAppRequest,
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "APP配置", "修改")
+    if err: return err
     try:
-        account_service.update_running_app(app_id, request.name, request.normal_price, request.morning_price, request.note, request.accent_color, request.icon)
+        account_service.update_running_app(app_id, request.name, request.note, request.accent_color, request.icon)
         return api_response(200, "Running app updated")
     except Exception as e:
         return api_response(500, f"Error updating running app: {str(e)}")
 
 @app.delete("/admin/settings/running-apps/{app_id}")
 async def delete_running_app(app_id: int, authorization: Optional[str] = Header(None)):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "APP配置", "修改")
+    if err: return err
     try:
         account_service.delete_running_app(app_id)
         return api_response(200, "Running app deleted")
@@ -483,28 +431,13 @@ async def bulk_create_running_apps(
     apps: list[dict[str, Any]],
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "APP配置", "修改")
+    if err: return err
     try:
         count = account_service.bulk_create_running_apps(apps)
         return api_response(200, f"Successfully imported {count} running apps")
     except Exception as e:
         return api_response(500, f"Error bulk importing: {str(e)}")
-
-# --- App Template 接口 ---
-
-@app.get("/admin/dashboard/stats")
-async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
-    stats = account_service.get_dashboard_stats()
-    return api_response(200, "Success", stats)
 
 def _get_app_id(app_uid: str) -> int:
     app = account_service.get_running_app_by_uid(app_uid)
@@ -512,13 +445,24 @@ def _get_app_id(app_uid: str) -> int:
         raise Exception("App not found")
     return app['id']
 
+@app.get("/admin/balance-transactions")
+async def get_balance_transactions(authorization: Optional[str] = Header(None), app_uid: str = "", page: int = 1, page_size: int = 20):
+    session, err = require_perm(authorization, "APP配置", "查看")
+    if err: return err
+    data = account_service.get_balance_transactions(app_uid=app_uid, page=page, page_size=page_size)
+    return api_response(200, "Success", data)
+
+@app.get("/admin/dashboard/stats")
+async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "订单处理", "查看")
+    if err: return err
+    stats = account_service.get_dashboard_stats()
+    return api_response(200, "Success", stats)
+
 @app.get("/admin/settings/running-apps/{app_uid}/templates")
 async def get_app_templates(app_uid: str, authorization: Optional[str] = Header(None)):
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+    session, err = require_perm(authorization, "APP配置", "查看")
+    if err: return err
     try:
         app_id = _get_app_id(app_uid)
         templates = account_service.get_app_templates(app_id)
@@ -532,7 +476,7 @@ async def create_app_template(app_uid: str, data: dict[str, Any], authorization:
         return api_response(401, "Missing Authorization Header")
     token = get_token(authorization)
     if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+        return api_response(403, "您没有此操作权限")
     try:
         app_id = _get_app_id(app_uid)
         uid = account_service.create_app_template(app_id, data.get('version_name', ''), data.get('fields', []))
@@ -546,7 +490,7 @@ async def update_app_template(app_uid: str, uid: str, data: dict[str, Any], auth
         return api_response(401, "Missing Authorization Header")
     token = get_token(authorization)
     if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+        return api_response(403, "您没有此操作权限")
     try:
         account_service.update_app_template(uid, data.get('version_name', ''), data.get('fields', []))
         return api_response(200, "Template updated")
@@ -559,7 +503,7 @@ async def delete_app_template(app_uid: str, uid: str, authorization: Optional[st
         return api_response(401, "Missing Authorization Header")
     token = get_token(authorization)
     if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden: Admin access required")
+        return api_response(403, "您没有此操作权限")
     try:
         account_service.delete_app_template(uid)
         return api_response(200, "Template deleted")
@@ -601,20 +545,16 @@ async def get_user_registrations(
     page: int = 1, page_size: int = 20
 ):
     """获取当前用户的登记记录（分页）"""
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建登记")
+    if err: return err
     data = account_service.get_user_registrations(session.user_uid, page, page_size)
     return api_response(200, "Success", data)
 
 @app.get("/registrations/{uid}")
 async def get_registration_detail(uid: str, authorization: Optional[str] = Header(None)):
     """获取单条登记详情"""
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建登记")
+    if err: return err
     detail = account_service.get_registration_detail(uid, session.user_uid)
     if not detail:
         return api_response(404, "Registration not found")
@@ -627,16 +567,18 @@ async def resubmit_registration(
     authorization: Optional[str] = Header(None)
 ):
     """重新提交被驳回的登记"""
-    if not authorization:
-        return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session:
-        return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建登记")
+    if err: return err
     try:
         priority = data.pop('priority', 'low') if isinstance(data, dict) else 'low'
         template_uid = data.pop('template_uid', '') if isinstance(data, dict) else ''
-        account_service.resubmit_registration(uid, session.user_uid, data, priority, template_uid)
+        amount = data.pop('amount', None) if isinstance(data, dict) else None
+        if amount is not None:
+            amount = float(amount)
+            app_name = data.get('跑步APP', '') if isinstance(data, dict) else ''
+            if app_name and not account_service.check_app_balance(app_name, amount):
+                return api_response(400, f"'{app_name}' 余额不足，无法重新提交")
+        account_service.resubmit_registration(uid, session.user_uid, data, priority, template_uid, amount)
         return api_response(200, "Registration resubmitted successfully")
     except AccountError as e:
         return api_response(400, str(e))
@@ -645,19 +587,15 @@ async def resubmit_registration(
 
 @app.get("/registrations/check")
 async def check_registration_status(authorization: Optional[str] = Header(None)):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建登记")
+    if err: return err
     exists = account_service.check_registration_exists(session.user_uid)
     return api_response(200, "Success", {"registered": exists})
 
 @app.get("/registrations/latest")
 async def get_latest_registration(authorization: Optional[str] = Header(None)):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建登记")
+    if err: return err
     data = account_service.get_latest_registration(session.user_uid)
     return api_response(200, "Success", data or {})
 
@@ -674,11 +612,19 @@ async def submit_registration(
     session = account_service.get_login_session(token)
     if not session:
         return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "新建登记"):
+        return api_response(403, "您没有此操作权限")
         
     try:
         priority = data.pop('priority', 'low') if isinstance(data, dict) else 'low'
         template_uid = data.pop('template_uid', '') if isinstance(data, dict) else ''
-        account_service.submit_registration(session.user_uid, data, priority, template_uid)
+        amount = data.pop('amount', None) if isinstance(data, dict) else None
+        if amount is not None:
+            amount = float(amount)
+            app_name = data.get('跑步APP', '') if isinstance(data, dict) else ''
+            if app_name and not account_service.check_app_balance(app_name, amount):
+                return api_response(400, f"'{app_name}' 余额不足，无法创建登记")
+        account_service.submit_registration(session.user_uid, data, priority, template_uid, amount)
         account_service.create_notification_for_admins("new_registration", f"新登记", f"用户 {session.username} 提交了新登记")
         return api_response(200, "Registration submitted successfully")
     except AccountError as e:
@@ -694,10 +640,8 @@ async def create_feedback(
     content: str = Form(...),
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建工单")
+    if err: return err
     try:
         uid = account_service.create_feedback(session.user_uid, title, content)
         account_service.create_notification_for_admins("new_feedback", "新工单", f"用户 {session.username} 提交了工单: {title}")
@@ -710,23 +654,19 @@ async def get_user_feedbacks(
     authorization: Optional[str] = Header(None),
     page: int = 1, page_size: int = 20
 ):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建工单")
+    if err: return err
     data = account_service.get_user_feedbacks(session.user_uid, page, page_size)
     return api_response(200, "Success", data)
 
 @app.get("/feedbacks/{uid}")
 async def get_feedback(uid: str, authorization: Optional[str] = Header(None)):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
+    session, err = require_perm(authorization, "新建工单")
+    if err: return err
     detail = account_service.get_feedback_detail(uid)
     if not detail: return api_response(404, "Not found")
-    if session.account_type != 'admin' and detail['user_uid'] != session.user_uid:
-        return api_response(403, "Forbidden")
+    if not account_service._check_permission(session.user_uid, "工单处理", "查看") and detail['user_uid'] != session.user_uid:
+        return api_response(403, 您没有此操作权限)
     return api_response(200, "Success", detail)
 
 @app.post("/feedbacks/{uid}/reply")
@@ -735,18 +675,15 @@ async def reply_feedback(
     content: str = Form(...),
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
-    is_admin = session.account_type == 'admin'
+    session, err = require_perm(authorization, "新建工单")
+    if err: return err
+    is_admin = account_service._check_permission(session.user_uid, "工单处理", "回复")
     try:
         detail = account_service.get_feedback_detail(uid)
         if not detail: return api_response(404, "Not found")
         if not is_admin and detail['user_uid'] != session.user_uid:
-            return api_response(403, "Forbidden")
+            return api_response(403, 您没有此操作权限)
         account_service.add_feedback_reply(uid, session.user_uid, content, is_admin)
-        # Notify the other party
         if is_admin:
             account_service.create_notification(detail['user_uid'], 'feedback_replied', '工单有新回复', f'管理员回复了您的工单: {detail["title"]}', uid)
         else:
@@ -763,10 +700,8 @@ async def admin_get_feedbacks(
     page: int = 1, page_size: int = 20,
     username: Optional[str] = None
 ):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden")
+    session, err = require_perm(authorization, "工单处理", "查看")
+    if err: return err
     data = account_service.get_all_feedbacks(page, page_size, username)
     return api_response(200, "Success", data)
 
@@ -776,10 +711,8 @@ async def admin_update_feedback_status(
     status: str = Form(...),
     authorization: Optional[str] = Header(None)
 ):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden")
+    session, err = require_perm(authorization, "工单处理", "解决")
+    if err: return err
     try:
         account_service.update_feedback_status(uid, status)
         detail = account_service.get_feedback_detail(uid)
@@ -792,15 +725,147 @@ async def admin_update_feedback_status(
 
 @app.delete("/admin/feedbacks/{uid}")
 async def admin_delete_feedback(uid: str, authorization: Optional[str] = Header(None)):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    if not account_service.verify_account_type(token, "admin"):
-        return api_response(403, "Forbidden")
+    session, err = require_perm(authorization, "工单处理", "删除")
+    if err: return err
     try:
         account_service.delete_feedback(uid)
         return api_response(200, "Deleted")
     except Exception as e:
         return api_response(500, f"Error: {str(e)}")
+
+# --- 通知接口 ---
+
+# --- 账户组管理（超级管理员） ---
+
+@app.get("/admin/groups")
+async def get_groups(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "账户组管理", "查看")
+    if err: return err
+    groups = account_service.get_user_groups()
+    return api_response(200, "Success", groups)
+
+@app.post("/admin/groups")
+async def create_group(data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "账户组管理", "创建")
+    if err: return err
+    try:
+        uid = account_service.create_user_group(data.get('name', ''), data.get('permissions', {}))
+        return api_response(200, "Group created", {'uid': uid})
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.get("/admin/groups/{group_uid}")
+async def get_group_detail(group_uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "账户组管理", "查看")
+    if err: return err
+    groups = account_service.get_user_groups()
+    grp = next((g for g in groups if g['uid'] == group_uid), None)
+    if not grp:
+        return api_response(404, "Group not found")
+    return api_response(200, "Success", grp)
+
+@app.patch("/admin/groups/{group_uid}")
+async def update_group(group_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "账户组管理", "修改")
+    if err: return err
+    try:
+        account_service.update_user_group(group_uid, data.get('name'), data.get('permissions'))
+        return api_response(200, "Group updated")
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.delete("/admin/groups/{group_uid}")
+async def delete_group(group_uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "账户组管理", "删除")
+    if err: return err
+    try:
+        account_service.delete_user_group(group_uid)
+        return api_response(200, "Group deleted")
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.post("/admin/users/{uid}/group")
+async def assign_user_group(uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "账户管理", "修改")
+    if err: return err
+    try:
+        account_service.assign_user_group(uid, data.get('group_uid', ''))
+        return api_response(200, "User group assigned")
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.delete("/admin/users/{uid}/group")
+async def remove_user_group(uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "账户管理", "修改")
+    if err: return err
+    try:
+        account_service.remove_user_group(uid)
+        return api_response(200, "User group removed")
+    except AccountError as e:
+        return api_response(400, str(e))
+
+# --- APP 余额管理 ---
+
+@app.patch("/admin/running-apps/{app_uid}/balance")
+async def update_app_balance(app_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "APP配置", "余额管理")
+    if err: return err
+    try:
+        result = account_service.update_app_balance(
+            app_uid,
+            data.get('balance_mode'),
+            data.get('adjust_amount')
+        )
+        return api_response(200, "Balance updated", result)
+    except AccountError as e:
+        return api_response(400, str(e))
+
+# --- 充值申请 ---
+
+@app.post("/balance-recharges")
+async def create_recharge(data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "充值申请")
+    if err: return err
+    try:
+        uid = account_service.create_balance_recharge(
+            session.user_uid,
+            data.get('app_uid', ''),
+            float(data.get('amount', 0)),
+            data.get('reason', '')
+        )
+        account_service.create_notification_for_admins("new_registration", "新充值申请", f"用户 {session.username} 申请充值")
+        return api_response(200, "Recharge request submitted", {'uid': uid})
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.get("/balance-recharges")
+async def get_my_recharges(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "充值申请")
+    if err: return err
+    data = account_service.get_user_balance_recharges(session.user_uid)
+    return api_response(200, "Success", data)
+
+@app.get("/admin/balance-recharges")
+async def get_all_recharges(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "充值审批", "查看")
+    if err: return err
+    data = account_service.get_all_balance_recharges()
+    return api_response(200, "Success", data)
+
+@app.post("/admin/balance-recharges/{uid}/process")
+async def process_recharge(uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "充值审批", "处理")
+    if err: return err
+    try:
+        account_service.process_balance_recharge(
+            uid,
+            data.get('status', 'approved'),
+            data.get('reject_reason', ''),
+            session.username
+        )
+        return api_response(200, "Recharge processed")
+    except AccountError as e:
+        return api_response(400, str(e))
 
 # --- 通知接口 ---
 
@@ -884,8 +949,12 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
     if not session:
         await websocket.close(code=4001)
         return
-    # Verify access: admin can access any, user can only access own
-    if session.account_type != 'admin':
+    is_staff = account_service._check_permission(session.user_uid, "订单处理", "查看")
+    can_chat = account_service._check_permission(session.user_uid, "新建登记")
+    if not is_staff and not can_chat:
+        await websocket.close(code=4003)
+        return
+    if not is_staff:
         detail = account_service.get_registration_detail(registration_uid)
         if not detail or detail['user_uid'] != session.user_uid:
             await websocket.close(code=4003)
@@ -897,14 +966,13 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
             msg_type = data.get('type', 'text')
             msg = account_service.save_chat_message(registration_uid, session.user_uid, data.get('message', ''), msg_type)
             msg['username'] = session.username
-            msg['is_admin'] = session.account_type == 'admin'
+            msg['is_admin'] = is_staff
             msg['msg_type'] = msg_type
             account_service.update_registration_status(registration_uid, 'pending')
-            # Notify the other party
             try:
                 detail = account_service.get_registration_detail(registration_uid)
                 if detail:
-                    if session.account_type == 'admin':
+                    if is_staff:
                         account_service.create_notification(detail['user_uid'], 'chat_message', '登记聊天新消息', f'管理员回复了您的登记', registration_uid)
                     else:
                         account_service.create_notification_for_admins('chat_message', '登记聊天新消息', f'用户 {session.username} 发送了新消息', registration_uid)
@@ -924,10 +992,14 @@ async def get_chat_history(registration_uid: str, authorization: Optional[str] =
     session = account_service.get_login_session(token)
     if not session:
         return api_response(401, "Unauthorized")
-    if session.account_type != 'admin':
+    is_staff = account_service._check_permission(session.user_uid, "订单处理", "查看")
+    can_chat = account_service._check_permission(session.user_uid, "新建登记")
+    if not is_staff and not can_chat:
+        return api_response(403, 您没有此操作权限)
+    if not is_staff:
         detail = account_service.get_registration_detail(registration_uid)
         if not detail or detail['user_uid'] != session.user_uid:
-            return api_response(403, "Forbidden")
+            return api_response(403, 您没有此操作权限)
     messages = account_service.get_chat_history(registration_uid)
     return api_response(200, "Success", messages)
 

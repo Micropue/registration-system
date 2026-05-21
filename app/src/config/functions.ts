@@ -29,6 +29,12 @@ export const functions: NavFunction[] = [
     role: 'default'
   },
   {
+    title: '充值申请',
+    to: '/recharge',
+    icon: 'mdi-cash-plus',
+    role: 'default'
+  },
+  {
     title: '仪表盘',
     to: '/admin',
     icon: 'mdi-view-dashboard-outline',
@@ -57,6 +63,24 @@ export const functions: NavFunction[] = [
     title: '跑步APP配置',
     to: '/admin/running-apps',
     icon: 'mdi-run',
+    role: 'admin'
+  },
+  {
+    title: '账户组管理',
+    to: '/admin/groups',
+    icon: 'mdi-shield-account-outline',
+    role: 'admin'
+  },
+  {
+    title: '充值审批',
+    to: '/admin/recharges',
+    icon: 'mdi-cash-check',
+    role: 'admin'
+  },
+  {
+    title: '余额流水',
+    to: '/admin/balance-transactions',
+    icon: 'mdi-history',
     role: 'admin'
   },
 ];

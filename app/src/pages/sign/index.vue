@@ -158,6 +158,25 @@
       </v-card>
     </v-dialog>
 
+    <!-- 跑量输入 Dialog -->
+    <v-dialog v-model="amountDialog.show" max-width="400" persistent>
+      <v-card class="pa-4">
+        <v-card-title class="text-h5">输入{{ amountDialog.modeLabel }}</v-card-title>
+        <v-card-subtitle>APP: {{ selectedApp }}</v-card-subtitle>
+        <v-card-text>
+          <v-text-field v-model.number="amountDialog.value" :label="amountDialog.modeLabel" type="number"
+            variant="outlined" density="comfortable"
+            :rules="[v => !!v || '请输入', v => v > 0 || '必须大于0']"
+            hide-details></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="amountDialog.show = false; templateDialog.show = true">返回</v-btn>
+          <v-btn color="primary" variant="flat" :disabled="!amountDialog.value || amountDialog.value <= 0" @click="confirmAmount">继续填写</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- 确认提交对话框 -->
     <v-dialog v-model="confirmDialog" max-width="400">
       <v-card class="pa-4">
@@ -264,8 +283,22 @@
       @update:options="loadHistory"
       @reset="loadHistory"
     >
-      <template v-slot:item.data="{ item }">
-        {{ item.data['跑步APP'] || '-' }}
+      <template v-slot:item.app="{ item }">
+        <div class="d-flex align-center ga-1">
+          <v-avatar v-if="getAppIcon(item.data['跑步APP'])" size="22" rounded>
+            <v-img :src="getAppIcon(item.data['跑步APP'])" cover></v-img>
+          </v-avatar>
+          <span class="font-weight-bold text-body-2">{{ item.data['跑步APP'] || '-' }}</span>
+        </div>
+      </template>
+
+      <template v-slot:item.template="{ item }">
+        <span class="text-body-2">{{ item.template_name || '-' }}</span>
+      </template>
+
+      <template v-slot:item.amount="{ item }">
+        <span v-if="item.amount != null" class="font-weight-bold text-primary">{{ item.amount }}{{ item.amount_unit }}</span>
+        <span v-else class="text-grey">-</span>
       </template>
 
       <template v-slot:item.created_at="{ item }">
@@ -369,10 +402,10 @@ interface AppItem {
   id: number
   uid: string
   name: string
-  normal_price: number
-  morning_price: number
   note: string
   icon?: string
+  balance_mode?: string
+  balance?: number
 }
 
 interface RegistrationItem {
@@ -408,6 +441,17 @@ const templateDialog = reactive({ show: false, uid: '' })
 const templateFormValid = ref(false)
 const templateFormRef = ref<any>(null)
 const confirmDialog = ref(false)
+const registrationAmount = ref<number | null>(null)
+
+const amountDialog = reactive({
+  show: false,
+  value: 0,
+  get modeLabel() {
+    const app = runningApps.value.find(a => a.name === selectedApp.value)
+    const mode = app?.balance_mode
+    return mode === 'mileage' ? '公里数' : mode === 'count' ? '次数' : '数量'
+  }
+})
 
 const formRef = ref<any>(null)
 const selectFormRef = ref<any>(null)
@@ -506,7 +550,9 @@ function getPriorityText(p: string) {
 }
 
 const historyHeaders = [
-  { title: '跑步APP', key: 'data', sortable: false },
+  { title: '跑步APP', key: 'app', sortable: false },
+  { title: '模板', key: 'template', sortable: false },
+  { title: '跑量', key: 'amount', sortable: false },
   { title: '状态', key: 'status', sortable: false },
   { title: '优先级', key: 'priority', sortable: false },
   { title: '操作', key: 'actions', sortable: false },
@@ -523,6 +569,18 @@ function formatValue(val: any): string {
   if (Array.isArray(val)) return val.join(', ')
   if (val === null || val === undefined) return '-'
   return String(val)
+}
+
+function getAppIcon(appName: string): string {
+  const app = runningApps.value.find(a => a.name === appName)
+  return app?.icon || ''
+}
+
+function getAmountUnit(appName: string): string {
+  const app = runningApps.value.find(a => a.name === appName)
+  if (app?.balance_mode === 'mileage') return ' 公里'
+  if (app?.balance_mode === 'count') return ' 次'
+  return ''
 }
 
 async function fetchConfig() {
@@ -594,14 +652,36 @@ function startNewRegistration() {
   selectedTemplate.value = templateDialog.uid
   formFields.value = tpl.fields || []
   templateDialog.show = false
-  initFormData()
-  showForm.value = true
-  nextTick(() => {
-    formRef.value?.resetValidation()
-  })
-  setTimeout(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, 100)
+  const app = runningApps.value.find(a => a.name === selectedApp.value)
+  if (app?.balance_mode) {
+    amountDialog.value = 0
+    amountDialog.show = true
+  } else {
+    registrationAmount.value = null
+    initFormData()
+    showForm.value = true
+  }
+}
+
+function confirmAmount() {
+  if (!amountDialog.value || amountDialog.value <= 0) return
+  const app = runningApps.value.find(a => a.name === selectedApp.value)
+  const bal = app?.balance ?? 0
+  if (bal < amountDialog.value) {
+    showMsg(`${selectedApp.value} 余额不足（当前余额：${bal}，需要：${amountDialog.value}），无法创建登记`, 'error')
+    return
+  }
+  registrationAmount.value = amountDialog.value
+  amountDialog.show = false
+  if (isResubmitMode.value) {
+    fillResubmitForm()
+  } else {
+    initFormData()
+    showForm.value = true
+    nextTick(() => {
+      formRef.value?.resetValidation()
+    })
+  }
 }
 
 function cancelForm() {
@@ -618,11 +698,14 @@ function openConfirm() {
 async function submitForm() {
   isSubmitting.value = true
   const token = cookie.get('token')
-  const submissionData = {
+  const submissionData: Record<string, any> = {
     跑步APP: selectedApp.value,
     priority: priority.value,
     template_uid: selectedTemplate.value,
     ...formData
+  }
+  if (registrationAmount.value != null) {
+    submissionData.amount = registrationAmount.value
   }
   try {
     const res = await ajax('/api/registrations', {
@@ -659,7 +742,10 @@ async function loadHistory(options: any = { page: 1, itemsPerPage: 20 }) {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (res.code === 200) {
-      registrations.value = res.data.items
+      registrations.value = res.data.items.map((item: any) => ({
+        ...item,
+        amount_unit: getAmountUnit(item.data?.['跑步APP'])
+      }))
       totalRegistrations.value = res.data.total
     }
   } catch (err) {
@@ -735,6 +821,17 @@ function startResubmitRegistration() {
   formFields.value = tpl.fields || []
   templateDialog.show = false
   isResubmitMode.value = false
+  const app = runningApps.value.find(a => a.name === selectedApp.value)
+  if (app?.balance_mode) {
+    amountDialog.value = 0
+    amountDialog.show = true
+  } else {
+    registrationAmount.value = null
+    fillResubmitForm()
+  }
+}
+
+function fillResubmitForm() {
   const data: Record<string, any> = {}
   formFields.value.forEach(field => {
     if (field.type === 'checkbox') {
@@ -762,11 +859,14 @@ async function doResubmit() {
   if (!valid) return
   isSubmitting.value = true
   const token = cookie.get('token')
-  const submissionData = {
+  const submissionData: Record<string, any> = {
     跑步APP: resubmitFormDialog.app,
     priority: resubmitPriority.value,
     template_uid: resubmitTemplateUid.value,
     ...resubmitFormDialog.data
+  }
+  if (registrationAmount.value != null) {
+    submissionData.amount = registrationAmount.value
   }
   try {
     const res = await ajax(`${ApiUrl.RESUBMIT_REGISTRATION}/${resubmitFormDialog.uid}`, {

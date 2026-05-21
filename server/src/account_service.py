@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 import mysql.connector
 from mysql.connector.connection import MySQLConnection
 
-AccountType = Literal["admin", "default"]
+AccountType = Literal["admin", "default", "super_admin"]
 
 class UserRow(TypedDict):
     uid: str
@@ -50,7 +50,7 @@ class LoginSession:
 
 class AccountService:
     _PASSWORD_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
-    _ACCOUNT_TYPES: set[str] = {"admin", "default"}
+    _ACCOUNT_TYPES: set[str] = {"admin", "default", "super_admin"}
 
     def __init__(self, host: str | None = None, port: int | None = None, database: str | None = None, user: str | None = None, password: str | None = None) -> None:
         env_host, env_port = self._parse_db_url(os.getenv("DB_URL", ""))
@@ -127,10 +127,17 @@ class AccountService:
             connection.commit()
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("""CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(64) UNIQUE NOT NULL, username VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL, login_sessions JSON, type ENUM('admin', 'default') DEFAULT 'default', register_time DATETIME NOT NULL, last_login_time DATETIME, login_ip VARCHAR(64), login_device VARCHAR(255)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
+            cursor.execute("""CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(64) UNIQUE NOT NULL, username VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL, login_sessions JSON, register_time DATETIME NOT NULL, last_login_time DATETIME, login_ip VARCHAR(64), login_device VARCHAR(255)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
             cursor.execute("SHOW COLUMNS FROM users LIKE 'login_device'")
             if not cursor.fetchone():
                 cursor.execute("ALTER TABLE users ADD COLUMN login_device VARCHAR(255)")
+            cursor.execute("SHOW COLUMNS FROM users LIKE 'group_uid'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE users ADD COLUMN group_uid VARCHAR(64) DEFAULT NULL")
+            try:
+                cursor.execute("ALTER TABLE users DROP COLUMN type")
+            except:
+                pass
             cursor.execute("""CREATE TABLE IF NOT EXISTS login_sessions (id INT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(64) UNIQUE NOT NULL, token VARCHAR(255) NOT NULL, user_uid VARCHAR(64) NOT NULL, create_time DATETIME NOT NULL, FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
             self._init_fields_table(cursor)
             self._init_settings_tables(cursor)
@@ -154,9 +161,103 @@ class AccountService:
             cursor.execute("SHOW COLUMNS FROM registrations LIKE 'template_uid'")
             if not cursor.fetchone():
                 cursor.execute("ALTER TABLE registrations ADD COLUMN template_uid VARCHAR(64)")
+            cursor.execute("SHOW COLUMNS FROM registrations LIKE 'amount'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE registrations ADD COLUMN amount DECIMAL(10,2) DEFAULT NULL")
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS feedbacks (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    user_uid VARCHAR(64) NOT NULL,
+                    title VARCHAR(500) NOT NULL,
+                    content TEXT NOT NULL,
+                    status ENUM('pending', 'resolved', 'rejected') DEFAULT 'pending',
+                    create_time DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS feedback_replies (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    feedback_uid VARCHAR(64) NOT NULL,
+                    user_uid VARCHAR(64) NOT NULL,
+                    is_admin BOOLEAN DEFAULT FALSE,
+                    content TEXT NOT NULL,
+                    create_time DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS notifications (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    user_uid VARCHAR(64) NOT NULL,
+                    type VARCHAR(50) NOT NULL,
+                    reference_id VARCHAR(64),
+                    title VARCHAR(500) NOT NULL,
+                    content TEXT,
+                    is_read BOOLEAN DEFAULT FALSE,
+                    create_time DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS registration_chats (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    registration_uid VARCHAR(64) NOT NULL,
+                    sender_uid VARCHAR(64) NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    msg_type VARCHAR(30) DEFAULT 'text',
+                    FOREIGN KEY (registration_uid) REFERENCES registrations(uid) ON DELETE CASCADE,
+                    FOREIGN KEY (sender_uid) REFERENCES users(uid) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            try:
+                cursor.execute("ALTER TABLE registration_chats ADD COLUMN msg_type VARCHAR(30) DEFAULT 'text'")
+            except:
+                pass
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_groups (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    name VARCHAR(255) NOT NULL,
+                    permissions JSON,
+                    created_at DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS balance_recharges (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    user_uid VARCHAR(64) NOT NULL,
+                    app_uid VARCHAR(64) NOT NULL,
+                    amount DECIMAL(12,2) NOT NULL,
+                    reason TEXT,
+                    status ENUM('pending','approved','rejected') DEFAULT 'pending',
+                    reject_reason TEXT,
+                    created_at DATETIME NOT NULL,
+                    processed_by VARCHAR(64),
+                    processed_at DATETIME
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS balance_transactions (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    app_uid VARCHAR(64) NOT NULL,
+                    type ENUM('recharge','deduction','reversal') NOT NULL,
+                    amount DECIMAL(12,2) NOT NULL,
+                    balance_after DECIMAL(12,2) NOT NULL,
+                    related_uid VARCHAR(64),
+                    related_type VARCHAR(50),
+                    note TEXT,
+                    created_at DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            self._init_default_groups(cursor)
             connection.commit()
             try:
-                self.create_account("admin", "admin-123456", account_type="admin")
+                self.create_account("admin", "admin-123456", group_uid=self._get_default_super_admin_group_uid())
             except AccountValidationError as e:
                 if "用户名已存在" not in str(e):
                     raise
@@ -179,8 +280,6 @@ class AccountService:
             CREATE TABLE IF NOT EXISTS running_apps (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
-                normal_price DECIMAL(10,2) NOT NULL DEFAULT 0,
-                morning_price DECIMAL(10,2) NOT NULL DEFAULT 0,
                 note TEXT,
                 accent_color VARCHAR(7) DEFAULT '#1976D2'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
@@ -193,10 +292,25 @@ class AccountService:
             cursor.execute("ALTER TABLE running_apps ADD COLUMN icon VARCHAR(500) DEFAULT ''")
         except:
             pass
+        try:
+            cursor.execute("ALTER TABLE running_apps ADD COLUMN balance_mode VARCHAR(20) DEFAULT ''")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE running_apps ADD COLUMN balance DECIMAL(12,2) DEFAULT 0")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE running_apps DROP COLUMN normal_price")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE running_apps DROP COLUMN morning_price")
+        except:
+            pass
         cursor.execute("SHOW COLUMNS FROM running_apps LIKE 'uid'")
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE running_apps ADD COLUMN uid VARCHAR(64) UNIQUE")
-            # Backfill existing rows
             cursor.execute("SELECT id FROM running_apps WHERE uid IS NULL")
             for (rid,) in cursor.fetchall():
                 cursor.execute("UPDATE running_apps SET uid = %s WHERE id = %s", (self._new_uid(), rid))
@@ -212,65 +326,378 @@ class AccountService:
                 FOREIGN KEY (app_id) REFERENCES running_apps(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
         """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS feedbacks (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                uid VARCHAR(64) UNIQUE NOT NULL,
-                user_uid VARCHAR(64) NOT NULL,
-                title VARCHAR(500) NOT NULL,
-                content TEXT NOT NULL,
-                status ENUM('pending', 'resolved', 'rejected') DEFAULT 'pending',
-                create_time DATETIME NOT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS feedback_replies (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                uid VARCHAR(64) UNIQUE NOT NULL,
-                feedback_uid VARCHAR(64) NOT NULL,
-                user_uid VARCHAR(64) NOT NULL,
-                is_admin BOOLEAN DEFAULT FALSE,
-                content TEXT NOT NULL,
-                create_time DATETIME NOT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS notifications (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                uid VARCHAR(64) UNIQUE NOT NULL,
-                user_uid VARCHAR(64) NOT NULL,
-                type VARCHAR(50) NOT NULL,
-                reference_id VARCHAR(64),
-                title VARCHAR(500) NOT NULL,
-                content TEXT,
-                is_read BOOLEAN DEFAULT FALSE,
-                create_time DATETIME NOT NULL
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS registration_chats (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                uid VARCHAR(64) UNIQUE NOT NULL,
-                registration_uid VARCHAR(64) NOT NULL,
-                sender_uid VARCHAR(64) NOT NULL,
-                message TEXT NOT NULL,
-                created_at DATETIME NOT NULL,
-                msg_type VARCHAR(30) DEFAULT 'text',
-                FOREIGN KEY (registration_uid) REFERENCES registrations(uid) ON DELETE CASCADE,
-                FOREIGN KEY (sender_uid) REFERENCES users(uid) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-        """)
-        try:
-            cursor.execute("ALTER TABLE registration_chats ADD COLUMN msg_type VARCHAR(30) DEFAULT 'text'")
-        except:
-            pass
 
-    # ---- Auth ----
+    PERMISSION_TREE = {
+        "账户管理": {"查看": True, "创建": True, "修改": True, "删除": True, "强制下线": True},
+        "账户组管理": {"查看": True, "创建": True, "修改": True, "删除": True},
+        "订单处理": {"查看": True, "处理": True, "驳回": True, "删除": True},
+        "工单处理": {"查看": True, "回复": True, "解决": True, "删除": True},
+        "APP配置": {"查看": True, "修改": True, "余额管理": True},
+        "充值审批": {"查看": True, "处理": True},
+        "新建登记": True,
+        "新建工单": True,
+        "充值申请": True,
+    }
 
-    def create_account(self, username: str, password: str, account_type: str = "default") -> str:
+    def _init_default_groups(self, cursor: Any) -> None:
+        now = self._now()
+        cursor.execute("SELECT uid FROM user_groups WHERE name = '超级管理员'")
+        if not cursor.fetchone():
+            super_uid = self._new_uid()
+            cursor.execute("INSERT INTO user_groups (uid, name, permissions, created_at) VALUES (%s, %s, %s, %s)",
+                (super_uid, '超级管理员', json.dumps(self.PERMISSION_TREE, ensure_ascii=False), now))
+        cursor.execute("SELECT uid FROM users WHERE username = 'admin' AND (group_uid IS NULL OR group_uid NOT IN (SELECT uid FROM user_groups WHERE name = '超级管理员'))")
+        admin_row = cursor.fetchone()
+        if admin_row:
+            cursor.execute("SELECT uid FROM user_groups WHERE name = '超级管理员'")
+            grp = cursor.fetchone()
+            if grp:
+                cursor.execute("UPDATE users SET group_uid = %s WHERE username = 'admin'", (grp[0],))
+
+    def _get_default_super_admin_group_uid(self) -> str | None:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT uid FROM user_groups WHERE name = '超级管理员'")
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+    def _get_user_role(self, user_uid: str) -> str:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT group_uid FROM users WHERE uid = %s", (user_uid,))
+            user = cursor.fetchone()
+            if not user:
+                return "default"
+            if user["group_uid"]:
+                cursor.execute("SELECT name FROM user_groups WHERE uid = %s", (user["group_uid"],))
+                grp = cursor.fetchone()
+                if grp:
+                    name = grp["name"]
+                    if name == "超级管理员":
+                        return "super_admin"
+            return "default"
+
+    def _get_user_group_name(self, user_uid: str) -> str:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT group_uid FROM users WHERE uid = %s", (user_uid,))
+            user = cursor.fetchone()
+            if not user or not user["group_uid"]:
+                return "未分配"
+            cursor.execute("SELECT name FROM user_groups WHERE uid = %s", (user["group_uid"],))
+            grp = cursor.fetchone()
+            return grp["name"] if grp else "未分配"
+
+    def _get_user_permissions(self, user_uid: str) -> dict:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT group_uid FROM users WHERE uid = %s", (user_uid,))
+            user = cursor.fetchone()
+            if not user:
+                return {}
+            if user["group_uid"]:
+                cursor.execute("SELECT name, permissions FROM user_groups WHERE uid = %s", (user["group_uid"],))
+                grp = cursor.fetchone()
+                if grp and grp["name"] == "超级管理员":
+                    return dict(self.PERMISSION_TREE)
+                if grp and grp["permissions"]:
+                    perms = json.loads(grp["permissions"]) if isinstance(grp["permissions"], str) else grp["permissions"]
+                    return dict(perms)
+            return {}
+
+    def _check_permission(self, user_uid: str, *path: str) -> bool:
+        perms = self._get_user_permissions(user_uid)
+        current: Any = perms
+        for key in path:
+            if isinstance(current, dict):
+                current = current.get(key, False)
+            else:
+                return False
+        return bool(current)
+
+    # ---- User Groups ----
+
+    def get_user_groups(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, name, permissions, created_at FROM user_groups ORDER BY created_at ASC")
+            rows = cursor.fetchall()
+        return [{
+            "uid": row["uid"], "name": row["name"],
+            "permissions": json.loads(row["permissions"]) if isinstance(row["permissions"], str) else row["permissions"],
+            "created_at": row["created_at"].isoformat()
+        } for row in rows]
+
+    def create_user_group(self, name: str, permissions: dict) -> str:
+        uid = self._new_uid()
+        now = self._now()
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT uid FROM user_groups WHERE name = %s", (name,))
+            if cursor.fetchone():
+                raise AccountValidationError("账户组名称已存在")
+            cursor.execute("INSERT INTO user_groups (uid, name, permissions, created_at) VALUES (%s, %s, %s, %s)",
+                (uid, name, json.dumps(permissions, ensure_ascii=False), now))
+            connection.commit()
+        return uid
+
+    def update_user_group(self, group_uid: str, name: str | None = None, permissions: dict | None = None) -> None:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT name FROM user_groups WHERE uid = %s", (group_uid,))
+            grp = cursor.fetchone()
+            if not grp:
+                raise AccountError("账户组不存在")
+            if grp[0] == "超级管理员" and name and name != "超级管理员":
+                raise AccountError("超级管理员组不可改名")
+            if grp[0] == "超级管理员" and permissions is not None:
+                raise AccountError("超级管理员组权限不可修改")
+            if name:
+                cursor.execute("UPDATE user_groups SET name = %s WHERE uid = %s", (name, group_uid))
+            if permissions is not None:
+                cursor.execute("UPDATE user_groups SET permissions = %s WHERE uid = %s",
+                    (json.dumps(permissions, ensure_ascii=False), group_uid))
+            connection.commit()
+
+    def delete_user_group(self, group_uid: str) -> None:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT name FROM user_groups WHERE uid = %s", (group_uid,))
+            grp = cursor.fetchone()
+            if not grp:
+                raise AccountError("账户组不存在")
+            if grp[0] == "超级管理员":
+                raise AccountError("超级管理员组不可删除")
+            cursor.execute("UPDATE users SET group_uid = NULL WHERE group_uid = %s", (group_uid,))
+            cursor.execute("DELETE FROM user_groups WHERE uid = %s", (group_uid,))
+            connection.commit()
+
+    def assign_user_group(self, user_uid: str, group_uid: str) -> None:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT uid FROM user_groups WHERE uid = %s", (group_uid,))
+            if not cursor.fetchone():
+                raise AccountError("账户组不存在")
+            cursor.execute("UPDATE users SET group_uid = %s WHERE uid = %s", (group_uid, user_uid))
+            connection.commit()
+
+    def remove_user_group(self, user_uid: str) -> None:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE users SET group_uid = NULL WHERE uid = %s", (user_uid,))
+            connection.commit()
+
+    # ---- Running Apps Balance ----
+
+    def get_running_apps(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            try:
+                cursor.execute("SELECT id, uid, name, note, accent_color, icon, balance_mode, balance FROM running_apps ORDER BY id ASC")
+            except Exception:
+                cursor.execute("SELECT id, uid, name, note, accent_color, icon FROM running_apps ORDER BY id ASC")
+            rows = cursor.fetchall()
+        return [{
+            "id": row["id"], "uid": row["uid"], "name": row["name"],
+            "note": row["note"] or "",
+            "accent_color": row.get("accent_color") or "#1976D2",
+            "icon": row.get("icon") or "",
+            "balance_mode": row.get("balance_mode") or "",
+            "balance": float(row.get("balance") or 0),
+            "template_count": self.get_app_template_count(row["id"])
+        } for row in rows]
+
+    def update_app_balance(self, app_uid: str, balance_mode: str | None = None, adjust_amount: float | None = None) -> dict:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT balance_mode, balance FROM running_apps WHERE uid = %s", (app_uid,))
+            app = cursor.fetchone()
+            if not app:
+                raise AccountError("APP不存在")
+            new_mode = balance_mode if balance_mode is not None else app["balance_mode"]
+            if adjust_amount is not None and adjust_amount != 0:
+                current_balance = self._calculate_balance(app_uid)
+                new_balance = round(current_balance + adjust_amount, 2)
+                if new_balance < 0:
+                    raise AccountValidationError("余额不足，调整后余额不能为负")
+                txn_type = "recharge" if adjust_amount > 0 else "deduction"
+                self._record_balance_transaction(app_uid, txn_type, abs(adjust_amount),
+                    note=f"管理员手动调整余额（{'增加' if adjust_amount > 0 else '减少'}{abs(adjust_amount)}）")
+            cursor.execute("UPDATE running_apps SET balance_mode = %s WHERE uid = %s",
+                (new_mode, app_uid))
+            connection.commit()
+        return {"balance_mode": new_mode, "balance": self._calculate_balance(app_uid)}
+
+    def deduct_app_balance(self, app_name: str, amount: float) -> dict:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, balance_mode, balance FROM running_apps WHERE name = %s", (app_name,))
+            app = cursor.fetchone()
+            if not app:
+                raise AccountError("APP不存在")
+            current_balance = float(app["balance"] or 0)
+            new_balance = round(current_balance - amount, 2)
+            if new_balance < 0:
+                raise AccountValidationError(f"'{app_name}' 余额不足，当前余额 {current_balance}，需要扣除 {amount}")
+            cursor.execute("UPDATE running_apps SET balance = %s WHERE uid = %s", (new_balance, app["uid"]))
+            connection.commit()
+        return {"balance": new_balance, "balance_mode": app["balance_mode"]}
+
+    def _calculate_balance(self, app_uid: str) -> float:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM balance_transactions WHERE app_uid = %s AND type != 'reversal'", (app_uid,))
+            total = cursor.fetchone()[0]
+            cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM balance_transactions WHERE app_uid = %s AND type = 'reversal'", (app_uid,))
+            reversals = cursor.fetchone()[0]
+        return round(float(total) - float(reversals), 2)
+
+    def _record_balance_transaction(self, app_uid: str, type: str, amount: float, related_uid: str = "", related_type: str = "", note: str = "") -> str:
+        balance_after = self._calculate_balance(app_uid)
+        if type == 'recharge':
+            balance_after = round(balance_after + amount, 2)
+        elif type == 'deduction':
+            balance_after = round(balance_after - amount, 2)
+        elif type == 'reversal':
+            balance_after = round(balance_after + amount, 2)
+        uid = self._new_uid()
+        now = self._now()
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO balance_transactions (uid, app_uid, type, amount, balance_after, related_uid, related_type, note, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (uid, app_uid, type, amount, balance_after, related_uid, related_type, note, now))
+            cursor.execute("UPDATE running_apps SET balance = %s WHERE uid = %s", (balance_after, app_uid))
+            connection.commit()
+        return uid
+
+    def get_balance_transactions(self, app_uid: str = "", page: int = 1, page_size: int = 20) -> dict[str, Any]:
+        offset = (page - 1) * page_size
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            if app_uid:
+                cursor.execute("SELECT COUNT(*) as total FROM balance_transactions WHERE app_uid = %s", (app_uid,))
+            else:
+                cursor.execute("SELECT COUNT(*) as total FROM balance_transactions")
+            total = cursor.fetchone()["total"]
+            if app_uid:
+                sql = """
+                    SELECT bt.uid, bt.app_uid, ra.name as app_name, bt.type, bt.amount, bt.balance_after,
+                           bt.related_uid, bt.related_type, bt.note, bt.created_at
+                    FROM balance_transactions bt
+                    JOIN running_apps ra ON ra.uid = bt.app_uid
+                    WHERE bt.app_uid = %s
+                    ORDER BY bt.created_at DESC
+                    LIMIT %s OFFSET %s
+                """
+                cursor.execute(sql, (app_uid, page_size, offset))
+            else:
+                sql = """
+                    SELECT bt.uid, bt.app_uid, ra.name as app_name, bt.type, bt.amount, bt.balance_after,
+                           bt.related_uid, bt.related_type, bt.note, bt.created_at
+                    FROM balance_transactions bt
+                    JOIN running_apps ra ON ra.uid = bt.app_uid
+                    ORDER BY bt.created_at DESC
+                    LIMIT %s OFFSET %s
+                """
+                cursor.execute(sql, (page_size, offset))
+            rows = cursor.fetchall()
+        items = [{
+            "id": row["uid"], "app_uid": row["app_uid"], "app_name": row["app_name"],
+            "type": row["type"], "amount": float(row["amount"]),
+            "balance_after": float(row["balance_after"]),
+            "related_uid": row["related_uid"] or "", "related_type": row["related_type"] or "",
+            "note": row["note"] or "", "created_at": row["created_at"].isoformat()
+        } for row in rows]
+        return {"total": total, "page": page, "page_size": page_size, "items": items}
+
+    def check_app_balance(self, app_name: str, amount: float) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, balance FROM running_apps WHERE name = %s", (app_name,))
+            app = cursor.fetchone()
+            if not app:
+                return False
+            return float(app["balance"] or 0) >= amount
+
+    # ---- Balance Recharges ----
+
+    def create_balance_recharge(self, user_uid: str, app_uid: str, amount: float, reason: str) -> str:
+        uid = self._new_uid()
+        now = self._now()
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT uid, balance_mode FROM running_apps WHERE uid = %s", (app_uid,))
+            app = cursor.fetchone()
+            if not app:
+                raise AccountError("APP不存在")
+            if amount <= 0:
+                raise AccountValidationError("充值量必须大于0")
+            cursor.execute("INSERT INTO balance_recharges (uid, user_uid, app_uid, amount, reason, status, created_at) VALUES (%s, %s, %s, %s, %s, 'pending', %s)",
+                (uid, user_uid, app_uid, amount, reason, now))
+            connection.commit()
+        return uid
+
+    def get_user_balance_recharges(self, user_uid: str) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT br.uid, br.amount, br.reason, br.status, br.reject_reason, br.created_at, br.processed_at,
+                       ra.name as app_name, ra.balance_mode as app_balance_mode
+                FROM balance_recharges br
+                JOIN running_apps ra ON br.app_uid = ra.uid
+                WHERE br.user_uid = %s ORDER BY br.created_at DESC
+            """, (user_uid,))
+            rows = cursor.fetchall()
+        return [{
+            "id": row["uid"], "app_name": row["app_name"], "app_balance_mode": row["app_balance_mode"],
+            "amount": float(row["amount"]), "reason": row["reason"] or "",
+            "status": row["status"], "reject_reason": row["reject_reason"] or "",
+            "created_at": row["created_at"].isoformat(), "processed_at": row["processed_at"].isoformat() if row["processed_at"] else None
+        } for row in rows]
+
+    def get_all_balance_recharges(self) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT br.uid, br.amount, br.reason, br.status, br.reject_reason, br.created_at, br.processed_at,
+                       ra.name as app_name, ra.balance_mode as app_balance_mode, u.username as username
+                FROM balance_recharges br
+                JOIN running_apps ra ON br.app_uid = ra.uid
+                JOIN users u ON br.user_uid = u.uid
+                ORDER BY br.status ASC, br.created_at DESC
+            """)
+            rows = cursor.fetchall()
+        return [{
+            "id": row["uid"], "username": row["username"], "app_name": row["app_name"],
+            "app_balance_mode": row["app_balance_mode"],
+            "amount": float(row["amount"]), "reason": row["reason"] or "",
+            "status": row["status"], "reject_reason": row["reject_reason"] or "",
+            "created_at": row["created_at"].isoformat(),
+            "processed_at": row["processed_at"].isoformat() if row["processed_at"] else None
+        } for row in rows]
+
+    def process_balance_recharge(self, recharge_uid: str, status: str, reject_reason: str = "", processed_by: str = "") -> None:
+        now = self._now()
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, app_uid, amount, status, user_uid FROM balance_recharges WHERE uid = %s", (recharge_uid,))
+            recharge = cursor.fetchone()
+            if not recharge:
+                raise AccountError("充值申请不存在")
+            if recharge["status"] != "pending":
+                raise AccountError("该申请已处理")
+            cursor.execute("UPDATE balance_recharges SET status = %s, reject_reason = %s, processed_by = %s, processed_at = %s WHERE uid = %s",
+                (status, reject_reason, processed_by, now, recharge_uid))
+            connection.commit()
+        if status == "approved":
+            self._record_balance_transaction(recharge["app_uid"], "recharge", float(recharge["amount"]),
+                related_uid=recharge_uid, related_type="balance_recharge", note=f"充值审批通过")
+
+    # ---- Registration with Amount ----
+
+    def create_account(self, username: str, password: str, group_uid: str | None = None) -> str:
         self._validate_username(username)
         self._validate_password(password)
-        self._validate_account_type(account_type)
         user_uid = self._new_uid()
         password_hash = self._hash_password(password)
         now = self._now()
@@ -279,7 +706,11 @@ class AccountService:
             cursor.execute("SELECT uid FROM users WHERE username = %s LIMIT 1", (username,))
             if cursor.fetchone():
                 raise AccountValidationError("用户名已存在")
-            cursor.execute("INSERT INTO users (uid, username, password, login_sessions, type, register_time, last_login_time, login_ip, login_device) VALUES (%s, %s, %s, %s, %s, %s, NULL, %s, %s)", (user_uid, username, password_hash, json.dumps([], ensure_ascii=False), account_type, now, "127.0.0.1", "server"))
+            if group_uid:
+                cursor.execute("SELECT uid FROM user_groups WHERE uid = %s", (group_uid,))
+                if not cursor.fetchone():
+                    raise AccountValidationError("账户组不存在")
+            cursor.execute("INSERT INTO users (uid, username, password, login_sessions, register_time, last_login_time, login_ip, login_device, group_uid) VALUES (%s, %s, %s, %s, %s, NULL, %s, %s, %s)", (user_uid, username, password_hash, json.dumps([], ensure_ascii=False), now, "127.0.0.1", "server", group_uid))
             connection.commit()
         return user_uid
 
@@ -288,7 +719,7 @@ class AccountService:
         now = self._now()
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT uid, password, login_sessions, type FROM users WHERE username = %s LIMIT 1", (username,))
+            cursor.execute("SELECT uid, password, login_sessions FROM users WHERE username = %s LIMIT 1", (username,))
             user = cursor.fetchone()
             if not user or user["password"] != password_hash:
                 raise AccountAuthError("用户名或密码错误")
@@ -306,23 +737,26 @@ class AccountService:
     def get_login_session(self, session_uid: str) -> LoginSession | None:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT ls.uid AS session_uid, ls.token, ls.user_uid, u.username, u.login_sessions, u.type FROM login_sessions ls INNER JOIN users u ON u.uid = ls.user_uid WHERE ls.uid = %s LIMIT 1", (session_uid,))
+            cursor.execute("SELECT ls.uid AS session_uid, ls.token, ls.user_uid, u.username, u.login_sessions FROM login_sessions ls INNER JOIN users u ON u.uid = ls.user_uid WHERE ls.uid = %s LIMIT 1", (session_uid,))
             row = cast(Any, cursor.fetchone())
         if row is None:
             return None
         sessions = self._parse_sessions(row["login_sessions"])
         if row["token"] not in sessions:
             return None
-        return LoginSession(uid=row["session_uid"], token=row["token"], user_uid=row["user_uid"], username=row["username"], account_type=row["type"])
+        role = self._get_user_role(row["user_uid"])
+        return LoginSession(uid=row["session_uid"], token=row["token"], user_uid=row["user_uid"], username=row["username"], account_type=cast(Any, role))
 
     def verify_account_type(self, session_uid: str, required_type: AccountType, *, allow_admin: bool = True) -> bool:
         self._validate_account_type(required_type)
         session = self.get_login_session(session_uid)
         if session is None:
             return False
+        if session.account_type == "super_admin":
+            return True
         if session.account_type == required_type:
             return True
-        return allow_admin and session.account_type == "admin"
+        return allow_admin and session.account_type in ("admin", "super_admin")
 
     def force_logout(self, uid: str) -> None:
         with self._connect() as connection:
@@ -350,38 +784,45 @@ class AccountService:
             for key, value in filters.items():
                 if value:
                     if key == "username":
-                        where_clauses.append("username LIKE %s")
+                        where_clauses.append("u.username LIKE %s")
                         params.append(f"%{value}%")
+                    elif key == "group_uid" and value != "全部":
+                        where_clauses.append("group_uid = %s")
+                        params.append(value)
                     elif key == "type" and value != "全部":
-                        where_clauses.append("type = %s")
-                        params.append("admin" if value == "管理员" else "default")
+                        if value == "未分配":
+                            where_clauses.append("u.group_uid IS NULL")
+                        else:
+                            where_clauses.append("ug.name = %s")
+                            params.append(value)
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute(f"SELECT COUNT(*) as total FROM users {where_sql}", tuple(params))
             total = cursor.fetchone()["total"]
             limit_clause = f"LIMIT {page_size} OFFSET {offset}" if page_size != -1 else ""
-            sql = f"SELECT uid, username, login_sessions, type, register_time, last_login_time, login_ip, login_device FROM users {where_sql} {sort_clause} {limit_clause}"
+            sql = f"SELECT u.uid, u.username, u.login_sessions, u.register_time, u.last_login_time, u.login_ip, u.login_device, u.group_uid, ug.name as group_name FROM users u LEFT JOIN user_groups ug ON ug.uid = u.group_uid {where_sql} {sort_clause} {limit_clause}"
             cursor.execute(sql, tuple(params))
             rows = cursor.fetchall()
             items = [{
                 "uid": row["uid"], "username": row["username"],
                 "session_count": len(self._parse_sessions(row["login_sessions"])),
-                "type": row["type"], "register_time": row["register_time"].isoformat(),
+                "type": row.get("group_name") or "未分配", "register_time": row["register_time"].isoformat(),
                 "last_login_time": row["last_login_time"].isoformat() if row["last_login_time"] else None,
-                "login_ip": row["login_ip"], "login_device": row["login_device"] or ""
+                "login_ip": row["login_ip"], "login_device": row["login_device"] or "",
+                "group_uid": row.get("group_uid") or ""
             } for row in rows]
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def delete_account(self, uid: str) -> bool:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT username FROM users WHERE uid = %s LIMIT 1", (uid,))
+            cursor.execute("SELECT u.username, ug.name as group_name FROM users u LEFT JOIN user_groups ug ON ug.uid = u.group_uid WHERE u.uid = %s LIMIT 1", (uid,))
             user = cursor.fetchone()
             if not user:
                 raise AccountError("用户不存在")
-            if user["username"] == "admin":
-                raise AccountError("不能删除系统管理员账户")
+            if user.get("group_name") == "超级管理员":
+                raise AccountError("不能删除超级管理员账户")
             cursor.execute("DELETE FROM users WHERE uid = %s", (uid,))
             connection.commit()
             return cursor.rowcount > 0
@@ -439,13 +880,26 @@ class AccountService:
 
     # ---- Registrations ----
 
-    def submit_registration(self, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '') -> str:
+    def submit_registration(self, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '', amount: float | None = None) -> str:
         uid = self._new_uid()
         now = self._now()
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO registrations (uid, user_uid, data, create_time, status, priority, template_uid) VALUES (%s, %s, %s, %s, 'pending', %s, %s)", (uid, user_uid, json.dumps(data, ensure_ascii=False), now, priority, template_uid))
+            cursor.execute("INSERT INTO registrations (uid, user_uid, data, create_time, status, priority, template_uid, amount) VALUES (%s, %s, %s, %s, 'pending', %s, %s, %s)", (uid, user_uid, json.dumps(data, ensure_ascii=False), now, priority, template_uid, amount))
             connection.commit()
+        if amount and amount > 0:
+            app_name = data.get('跑步APP', '')
+            if app_name:
+                app_uid = None
+                with self._connect() as conn2:
+                    cur = conn2.cursor(dictionary=True)
+                    cur.execute("SELECT uid, balance FROM running_apps WHERE name = %s", (app_name,))
+                    app = cur.fetchone()
+                    app_uid = app["uid"] if app else None
+                if app_uid:
+                    self._record_balance_transaction(app_uid, "deduction", amount,
+                        related_uid=uid, related_type="registration",
+                        note=f"登记创建扣除")
         return uid
 
     def get_user_registrations(self, user_uid: str, page: int = 1, page_size: int = 20) -> dict[str, Any]:
@@ -454,21 +908,23 @@ class AccountService:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM registrations WHERE user_uid = %s", (user_uid,))
             total = cursor.fetchone()["total"]
-            cursor.execute("SELECT uid, data, create_time, status, reject_reason, priority, template_uid FROM registrations WHERE user_uid = %s ORDER BY create_time DESC LIMIT %s OFFSET %s", (user_uid, page_size, offset))
+            cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, at2.version_name as template_name FROM registrations r LEFT JOIN app_templates at2 ON at2.uid = r.template_uid WHERE r.user_uid = %s ORDER BY r.create_time DESC LIMIT %s OFFSET %s", (user_uid, page_size, offset))
             rows = cursor.fetchall()
         items = [{
             "id": row["uid"], "created_at": row["create_time"].isoformat(),
             "status": row["status"], "data": json.loads(row["data"]),
             "reject_reason": row.get("reject_reason") or "",
             "priority": row.get("priority") or "low",
-            "template_uid": row.get("template_uid") or ""
+            "template_uid": row.get("template_uid") or "",
+            "template_name": row.get("template_name") or "",
+            "amount": float(row["amount"]) if row.get("amount") else None
         } for row in rows]
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def get_registration_detail(self, uid: str, user_uid: str | None = None) -> dict[str, Any] | None:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, u.username, r.user_uid FROM registrations r JOIN users u ON r.user_uid = u.uid WHERE r.uid = %s", (uid,))
+            cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, u.username, r.user_uid FROM registrations r JOIN users u ON r.user_uid = u.uid WHERE r.uid = %s", (uid,))
             row = cursor.fetchone()
             if not row:
                 return None
@@ -480,7 +936,8 @@ class AccountService:
             "data": json.loads(row["data"]),
             "reject_reason": row.get("reject_reason") or "",
             "priority": row.get("priority") or "low",
-            "template_uid": row.get("template_uid") or ""
+            "template_uid": row.get("template_uid") or "",
+            "amount": float(row["amount"]) if row.get("amount") else None
         }
 
     def check_registration_exists(self, user_uid: str) -> bool:
@@ -504,16 +961,46 @@ class AccountService:
             "template_uid": row.get("template_uid") or ""
         }
 
-    def resubmit_registration(self, uid: str, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '') -> None:
+    def resubmit_registration(self, uid: str, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '', amount: float | None = None) -> None:
         now = self._now()
+        old_amount = None
+        old_app_name = None
         with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT amount, JSON_UNQUOTE(JSON_EXTRACT(data, '$.跑步APP')) as app_name FROM registrations WHERE uid = %s", (uid,))
+            reg = cursor.fetchone()
+            if reg:
+                old_amount = reg.get("amount")
+                old_app_name = reg.get("app_name")
             cursor = connection.cursor()
             cursor.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
             row = cursor.fetchone()
             if not row or row[0] != user_uid:
                 raise AccountError("登记记录不存在")
-            cursor.execute("UPDATE registrations SET data = %s, create_time = %s, status = 'pending', reject_reason = NULL, priority = %s, template_uid = %s WHERE uid = %s", (json.dumps(data, ensure_ascii=False), now, priority, template_uid, uid))
+            cursor.execute("UPDATE registrations SET data = %s, create_time = %s, status = 'pending', reject_reason = NULL, priority = %s, template_uid = %s, amount = %s WHERE uid = %s", (json.dumps(data, ensure_ascii=False), now, priority, template_uid, amount, uid))
             connection.commit()
+        if old_amount and old_app_name:
+            app_uid = None
+            with self._connect() as conn2:
+                cur = conn2.cursor(dictionary=True)
+                cur.execute("SELECT uid FROM running_apps WHERE name = %s", (old_app_name,))
+                app = cur.fetchone()
+                app_uid = app["uid"] if app else None
+            if app_uid:
+                self._record_balance_transaction(app_uid, "reversal", float(old_amount),
+                    related_uid=uid, related_type="registration", note="重新提交撤销原扣除")
+        if amount and amount > 0:
+            app_name = data.get('跑步APP', '')
+            if app_name:
+                app_uid2 = None
+                with self._connect() as conn3:
+                    cur = conn3.cursor(dictionary=True)
+                    cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
+                    app = cur.fetchone()
+                    app_uid2 = app["uid"] if app else None
+                if app_uid2:
+                    self._record_balance_transaction(app_uid2, "deduction", amount,
+                        related_uid=uid, related_type="registration", note="登记重新提交扣除")
 
     # ---- Admin Registrations ----
 
@@ -538,9 +1025,10 @@ class AccountService:
             cursor.execute(count_sql, tuple(params))
             total = cursor.fetchone()["total"]
             sql = f"""
-                SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, u.username
+                SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, u.username, at2.version_name as template_name
                 FROM registrations r
                 JOIN users u ON r.user_uid = u.uid
+                LEFT JOIN app_templates at2 ON at2.uid = r.template_uid
                 {where_clause}
                 ORDER BY {order_clause}
                 LIMIT {page_size} OFFSET {offset}
@@ -553,18 +1041,37 @@ class AccountService:
             "registration_info": json.loads(row["data"]),
             "reject_reason": row.get("reject_reason") or "",
             "priority": row.get("priority") or "low",
-            "template_uid": row.get("template_uid") or ""
+            "template_uid": row.get("template_uid") or "",
+            "template_name": row.get("template_name") or "",
+            "amount": float(row["amount"]) if row.get("amount") else None
         } for row in rows]
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def update_registration_status(self, registration_uid: str, status: str, reject_reason: str | None = None) -> None:
+        reg_info = None
         with self._connect() as connection:
-            cursor = connection.cursor()
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT r.status as old_status, r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app_name FROM registrations r WHERE r.uid = %s", (registration_uid,))
+            reg = cursor.fetchone()
+            if reg:
+                reg_info = {"old_status": reg["old_status"], "amount": reg.get("amount"), "app_name": reg.get("app_name")}
             if reject_reason is not None:
                 cursor.execute("UPDATE registrations SET status = %s, reject_reason = %s WHERE uid = %s", (status, reject_reason, registration_uid))
             else:
                 cursor.execute("UPDATE registrations SET status = %s WHERE uid = %s", (status, registration_uid))
             connection.commit()
+        if reg_info and reg_info["amount"] and reg_info["app_name"] and status != 'approved':
+            app_name = reg_info["app_name"]
+            app_uid = None
+            with self._connect() as conn2:
+                cur = conn2.cursor(dictionary=True)
+                cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
+                app = cur.fetchone()
+                app_uid = app["uid"] if app else None
+            if app_uid:
+                self._record_balance_transaction(app_uid, "reversal", float(reg_info["amount"]),
+                    related_uid=registration_uid, related_type="registration",
+                    note=f"登记状态变为{status}，撤销扣除")
 
     def delete_registration(self, registration_uid: str) -> bool:
         with self._connect() as connection:
@@ -605,9 +1112,10 @@ class AccountService:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT c.uid, c.registration_uid, c.sender_uid, c.message, c.msg_type, c.created_at, u.username,
-                       CASE WHEN u.type = 'admin' THEN TRUE ELSE FALSE END as is_admin
+                       CASE WHEN ug.name IN ('管理员','超级管理员') THEN TRUE ELSE FALSE END as is_admin
                 FROM registration_chats c
                 JOIN users u ON c.sender_uid = u.uid
+                LEFT JOIN user_groups ug ON ug.uid = u.group_uid
                 WHERE c.registration_uid = %s
                 ORDER BY c.created_at ASC
             """, (registration_uid,))
@@ -622,22 +1130,6 @@ class AccountService:
 
     # ---- Running Apps ----
 
-    def get_running_apps(self) -> list[dict[str, Any]]:
-        with self._connect() as connection:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT id, uid, name, normal_price, morning_price, note, accent_color, icon FROM running_apps ORDER BY id ASC")
-            rows = cursor.fetchall()
-        return [{
-            'id': row['id'], 'uid': row['uid'],
-            'name': row['name'],
-            'normal_price': float(row['normal_price']),
-            'morning_price': float(row['morning_price']),
-            'note': row['note'] or '',
-            'accent_color': row['accent_color'] or '#1976D2',
-            'icon': row.get('icon') or '',
-            'template_count': self.get_app_template_count(row['id'])
-        } for row in rows]
-
     def get_running_app_by_uid(self, uid: str) -> dict[str, Any] | None:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
@@ -647,18 +1139,18 @@ class AccountService:
             return None
         return {'id': row['id'], 'uid': row['uid'], 'name': row['name']}
 
-    def create_running_app(self, name: str, normal_price: float, morning_price: float, note: str, accent_color: str = '#1976D2', icon: str = '') -> int:
+    def create_running_app(self, name: str, note: str, accent_color: str = '#1976D2', icon: str = '') -> int:
         uid = self._new_uid()
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color, icon, uid) VALUES (%s, %s, %s, %s, %s, %s, %s)", (name, normal_price, morning_price, note, accent_color, icon, uid))
+            cursor.execute("INSERT INTO running_apps (name, note, accent_color, icon, uid) VALUES (%s, %s, %s, %s, %s)", (name, note, accent_color, icon, uid))
             connection.commit()
             return cursor.lastrowid or 0
 
-    def update_running_app(self, app_id: int, name: str, normal_price: float, morning_price: float, note: str, accent_color: str, icon: str = '') -> bool:
+    def update_running_app(self, app_id: int, name: str, note: str, accent_color: str, icon: str = '') -> bool:
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("UPDATE running_apps SET name = %s, normal_price = %s, morning_price = %s, note = %s, accent_color = %s, icon = %s WHERE id = %s", (name, normal_price, morning_price, note, accent_color, icon, app_id))
+            cursor.execute("UPDATE running_apps SET name = %s, note = %s, accent_color = %s, icon = %s WHERE id = %s", (name, note, accent_color, icon, app_id))
             connection.commit()
             return cursor.rowcount > 0
 
@@ -674,7 +1166,7 @@ class AccountService:
             cursor = connection.cursor()
             count = 0
             for app in apps:
-                cursor.execute("INSERT INTO running_apps (name, normal_price, morning_price, note, accent_color, uid) VALUES (%s, %s, %s, %s, %s, %s)", (app['name'], app['normal_price'], app['morning_price'], app.get('note', ''), app.get('accent_color', '#1976D2'), self._new_uid()))
+                cursor.execute("INSERT INTO running_apps (name, note, accent_color, uid) VALUES (%s, %s, %s, %s)", (app['name'], app.get('note', ''), app.get('accent_color', '#1976D2'), self._new_uid()))
                 count += 1
             connection.commit()
             return count
@@ -822,8 +1314,8 @@ class AccountService:
             row = cursor.fetchone()
             if not row:
                 return None
-            cursor.execute("SELECT uid, content, is_admin, create_time FROM feedback_replies WHERE feedback_uid = %s ORDER BY create_time ASC", (uid,))
-            replies = [{'id': r['uid'], 'content': r['content'], 'is_admin': bool(r['is_admin']), 'created_at': r['create_time'].isoformat()} for r in cursor.fetchall()]
+            cursor.execute("SELECT fr.uid, fr.content, fr.is_admin, fr.create_time, u.username, ug.name as group_name FROM feedback_replies fr JOIN users u ON fr.user_uid = u.uid LEFT JOIN user_groups ug ON ug.uid = u.group_uid WHERE fr.feedback_uid = %s ORDER BY fr.create_time ASC", (uid,))
+            replies = [{'id': r['uid'], 'content': r['content'], 'username': r['username'], 'group_name': r.get('group_name') or '未分配', 'is_admin': bool(r['is_admin']), 'created_at': r['create_time'].isoformat()} for r in cursor.fetchall()]
         return {'id': row['uid'], 'username': row['username'], 'user_uid': row['user_uid'], 'title': row['title'], 'content': row['content'], 'status': row['status'], 'created_at': row['create_time'].isoformat(), 'replies': replies}
 
     def add_feedback_reply(self, feedback_uid: str, user_uid: str, content: str, is_admin: bool = False) -> str:
@@ -895,7 +1387,7 @@ class AccountService:
     def create_notification_for_admins(self, type: str, title: str, content: str = "", reference_id: str = "") -> None:
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("SELECT uid FROM users WHERE type = 'admin'")
+            cursor.execute("SELECT u.uid FROM users u INNER JOIN user_groups ug ON ug.uid = u.group_uid WHERE ug.name IN ('管理员','超级管理员')")
             admins = cursor.fetchall()
             for (admin_uid,) in admins:
                 uid = self._new_uid()

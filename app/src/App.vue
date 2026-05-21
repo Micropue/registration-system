@@ -1,13 +1,7 @@
 <template>
   <v-app style="height: 100%">
     <!-- 左侧导航栏 (桌面端响应式固定，移动端为抽屉) -->
-    <v-navigation-drawer
-      v-model="sideOpen"
-      app
-      width="260"
-      elevation="0"
-      class="border-e"
-    >
+    <v-navigation-drawer v-model="sideOpen" app width="260" elevation="0" class="border-e">
       <!-- 用户信息 -->
       <div v-if="user" class="py-3 d-flex align-center px-4">
         <v-avatar size="32" color="primary" class="me-3">
@@ -15,7 +9,7 @@
         </v-avatar>
         <div>
           <div class="text-body-2 font-weight-bold">{{ user.username }}</div>
-          <div class="text-caption text-grey">{{ user.type === 'admin' ? '管理员' : '普通用户' }}</div>
+          <div class="text-caption text-grey">{{ user.group_name || '未分配' }}</div>
         </div>
       </div>
       <div v-else-if="!isAuthChecking" class="pa-4">
@@ -24,43 +18,16 @@
         </v-btn>
       </div>
 
-      <v-divider></v-divider>
 
       <!-- 导航菜单 -->
       <v-list nav density="compact" class="pa-2">
-        <v-list-item
-          v-for="item in displayFunctions"
-          :key="item.to"
-          :prepend-icon="item.icon"
-          :title="item.title"
-          :to="item.to"
-          :exact="item.exact"
-          rounded="xl"
-          active-color="primary"
-          class="mb-1"
-        ></v-list-item>
+        <v-list-item v-for="item in displayFunctions" :key="item.to" :prepend-icon="item.icon" :title="item.title"
+          :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1"></v-list-item>
       </v-list>
-
-      <template v-slot:append v-if="user">
-        <div class="pa-2">
-          <v-btn
-            prepend-icon="mdi-logout"
-            color="error"
-            variant="tonal"
-            class="rounded-pill"
-            size="small"
-            block
-            @click="handleLogout"
-          >
-            退出登录
-          </v-btn>
-        </div>
-      </template>
     </v-navigation-drawer>
 
     <!-- 顶部导航栏 -->
-    <v-app-bar app color="rgba(255, 255, 255, 0.8)" flat class="px-3 px-md-6 border-b"
-      style="backdrop-filter: blur(12px);">
+    <v-app-bar app flat class="px-3 px-md-6 border-b" style="backdrop-filter: blur(12px);">
       <v-container class="d-flex align-center pa-0" fluid>
         <v-app-bar-nav-icon class="me-1" @click="toggleSidebar"></v-app-bar-nav-icon>
 
@@ -109,8 +76,8 @@
                 </v-list-item>
               </v-list>
             </v-menu>
-            <v-btn color="error" variant="tonal" class="rounded-pill px-4 font-weight-bold"
-              size="small" @click="handleLogout">
+            <v-btn color="error" variant="tonal" class="rounded-pill px-4 font-weight-bold" size="small"
+              @click="handleLogout">
               退出登录
             </v-btn>
           </template>
@@ -118,15 +85,15 @@
             class="rounded-pill px-6 font-weight-bold" elevation="0">
             登录
           </v-btn>
-          <v-btn v-else color="primary" variant="flat" class="rounded-pill px-6 font-weight-bold" elevation="0"
-            disabled loading>
+          <v-btn v-else color="primary" variant="flat" class="rounded-pill px-6 font-weight-bold" elevation="0" disabled
+            loading>
             检测中
           </v-btn>
         </div>
       </v-container>
     </v-app-bar>
 
-    <v-main class="bg-grey-lighten-4 overflow-y-auto" style="height: 100%;">
+    <v-main class="overflow-y-auto" style="height: 100%;">
       <div class="main-gradient-bg"></div>
       <RouterView />
     </v-main>
@@ -157,11 +124,47 @@ const isAuthChecking = ref(true)
 
 const isPageLoading = computed(() => appStore.isPageLoading)
 
+const ADMIN_PERM_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批']
+
+function hasAnyAdminPerm(permissions: Record<string, any> | undefined): boolean {
+  if (!permissions) return false
+  return ADMIN_PERM_KEYS.some(key => {
+    const val = permissions[key]
+    if (typeof val === 'object' && val !== null) return Object.values(val).some(Boolean)
+    return !!val
+  })
+}
+
+function hasPerm(permissions: Record<string, any> | undefined, key: string): boolean {
+  if (!permissions) return false
+  const val = permissions[key]
+  if (typeof val === 'object' && val !== null) return Object.values(val).some(Boolean)
+  return !!val
+}
+
+const PERM_MAP: Record<string, string> = {
+  '/admin/groups': '账户组管理',
+  '/admin/recharges': '充值审批',
+  '/admin/users': '账户管理',
+  '/admin/registers': '订单处理',
+  '/admin/feedbacks': '工单处理',
+  '/admin/running-apps': 'APP配置',
+  '/admin/balance-transactions': 'APP配置',
+  '/sign': '新建登记',
+  '/feedback': '新建工单',
+  '/recharge': '充值申请',
+}
+
 const displayFunctions = computed(() => {
   if (!user.value) return []
+  const perms = user.value.permissions
+  if (!perms || typeof perms !== 'object') return []
+
   return functions.filter(item => {
-    const targetRole = item.role || 'default'
-    return user.value?.type === targetRole
+    const required = PERM_MAP[item.to]
+    if (required) return hasPerm(perms, required)
+    if (item.to === '/admin' && item.exact) return hasAnyAdminPerm(perms)
+    return false
   })
 })
 
@@ -235,7 +238,7 @@ async function handleNotificationClick(n: any) {
       unreadCount.value = Math.max(0, unreadCount.value - 1)
     } catch (e) { /* ignore */ }
   }
-  const isAdmin = user.value?.type === 'admin'
+  const isAdmin = user.value?.role !== 'default'
   if (n.type === 'new_registration') {
     router.push({ path: '/admin/registers', query: n.reference_id ? { chat: n.reference_id } : {} })
   }
@@ -287,7 +290,9 @@ watch(() => route.path, fetchUser)
 </script>
 
 <style>
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
 }
 
@@ -326,6 +331,7 @@ html, body, #app {
 :deep(.v-navigation-drawer .v-list-item) {
   font-size: 14px;
 }
+
 :deep(.v-navigation-drawer .v-list-item .v-list-item-title) {
   font-size: 14px;
 }

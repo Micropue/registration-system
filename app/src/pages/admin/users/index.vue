@@ -17,8 +17,8 @@
         search-label="搜索用户名/IP/设备" @update:options="loadUsers" @reset="loadUsers">
         <!-- 自定义槽位：类型 -->
         <template v-slot:item.type="{ item }">
-          <v-chip :color="item.type === 'admin' ? 'primary' : 'grey'" size="small">
-            {{ item.type === 'admin' ? '管理员' : '普通' }}
+          <v-chip size="small" :color="item.type === '超级管理员' ? 'error' : item.type === '未分配' ? 'grey' : 'primary'">
+            {{ item.type }}
           </v-chip>
         </template>
 
@@ -43,6 +43,17 @@
             <v-btn variant="tonal" rounded color="error" :disabled="isCurrentUser(item)" @click="handleAction('删除', item)">删除</v-btn>
             <v-btn variant="tonal" rounded @click="handleAction('查找工单', item)" v-if="item.type !== 'admin'">查找工单</v-btn>
             <v-btn variant="tonal" rounded color="warning" @click="handleAction('强制下线', item)">强制下线</v-btn>
+            <v-menu location="bottom end">
+              <template v-slot:activator="{ props: menuProps }">
+                <v-btn variant="tonal" rounded v-bind="menuProps">{{ item.type || '划分账户组' }}</v-btn>
+              </template>
+              <v-list density="compact">
+                <v-list-item v-if="item.group_uid" @click="assignGroup(item.uid, '')" title="移除账户组"></v-list-item>
+                <v-divider v-if="item.group_uid"></v-divider>
+                <v-list-item v-for="g in groups" :key="g.uid" @click="assignGroup(item.uid, g.uid)" :title="g.name"
+                  :active="item.group_uid === g.uid" active-color="primary"></v-list-item>
+              </v-list>
+            </v-menu>
           </div>
         </template>
       </app-data-table>
@@ -60,9 +71,9 @@
             <v-text-field v-model="newPassword" label="密码" type="password" variant="outlined"
               :rules="[v => !!v || '密码必填', v => (v.length >= 6 && v.length <= 16) || '密码需6-16位', v => /^[A-Za-z0-9-]+$/.test(v) || '仅支持字母、数字和短横线']"
               hide-details="auto" class="mb-4" required></v-text-field>
-            <v-select v-model="newType" :items="[{ title: '普通', value: 'default' }, { title: '管理员', value: 'admin' }]"
-              label="账户类型" variant="outlined" density="compact" class="compact-select" hide-details="auto"></v-select>
-            <div class="text-caption text-grey mt-1">创建后不可修改账户类型</div>
+            <v-select v-model="newGroupUid" :items="groupOptions" item-title="name" item-value="uid"
+              label="账户组" variant="outlined" density="compact" class="compact-select" clearable hide-details="auto"></v-select>
+            <div class="text-caption text-grey mt-1">划分到账户组后继承组权限</div>
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -264,20 +275,21 @@
 </style>
 
 <script lang="ts" setup>
-import { ref, reactive, watch } from 'vue'
+import { ref, reactive, watch, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import * as XLSX from 'xlsx'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
 import { getErrorMessage } from '@/config/error-msg'
-import type { UserItem } from '@/config/api-type'
+import type { UserItem, UserGroup } from '@/config/api-type'
 import AppDataTable from '@/components/AppDataTable.vue'
 import { useAppStore } from '@/stores/app'
 
 interface PaginatedUsers { total: number; page: number; page_size: number; items: UserItem[]; }
 
 const appStore = useAppStore()
+const groups = ref<UserGroup[]>([])
 const router = useRouter()
 const users = ref<UserItem[]>([])
 const loading = ref(false)
@@ -299,7 +311,8 @@ const formRef = ref<any>(null)
 const editFormRef = ref<any>(null)
 const newUsername = ref('')
 const newPassword = ref('')
-const newType = ref('default')
+const newGroupUid = ref('')
+const groupOptions = computed(() => groups.value)
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 function showMsg(text: string, color: string = 'success') {
@@ -504,7 +517,7 @@ async function deleteAccount(uid: string) {
 const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
   { title: '活跃会话', key: 'session_count', sortable: true },
-  { title: '类型', key: 'type', sortable: false, filterable: true, filterFormatter: (v: string) => v === 'admin' ? '管理员' : '普通' },
+  { title: '类型', key: 'type', sortable: false, filterable: true },
   { title: '登录IP', key: 'login_ip', sortable: false, searchable: true, filterable: true },
   { title: '登录设备', key: 'login_device', sortable: false, searchable: true, filterable: true },
   { title: '操作', key: 'actions', sortable: false },
@@ -541,7 +554,7 @@ async function createAccount() {
   try {
     const res = await ajax(ApiUrl.CREATE_USER, {
       method: 'POST',
-      body: { username: newUsername.value, password: newPassword.value, type: newType.value },
+      body: { username: newUsername.value, password: newPassword.value, group_uid: newGroupUid.value || null },
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) {
@@ -582,4 +595,36 @@ async function loadUsers(options: any = { page: 1, itemsPerPage: 20, sortBy: [] 
     console.error('Failed to load users', err)
   } finally { loading.value = false }
 }
+
+async function loadGroups() {
+  try {
+    const res = await ajax<UserGroup[]>(ApiUrl.GET_GROUPS, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) groups.value = res.data
+  } catch (e) { /* ignore */ }
+}
+
+async function assignGroup(userUid: string, groupUid: string) {
+  try {
+    const token = cookie.get('token') || ''
+    if (groupUid) {
+      const res = await ajax(`${ApiUrl.ASSIGN_USER_GROUP}/${userUid}/group`, {
+        method: 'POST', body: { group_uid: groupUid },
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.code === 200) { showMsg('已分配账户组'); loadUsers() }
+      else showMsg(res.msg, 'error')
+    } else {
+      const res = await ajax(`${ApiUrl.ASSIGN_USER_GROUP}/${userUid}/group`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      if (res.code === 200) { showMsg('已移除账户组'); loadUsers() }
+      else showMsg(res.msg, 'error')
+    }
+  } catch (e) { showMsg('操作失败', 'error') }
+}
+
+loadGroups()
 </script>
