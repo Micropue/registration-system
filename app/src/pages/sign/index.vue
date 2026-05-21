@@ -347,6 +347,10 @@
                   <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
                 </thead>
                 <tbody>
+                  <tr v-if="detailDialog.amount != null">
+                    <td class="font-weight-bold text-primary">跑量</td>
+                    <td class="font-weight-bold text-primary">{{ detailDialog.amount }}{{ getAmountUnit(detailDialog.data['跑步APP']) }}</td>
+                  </tr>
                   <tr v-for="key in sortedDetailKeys" :key="key">
                     <td class="font-weight-bold">{{ key }}</td>
                     <td>{{ formatValue(detailDialog.data[key]) }}</td>
@@ -416,6 +420,7 @@ interface RegistrationItem {
   reject_reason?: string
   priority?: string
   template_uid?: string
+  amount?: number | null
 }
 
 const isLoading = ref(true)
@@ -493,7 +498,8 @@ const detailDialog = reactive({
   data: {} as Record<string, any>,
   status: '',
   createdAt: '',
-  rejectReason: ''
+  rejectReason: '',
+  amount: null as number | null
 })
 
 const sortedDetailKeys = computed(() => {
@@ -576,7 +582,8 @@ function getAppIcon(appName: string): string {
   return app?.icon || ''
 }
 
-function getAmountUnit(appName: string): string {
+function getAmountUnit(appName: string | undefined): string {
+  if (!appName) return ''
   const app = runningApps.value.find(a => a.name === appName)
   if (app?.balance_mode === 'mileage') return ' 公里'
   if (app?.balance_mode === 'count') return ' 次'
@@ -761,6 +768,7 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.status = item.status
   detailDialog.createdAt = item.created_at
   detailDialog.rejectReason = item.reject_reason || ''
+  detailDialog.amount = item.amount ?? null
   detailDialog.show = true
   chatStore.clearUnreadCount(item.id)
 }
@@ -911,7 +919,7 @@ onMounted(async () => {
 }
 
 .form-section {
-  background: #fff;
+  background: rgb(var(--v-theme-background));
   border-radius: 12px;
 }
 

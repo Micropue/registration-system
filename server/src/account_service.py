@@ -546,24 +546,26 @@ class AccountService:
     def _calculate_balance(self, app_uid: str) -> float:
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM balance_transactions WHERE app_uid = %s AND type != 'reversal'", (app_uid,))
-            total = cursor.fetchone()[0]
-            cursor.execute("SELECT COALESCE(SUM(amount), 0) FROM balance_transactions WHERE app_uid = %s AND type = 'reversal'", (app_uid,))
-            reversals = cursor.fetchone()[0]
-        return round(float(total) - float(reversals), 2)
+            cursor.execute("SELECT balance FROM running_apps WHERE uid = %s", (app_uid,))
+            row = cursor.fetchone()
+            return float(row[0] or 0) if row else 0
 
     def _record_balance_transaction(self, app_uid: str, type: str, amount: float, related_uid: str = "", related_type: str = "", note: str = "") -> str:
-        balance_after = self._calculate_balance(app_uid)
-        if type == 'recharge':
-            balance_after = round(balance_after + amount, 2)
-        elif type == 'deduction':
-            balance_after = round(balance_after - amount, 2)
-        elif type == 'reversal':
-            balance_after = round(balance_after + amount, 2)
         uid = self._new_uid()
         now = self._now()
         with self._connect() as connection:
-            cursor = connection.cursor()
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT balance FROM running_apps WHERE uid = %s", (app_uid,))
+            app = cursor.fetchone()
+            current = float(app["balance"] or 0) if app else 0
+            if type == 'recharge':
+                balance_after = round(current + amount, 2)
+            elif type == 'deduction':
+                balance_after = round(current - amount, 2)
+            elif type == 'reversal':
+                balance_after = round(current + amount, 2)
+            else:
+                balance_after = current
             cursor.execute("INSERT INTO balance_transactions (uid, app_uid, type, amount, balance_after, related_uid, related_type, note, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (uid, app_uid, type, amount, balance_after, related_uid, related_type, note, now))
             cursor.execute("UPDATE running_apps SET balance = %s WHERE uid = %s", (balance_after, app_uid))
@@ -1060,7 +1062,7 @@ class AccountService:
             else:
                 cursor.execute("UPDATE registrations SET status = %s WHERE uid = %s", (status, registration_uid))
             connection.commit()
-        if reg_info and reg_info["amount"] and reg_info["app_name"] and status != 'approved':
+        if reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("old_status") == 'approved' and status != 'approved':
             app_name = reg_info["app_name"]
             app_uid = None
             with self._connect() as conn2:

@@ -135,6 +135,10 @@
                   <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
                 </thead>
                 <tbody>
+                  <tr v-if="detailsDialog.item?.amount != null">
+                    <td class="font-weight-bold text-primary">跑量</td>
+                    <td class="font-weight-bold text-primary">{{ detailsDialog.item.amount }}{{ getAmountUnit(detailsDialog.item.app) }}</td>
+                  </tr>
                   <tr v-for="row in detailFields" :key="row.key">
                     <td>{{ row.key }}</td><td>{{ row.value }}</td>
                   </tr>
@@ -275,6 +279,7 @@ interface RegistrationItem {
   app?: string
   priority?: string
   template_uid?: string
+  amount?: number | null
 }
 
 // 状态管理
@@ -414,7 +419,8 @@ function getAppInfo(appName: string) {
   return runningApps.value.find(a => a.name === appName)
 }
 
-function getAmountUnit(appName: string): string {
+function getAmountUnit(appName: string | undefined): string {
+  if (!appName) return ''
   const app = runningApps.value.find(a => a.name === appName)
   if (app?.balance_mode === 'mileage') return ' 公里'
   if (app?.balance_mode === 'count') return ' 次'

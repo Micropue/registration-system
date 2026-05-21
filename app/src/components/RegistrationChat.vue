@@ -182,7 +182,7 @@ defineExpose({ sendMessage })
   flex-direction: column;
   flex: 1;
   min-height: 0;
-  background-color: #FAFAFB;
+  background-color: rgb(var(--v-theme-surface));
   border-radius: 12px;
 }
 
@@ -196,227 +196,79 @@ defineExpose({ sendMessage })
   scroll-behavior: smooth;
 }
 
-/* 优雅的自定义滚动条 */
-.chat-messages::-webkit-scrollbar {
-  width: 6px;
-}
-.chat-messages::-webkit-scrollbar-track {
-  background: transparent;
-}
+/* 滚动条 */
+.chat-messages::-webkit-scrollbar { width: 6px; }
+.chat-messages::-webkit-scrollbar-track { background: transparent; }
 .chat-messages::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.1);
+  background: rgba(var(--v-theme-on-surface), 0.15);
   border-radius: 8px;
-}
-.chat-messages::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.2);
 }
 
 /* 空状态 */
-.chat-empty {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  opacity: 0.8;
-  animation: fadeIn 0.5s ease;
-}
+.chat-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; opacity: 0.8; animation: fadeIn 0.5s ease; }
 .empty-icon-wrapper {
-  background: #E3F2FD;
-  padding: 16px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: rgb(var(--v-theme-surface-variant));
+  padding: 16px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
 }
 
-/* 气泡外层包裹，用于控制对齐和边距 */
-.chat-bubble-wrapper {
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 16px;
-  width: 100%;
-  animation: fadeInUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-}
+/* 气泡外层 */
+.chat-bubble-wrapper { display: flex; flex-direction: column; margin-bottom: 16px; width: 100%; animation: fadeInUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
 
-/* 核心气泡样式 */
-.chat-bubble {
-  position: relative;
-  padding: 10px 14px;
-  border-radius: 18px;
-  max-width: 85%;
-  word-break: break-word;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
-}
+/* 核心气泡 */
+.chat-bubble { position: relative; padding: 10px 14px; border-radius: 18px; max-width: 85%; word-break: break-word; box-shadow: 0 2px 5px rgba(0,0,0,0.04); }
 
-/* 别人发的消息（左侧） */
-.is-other {
-  align-items: flex-start;
-}
+/* 别人发的消息 */
+.is-other { align-items: flex-start; }
 .is-other .chat-bubble {
-  background-color: #FFFFFF;
+  background-color: rgb(var(--v-theme-background));
   border-top-left-radius: 4px;
-  color: #333333;
+  color: rgb(var(--v-theme-on-background));
 }
-.is-other .chat-meta {
-  color: #757575;
-}
+.is-other .chat-meta { color: rgba(var(--v-theme-on-background), 0.6); }
 
-/* 自己发的消息（右侧） */
-.is-self {
-  align-items: flex-end;
-}
+/* 自己发的消息 */
+.is-self { align-items: flex-end; }
 .is-self .chat-bubble {
   background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%);
   border-top-right-radius: 4px;
   color: #FFFFFF;
-  box-shadow: 0 4px 10px rgba(21, 101, 192, 0.2);
+  box-shadow: 0 4px 10px rgba(21,101,192,0.2);
 }
-.is-self .chat-meta {
-  color: rgba(255, 255, 255, 0.8);
-  justify-content: flex-end;
-}
+.is-self .chat-meta { color: rgba(255,255,255,0.8); justify-content: flex-end; }
 
-/* 卡片类型气泡清除默认背景 */
-.chat-bubble.is-card {
-  padding: 0;
-  background: transparent !important;
-  box-shadow: none !important;
-  max-width: 90%;
-}
+/* 卡片类型 */
+.chat-bubble.is-card { padding: 0; background: transparent !important; box-shadow: none !important; max-width: 90%; }
 
-/* 元信息（姓名和时间） */
-.chat-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 0.75rem;
-  margin-bottom: 4px;
-  font-weight: 500;
-}
-.msg-time {
-  font-weight: 400;
-  font-size: 0.7rem;
-}
+/* 元信息 */
+.chat-meta { display: flex; align-items: center; gap: 8px; font-size: 0.75rem; margin-bottom: 4px; font-weight: 500; }
+.msg-time { font-weight: 400; font-size: 0.7rem; }
 
-/* 文本消息行高 */
-.chat-text {
-  font-size: 0.9rem;
-  line-height: 1.5;
-  letter-spacing: 0.3px;
-  white-space: pre-wrap;
-}
+/* 文本消息 */
+.chat-text { font-size: 0.9rem; line-height: 1.5; letter-spacing: 0.3px; white-space: pre-wrap; }
 
-/* ----- 富文本/系统卡片样式 ----- */
-.chat-card {
-  display: flex;
-  gap: 12px;
-  background: #FFFFFF;
-  border-radius: 16px;
-  padding: 14px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
-  border: 1px solid rgba(0, 0, 0, 0.04);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.chat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-}
-
-.is-self .chat-card {
-  /* 如果是自己发出的卡片，稍微调整边框颜色 */
-  border: 1px solid rgba(33, 150, 243, 0.2);
-}
-
-.chat-card-icon {
-  flex-shrink: 0;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+/* 卡片 */
+.chat-card { display: flex; gap: 12px; background: rgb(var(--v-theme-background)); border-radius: 16px; padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); border: 1px solid rgba(0,0,0,0.04); transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.chat-card:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(0,0,0,0.08); }
+.is-self .chat-card { border: 1px solid rgba(33,150,243,0.2); }
+.chat-card-icon { flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
 .reg-icon { background: linear-gradient(135deg, #E3F2FD, #BBDEFB); color: #1976D2; }
-.fb-icon  { background: linear-gradient(135deg, #FFF3E0, #FFE0B2); color: #F57C00; }
-
-.chat-card-body {
-  flex: 1;
-  min-width: 0; /* 解决 flex 溢出问题 */
-}
-.card-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #333;
-  margin-bottom: 6px;
-}
-.chat-card .card-text {
-  white-space: pre-wrap;
-  color: #666;
-  font-size: 0.8rem;
-  line-height: 1.5;
-  max-height: 150px;
-  overflow-y: auto;
-  padding-right: 4px;
-  /* 定制内部滚动条 */
-  scrollbar-width: thin;
-}
+.fb-icon { background: linear-gradient(135deg, #FFF3E0, #FFE0B2); color: #F57C00; }
+.chat-card-body { flex: 1; min-width: 0; }
+.card-title { font-size: 0.85rem; font-weight: 600; color: rgb(var(--v-theme-on-background)); margin-bottom: 6px; }
+.chat-card .card-text { white-space: pre-wrap; color: rgba(var(--v-theme-on-background), 0.7); font-size: 0.8rem; line-height: 1.5; max-height: 150px; overflow-y: auto; padding-right: 4px; scrollbar-width: thin; }
 .chat-card .card-text::-webkit-scrollbar { width: 4px; }
-.chat-card .card-text::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 4px; }
+.chat-card .card-text::-webkit-scrollbar-thumb { background: rgba(var(--v-theme-on-background), 0.15); border-radius: 4px; }
 
-/* ----- 底部输入区 ----- */
-.chat-input-area {
-  flex-shrink: 0;
-  padding: 8px 12px;
-  background: #FFFFFF;
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
-  border-bottom-left-radius: 12px;
-  border-bottom-right-radius: 12px;
-  overflow: hidden;
-}
-.chat-input-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.chat-input {
-  flex: 1;
-  min-width: 0;
-}
-.chat-input :deep(.v-field) {
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.02) !important;
-  transition: all 0.3s ease;
-}
-.chat-input :deep(.v-field--focused) {
-  background-color: #FFFFFF !important;
-  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2), inset 0 1px 3px rgba(0,0,0,0.02) !important;
-}
-.chat-input :deep(.v-field__input) {
-  padding-top: 9px !important;
-  padding-bottom: 9px !important;
-  font-size: 0.9rem;
-  line-height: 1.4;
-  /* max-height: 150px; */
-  overflow-y: auto !important;
-}
+/* 输入区 */
+.chat-input-area { flex-shrink: 0; padding: 8px 12px; background: rgb(var(--v-theme-background)); border-top: 1px solid rgba(var(--v-theme-on-surface), 0.08); border-bottom-left-radius: 12px; border-bottom-right-radius: 12px; overflow: hidden; }
+.chat-input-row { display: flex; align-items: flex-start; gap: 8px; }
+.chat-input { flex: 1; min-width: 0; }
+.chat-input :deep(.v-field__input) { padding-top: 9px !important; padding-bottom: 9px !important; min-height: 38px !important; font-size: 0.9rem; line-height: 1.4; max-height: 150px; overflow-y: auto !important; }
 
-.send-btn {
-  flex-shrink: 0;
-  margin-top: 2px;
-  border-radius: 50% !important;
-  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
-}
-.send-btn:hover:not(:disabled) { 
-  transform: scale(1.1) rotate(-5deg); 
-}
+.send-btn { flex-shrink: 0; margin-top: 2px; border-radius: 50% !important; transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important; }
+.send-btn:hover:not(:disabled) { transform: scale(1.1) rotate(-5deg); }
 
-/* 动画定义 */
-@keyframes fadeInUp {
-  0% { opacity: 0; transform: translateY(12px); }
-  100% { opacity: 1; transform: translateY(0); }
-}
-@keyframes fadeIn {
-  0% { opacity: 0; }
-  100% { opacity: 1; }
-}
+@keyframes fadeInUp { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
 </style>
