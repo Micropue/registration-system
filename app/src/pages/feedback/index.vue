@@ -104,10 +104,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
+import { useRoute } from 'vue-router'
 import AppDataTable from '@/components/AppDataTable.vue'
 
 interface FeedbackItem {
@@ -141,6 +142,7 @@ const newFormRef = ref<any>(null)
 
 const newDialog = reactive({ show: false, title: '', content: '' })
 const detailDialog = reactive({ show: false, data: null as FeedbackDetail | null, replyContent: '' })
+const route = useRoute()
 
 const VIEWED_KEY = 'feedback_viewed_ids'
 function getViewedIds(): Set<string> {
@@ -212,6 +214,13 @@ async function openDetail(id: string) {
   } catch (err) { showMsg('加载失败', 'error') }
 }
 
+function handleFeedbackQueryId() {
+  const feedbackId = route.query.id
+  if (feedbackId && typeof feedbackId === 'string') {
+    openDetail(feedbackId)
+  }
+}
+
 async function submitReply() {
   if (!detailDialog.data || !detailDialog.replyContent) return
   replyLoading.value = true
@@ -257,7 +266,14 @@ async function createFeedback() {
   finally { newLoading.value = false }
 }
 
-onMounted(() => loadFeedbacks({ page: 1, itemsPerPage: 20 }))
+onMounted(async () => {
+  await loadFeedbacks({ page: 1, itemsPerPage: 20 })
+  handleFeedbackQueryId()
+})
+
+watch(() => route.query.id, () => {
+  handleFeedbackQueryId()
+})
 </script>
 
 <style scoped lang="scss">

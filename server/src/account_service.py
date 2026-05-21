@@ -884,6 +884,14 @@ class AccountService:
             cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s", (user_uid,))
             connection.commit()
 
+    def mark_notifications_read_by_reference(self, user_uid: str, reference_id: str) -> int:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s AND reference_id = %s AND is_read = FALSE", (user_uid, reference_id))
+            count = cursor.rowcount
+            connection.commit()
+            return count
+
     def create_notification_for_admins(self, type: str, title: str, content: str = "", reference_id: str = "") -> None:
         with self._connect() as connection:
             cursor = connection.cursor()

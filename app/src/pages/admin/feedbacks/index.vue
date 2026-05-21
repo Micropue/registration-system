@@ -93,7 +93,7 @@
 </style>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppDataTable from '@/components/AppDataTable.vue'
 import { ApiUrl } from '@/config/api-url'
@@ -167,6 +167,17 @@ async function openDetail(item: FeedbackItem) {
   } catch (err) { showMsg('加载失败', 'error') }
 }
 
+async function openDetailById(id: string) {
+  return openDetail({ id } as FeedbackItem)
+}
+
+function handleFeedbackQueryId() {
+  const feedbackId = route.query.id
+  if (feedbackId && typeof feedbackId === 'string') {
+    openDetailById(feedbackId)
+  }
+}
+
 async function submitReply() {
   if (!detailDialog.data || !detailDialog.replyContent) return
   replyLoading.value = true
@@ -211,4 +222,13 @@ async function handleDelete() {
     else showMsg(res.msg, 'error')
   } catch (err) { showMsg('请求失败', 'error') } finally { loading.value = false }
 }
+
+onMounted(async () => {
+  await loadFeedbacks({ page: 1, itemsPerPage: 20 })
+  handleFeedbackQueryId()
+})
+
+watch(() => route.query.id, () => {
+  handleFeedbackQueryId()
+})
 </script>

@@ -82,7 +82,7 @@
           </v-fade-transition>
 
           <template v-if="user">
-            <v-menu location="bottom end" :close-on-content-click="false" min-width="320">
+            <v-menu v-model="notifMenuOpen" location="bottom end" :close-on-content-click="false" min-width="320">
               <template v-slot:activator="{ props: menuProps }">
                 <v-badge :model-value="unreadCount > 0" :content="unreadCount" color="error" overlap>
                   <v-btn icon="mdi-bell-outline" variant="text" size="small" v-bind="menuProps"
@@ -187,6 +187,7 @@ function handleLogout() {
 
 const unreadCount = ref(0)
 const notifications = ref<any[]>([])
+const notifMenuOpen = ref(false)
 let notifTimer: any = null
 
 async function fetchNotifications() {
@@ -234,9 +235,15 @@ async function handleNotificationClick(n: any) {
       unreadCount.value = Math.max(0, unreadCount.value - 1)
     } catch (e) { /* ignore */ }
   }
-  if (n.type === 'registration_rejected' || n.type === 'new_registration') router.push('/admin/registers')
+  const isAdmin = user.value?.type === 'admin'
+  if (n.type === 'new_registration') {
+    router.push({ path: '/admin/registers', query: n.reference_id ? { chat: n.reference_id } : {} })
+  }
+  else if (n.type === 'registration_rejected') {
+    router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
+  }
   else if (n.type === 'chat_message') {
-    const targetPath = user.value?.type === 'admin' ? '/admin/registers' : '/sign'
+    const targetPath = isAdmin ? '/admin/registers' : '/sign'
     if (n.reference_id) {
       router.push({ path: targetPath, query: { chat: n.reference_id } })
     } else {
@@ -244,8 +251,14 @@ async function handleNotificationClick(n: any) {
     }
   }
   else if (n.type === 'feedback_replied' || n.type === 'new_feedback' || n.type === 'feedback_status') {
-    router.push(user.value?.type === 'admin' ? '/admin/feedbacks' : '/feedback')
+    const targetPath = isAdmin ? '/admin/feedbacks' : '/feedback'
+    if (n.reference_id) {
+      router.push({ path: targetPath, query: { id: n.reference_id } })
+    } else {
+      router.push(targetPath)
+    }
   }
+  notifMenuOpen.value = false
 }
 
 function formatNotifDate(iso: string) {

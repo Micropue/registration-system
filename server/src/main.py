@@ -840,6 +840,15 @@ async def mark_all_read(authorization: Optional[str] = Header(None)):
     account_service.mark_all_notifications_read(session.user_uid)
     return api_response(200, "All marked read")
 
+@app.post("/notifications/read-by-reference/{reference_id}")
+async def mark_read_by_reference(reference_id: str, authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    count = account_service.mark_notifications_read_by_reference(session.user_uid, reference_id)
+    return api_response(200, "Marked read", { "count": count })
+
 # --- 登记聊天 WebSocket ---
 
 class ConnectionManager:

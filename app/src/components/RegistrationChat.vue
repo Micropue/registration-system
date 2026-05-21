@@ -57,7 +57,7 @@
       <div class="chat-input-row">
         <v-textarea v-model="input" density="compact" variant="solo-filled" flat
           placeholder="输入消息... (Enter 发送，Shift+Enter 换行)" hide-details
-          rows="1" auto-grow no-resize
+          rows="1" auto-grow
           bg-color="#F4F5F7"
           class="chat-input"
           @keydown.enter.exact.prevent="send"></v-textarea>
@@ -74,6 +74,7 @@ import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
+import { useChatStore } from '@/stores/chat'
 
 const props = defineProps<{
   registrationUid: string
@@ -102,6 +103,8 @@ function scrollBottom() {
   })
 }
 
+const chatStore = useChatStore()
+
 async function loadHistory() {
   try {
     const res = await ajax<any[]>(`${ApiUrl.REGISTRATION_CHAT}/${props.registrationUid}`, {
@@ -110,6 +113,11 @@ async function loadHistory() {
     if (res.code === 200) {
       messages.value = res.data
       scrollBottom()
+      chatStore.clearUnreadCount(props.registrationUid)
+      ajax(`${ApiUrl.READ_NOTIFICATIONS_BY_REF}/${props.registrationUid}`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      }).catch(() => {})
     }
   } catch (err) { /* ignore */ }
 }
@@ -296,6 +304,7 @@ defineExpose({ sendMessage })
   font-size: 0.9rem;
   line-height: 1.5;
   letter-spacing: 0.3px;
+  white-space: pre-wrap;
 }
 
 /* ----- 富文本/系统卡片样式 ----- */
@@ -363,12 +372,11 @@ defineExpose({ sendMessage })
   border-top: 1px solid rgba(0, 0, 0, 0.06);
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
-  max-height: 40%;
   overflow: hidden;
 }
 .chat-input-row {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 8px;
 }
 .chat-input {
@@ -376,7 +384,6 @@ defineExpose({ sendMessage })
   min-width: 0;
 }
 .chat-input :deep(.v-field) {
-  border-radius: 20px !important;
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.02) !important;
   transition: all 0.3s ease;
 }
@@ -387,10 +394,9 @@ defineExpose({ sendMessage })
 .chat-input :deep(.v-field__input) {
   padding-top: 9px !important;
   padding-bottom: 9px !important;
-  min-height: 38px !important;
   font-size: 0.9rem;
   line-height: 1.4;
-  max-height: 150px;
+  /* max-height: 150px; */
   overflow-y: auto !important;
 }
 

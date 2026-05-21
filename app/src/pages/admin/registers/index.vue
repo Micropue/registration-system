@@ -7,6 +7,23 @@
 
       <div class="d-flex flex-wrap ga-2 mb-4">
         <v-badge
+          :content="totalPending"
+          color="error"
+          offset-x="-6"
+          offset-y="-6"
+          :model-value="totalPending > 0"
+        >
+          <v-btn
+            :to="{ path: '/admin/registers', query: route.query }"
+            :variant="!selectedApp ? 'tonal' : 'text'"
+            :color="!selectedApp ? 'primary' : ''"
+            rounded
+            size="small"
+          >
+            全部订单
+          </v-btn>
+        </v-badge>
+        <v-badge
           v-for="app in runningApps"
           :key="app.id"
           :content="appStats[app.name]?.pending || 0"
@@ -36,6 +53,17 @@
         v-model:page="currentPage" v-model:items-per-page="itemsPerPage" show-search show-filter search-label="搜索用户名"
         @update:options="loadRegisters" @reset="loadRegisters"
         :row-props="({ item }: any) => item.status !== 'pending' ? { class: 'row-processed' } : {}">
+
+        <!-- 自定义槽位：跑步APP -->
+        <template v-slot:item.app="{ item }">
+          <div class="d-flex align-center ga-1">
+            <v-avatar v-if="getAppInfo(item.app)?.icon" size="20" rounded>
+              <v-img :src="getAppInfo(item.app)?.icon" cover></v-img>
+            </v-avatar>
+            <span class="color-dot" :style="{ backgroundColor: getAppInfo(item.app)?.accent_color || '#1976D2' }"></span>
+            {{ item.app }}
+          </div>
+        </template>
 
         <!-- 自定义槽位：创建时间 -->
         <template v-slot:item.created_at="{ item }">
@@ -246,6 +274,7 @@ const chatStore = useChatStore()
 const runningApps = ref<RunningApp[]>([])
 const appStats = ref<Record<string, { pending: number }>>({})
 const selectedApp = computed(() => decodeURIComponent(route.params.appName as string || ''))
+const totalPending = computed(() => Object.values(appStats.value).reduce((sum, s) => sum + s.pending, 0))
 
 const registers = ref<RegistrationItem[]>([])
 const loading = ref(false)
@@ -326,11 +355,7 @@ onMounted(async () => {
   await loadRunningApps()
   await loadStats()
   if (runningApps.value.length > 0) {
-    if (!selectedApp.value && !route.query.chat) {
-      router.replace({ path: `/admin/registers/${encodeURIComponent(runningApps.value[0].name)}`, query: route.query })
-      return
-    }
-    if (!runningApps.value.find(a => a.name === selectedApp.value) && !route.query.chat) {
+    if (selectedApp.value && !runningApps.value.find(a => a.name === selectedApp.value) && !route.query.chat) {
       router.replace({ path: `/admin/registers/${encodeURIComponent(runningApps.value[0].name)}`, query: route.query })
       return
     }
@@ -373,6 +398,10 @@ function chatUnreadCount(id: string) {
   return chatStore.chatUnreadCounts[id] || 0
 }
 
+function getAppInfo(appName: string) {
+  return runningApps.value.find(a => a.name === appName)
+}
+
 function confirmDelete(item: RegistrationItem) {
   deleteDialog.item = item
   deleteDialog.show = true
@@ -381,6 +410,7 @@ function confirmDelete(item: RegistrationItem) {
 // 配置化表头
 const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
+  { title: '跑步APP', key: 'app', sortable: true, filterable: true },
   { title: '客户信息', key: 'details', sortable: false },
   { title: '登记状态', key: 'status', sortable: true, filterable: true },
   { title: '优先级', key: 'priority', sortable: true, filterable: true },
