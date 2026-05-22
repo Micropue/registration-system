@@ -7,7 +7,7 @@
                 <!-- 左侧：logo 区域 -->
                 <v-col md="6" class="d-none d-md-flex align-center justify-center left-section">
                     <div class="text-center pa-8">
-                        <v-avatar size="80" class="mb-4 bg-white shadow-lg">
+                        <v-avatar size="80" class="mb-4 bg-background shadow-lg">
                             <v-img src="@/assets/logo.jpg"></v-img>
                         </v-avatar>
                         <h2 class="text-h5 font-weight-black mb-2 color-primary">哆啦A梦（校园跑版）</h2>
@@ -16,7 +16,7 @@
                 </v-col>
 
                 <!-- 右侧：表单区域 -->
-                <v-col cols="12" md="6" class="d-flex align-center justify-center bg-white">
+                <v-col cols="12" md="6" class="d-flex align-center justify-center bg-background">
                     <div class="login-form-wrapper pa-8 pa-md-12">
                         <!-- 修复了原本强行负边距导致的拥挤感 -->
                         <div class="mb-6">
@@ -131,8 +131,7 @@ async function handleLogin() {
 /* 左侧无背景色，直接继承卡片背景 */
 .left-section {
     background: transparent;
-    /* 给左侧稍微加一点极淡的底色区分一下纯白的右侧表单会更有质感 */
-    background-color: #f8f9fa;
+    background-color: rgb(var(--v-theme-surface));
 }
 
 /* 表单宽度控制 */
@@ -142,7 +141,7 @@ async function handleLogin() {
 }
 
 .color-primary {
-    color: #1867c0;
+    color: rgb(var(--v-theme-primary));
 }
 
 .login-input :deep(.v-field__input) {

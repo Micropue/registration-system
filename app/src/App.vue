@@ -99,6 +99,13 @@
       <div class="main-gradient-bg"></div>
       <RouterView />
     </v-main>
+
+    <v-snackbar v-model="needRefresh" :timeout="-1" location="bottom" color="primary">
+      发现新版本
+      <template v-slot:actions>
+        <v-btn variant="text" @click="refreshApp">立即更新</v-btn>
+      </template>
+    </v-snackbar>
   </v-app>
 </template>
 
@@ -113,6 +120,7 @@ import { functions } from '@/config/functions'
 import { useAppStore } from '@/stores/app'
 import { useChatStore } from '@/stores/chat'
 import type { CheckLoginData } from '@/config/api-type'
+import { useRegisterSW } from 'virtual:pwa-register/vue'
 import Prism from './components/effect/prism.vue'
 
 const router = useRouter()
@@ -290,6 +298,12 @@ onUnmounted(() => {
   if (notifTimer) clearInterval(notifTimer)
 })
 watch(() => route.path, fetchUser)
+
+const { needRefresh, updateServiceWorker } = useRegisterSW()
+
+function refreshApp() {
+  updateServiceWorker()
+}
 </script>
 
 <style>

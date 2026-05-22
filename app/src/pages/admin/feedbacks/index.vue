@@ -41,11 +41,11 @@
         <v-card-subtitle>{{ detailDialog.data.username }} · {{ formatDate(detailDialog.data.created_at) }}</v-card-subtitle>
         <v-divider class="my-2"></v-divider>
         <v-card-text>
-          <div class="pa-3 rounded bg-grey-lighten-4 mb-4" style="white-space: pre-wrap;">{{ detailDialog.data.content }}</div>
+          <div class="pa-3 rounded mb-4" style="white-space: pre-wrap; background-color: rgb(var(--v-theme-surface));">{{ detailDialog.data.content }}</div>
 
           <div class="text-subtitle-2 mb-2">回复 ({{ detailDialog.data.replies?.length || 0 }})</div>
           <div v-for="reply in detailDialog.data.replies" :key="reply.id"
-            class="pa-3 mb-2 rounded" :class="reply.is_admin ? 'bg-blue-lighten-5' : 'bg-grey-lighten-4'">
+            class="pa-3 mb-2 rounded" :style="{ backgroundColor: reply.is_admin ? 'rgba(var(--v-theme-primary), 0.08)' : 'rgb(var(--v-theme-surface))' }">
             <div class="d-flex align-center ga-2 mb-1">
               <v-chip size="x-small" :color="reply.is_admin ? 'primary' : 'grey'">
                 {{ reply.username }}（{{ reply.group_name }}）
