@@ -24,8 +24,14 @@
 
       <!-- 导航菜单 -->
       <v-list nav density="compact" class="pa-2">
-        <v-list-item v-for="item in displayFunctions" :key="item.to" :prepend-icon="item.icon" :title="item.title"
-          :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1"></v-list-item>
+        <v-list-item v-for="item in displayFunctions" :key="item.to" :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
+          <template v-slot:prepend>
+            <v-badge :model-value="(pendingCounts[item.title] || 0) > 0" :content="pendingCounts[item.title]" color="error" offset-x="4" offset-y="4" size="small" inline>
+              <v-icon>{{ item.icon }}</v-icon>
+            </v-badge>
+          </template>
+          <v-list-item-title>{{ item.title }}</v-list-item-title>
+        </v-list-item>
       </v-list>
     </v-navigation-drawer>
 
@@ -202,6 +208,7 @@ function handleLogout() {
 const unreadCount = ref(0)
 const notifications = ref<any[]>([])
 const notifMenuOpen = ref(false)
+const pendingCounts = ref<Record<string, number>>({})
 let notifTimer: any = null
 
 async function fetchNotifications() {
@@ -221,6 +228,22 @@ async function fetchNotifications() {
         }
       }
       chatStore.setUnreadCounts(counts)
+    }
+  } catch (e) { /* ignore */ }
+}
+
+async function fetchPendingCounts() {
+  if (!user.value) return
+  try {
+    const res = await ajax<any>('/api/admin/dashboard/stats', {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200 && res.data) {
+      pendingCounts.value = {
+        '订单处理': res.data.pending_registrations || 0,
+        '工单处理': res.data.pending_feedbacks || 0,
+        '充值审批': res.data.pending_recharges || 0,
+      }
     }
   } catch (e) { /* ignore */ }
 }
@@ -291,7 +314,9 @@ onMounted(() => {
     sideOpen.value = true
   }
   notifTimer = setInterval(fetchNotifications, 30000)
+  setInterval(fetchPendingCounts, 30000)
   setTimeout(fetchNotifications, 2000)
+  setTimeout(fetchPendingCounts, 2000)
 })
 
 onUnmounted(() => {

@@ -1253,12 +1253,18 @@ class AccountService:
             total_apps = cursor.fetchone()[0]
             cursor.execute("SELECT COUNT(*) FROM registration_chats WHERE created_at >= %s", (today_start,))
             today_chats = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM balance_recharges")
+            total_recharges = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM balance_recharges WHERE status = 'pending'")
+            pending_recharges = cursor.fetchone()[0]
         return {
             'total_users': total_users,
             'total_registrations': total_registrations,
             'pending_registrations': pending_registrations,
             'total_feedbacks': total_feedbacks,
             'pending_feedbacks': pending_feedbacks,
+            'total_recharges': total_recharges,
+            'pending_recharges': pending_recharges,
             'today_registrations': today_registrations,
             'today_feedbacks': today_feedbacks,
             'total_apps': total_apps,

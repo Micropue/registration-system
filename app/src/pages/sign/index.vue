@@ -499,13 +499,16 @@ const detailDialog = reactive({
   status: '',
   createdAt: '',
   rejectReason: '',
-  amount: null as number | null
+  amount: null as number | null,
+  templateUid: ''
 })
+
+const detailTemplateFieldOrder = ref<string[]>([])
 
 const sortedDetailKeys = computed(() => {
   const data = detailDialog.data
   const keys = Object.keys(data)
-  const fieldOrder = ['跑步APP', ...formFields.value.map(f => f.label)]
+  const fieldOrder = ['跑步APP', ...detailTemplateFieldOrder.value]
   return keys.sort((a, b) => {
     const ai = fieldOrder.indexOf(a)
     const bi = fieldOrder.indexOf(b)
@@ -769,8 +772,26 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.createdAt = item.created_at
   detailDialog.rejectReason = item.reject_reason || ''
   detailDialog.amount = item.amount ?? null
+  detailDialog.templateUid = item.template_uid || ''
   detailDialog.show = true
   chatStore.clearUnreadCount(item.id)
+  loadDetailTemplateOrder(item.data['跑步APP'], item.template_uid || '')
+}
+
+async function loadDetailTemplateOrder(appName: string, templateUid: string) {
+  detailTemplateFieldOrder.value = []
+  if (!appName || !templateUid) return
+  const app = runningApps.value.find(a => a.name === appName)
+  if (!app) return
+  try {
+    const res = await ajax<any[]>(`/api/running-apps/${app.uid}/templates`)
+    if (res.code === 200) {
+      const tpl = (res.data || []).find((t: any) => t.uid === templateUid)
+      if (tpl?.fields) {
+        detailTemplateFieldOrder.value = tpl.fields.map((f: any) => f.label)
+      }
+    }
+  } catch { /* ignore */ }
 }
 
 function handleDetailClose() {

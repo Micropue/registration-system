@@ -17,6 +17,24 @@ export interface NavFunction {
 
 export const functions: NavFunction[] = [
   {
+    title: '订单处理',
+    to: '/admin/registers',
+    icon: 'mdi-file-document-edit-outline',
+    role: 'admin'
+  },
+  {
+    title: '工单处理',
+    to: '/admin/feedbacks',
+    icon: 'mdi-folder-multiple-outline',
+    role: 'admin'
+  },
+  {
+    title: '充值审批',
+    to: '/admin/recharges',
+    icon: 'mdi-cash-check',
+    role: 'admin'
+  },
+  {
     title: '数据登记',
     to: '/sign',
     icon: 'mdi-plus-circle-outline',
@@ -48,18 +66,6 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
-    title: '订单处理',
-    to: '/admin/registers',
-    icon: 'mdi-file-document-edit-outline',
-    role: 'admin'
-  },
-  {
-    title: '工单处理',
-    to: '/admin/feedbacks',
-    icon: 'mdi-folder-multiple-outline',
-    role: 'admin'
-  },
-  {
     title: '跑步APP配置',
     to: '/admin/running-apps',
     icon: 'mdi-run',
@@ -69,12 +75,6 @@ export const functions: NavFunction[] = [
     title: '账户组管理',
     to: '/admin/groups',
     icon: 'mdi-shield-account-outline',
-    role: 'admin'
-  },
-  {
-    title: '充值审批',
-    to: '/admin/recharges',
-    icon: 'mdi-cash-check',
     role: 'admin'
   },
   {

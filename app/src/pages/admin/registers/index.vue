@@ -140,7 +140,11 @@
                     <td class="font-weight-bold text-primary">{{ detailsDialog.item.amount }}{{ getAmountUnit(detailsDialog.item.app) }}</td>
                   </tr>
                   <tr v-for="row in detailFields" :key="row.key">
-                    <td>{{ row.key }}</td><td>{{ row.value }}</td>
+                    <td class="font-weight-bold">{{ row.key }}</td>
+                    <td>
+                      {{ row.value }}
+                      <v-btn v-if="isAccountField(row.key)" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyFieldValue(row.key, row.value)"></v-btn>
+                    </td>
                   </tr>
                 </tbody>
               </v-table>
@@ -303,13 +307,13 @@ const deleteDialog = reactive({ show: false, item: null as RegistrationItem | nu
 const rejectDialog = reactive({ show: false, item: null as RegistrationItem | null, reason: '' })
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
-const fieldOrder = ref<string[]>([])
+const templateFieldOrder = ref<string[]>([])
 
 const detailFields = computed(() => {
   const info = detailsDialog.item?.registration_info
   if (!info) return []
   const keys = Object.keys(info)
-  const order = ['跑步APP', ...fieldOrder.value]
+  const order = ['跑步APP', ...templateFieldOrder.value]
   return keys
     .map(k => ({ key: k, value: _formatVal(info[k]) }))
     .sort((a, b) => {
@@ -358,17 +362,25 @@ async function loadStats() {
   } catch (err) { /* ignore */ }
 }
 
-async function loadFieldOrder() {
+async function loadTemplateFieldOrder(appName: string, templateUid: string) {
+  const app = runningApps.value.find(a => a.name === appName)
+  if (!app || !templateUid) { templateFieldOrder.value = []; return }
   try {
-    const res = await ajax<any[]>('/api/fields')
+    const res = await ajax<any[]>(`/api/admin/settings/running-apps/${app.uid}/templates`, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
     if (res.code === 200) {
-      fieldOrder.value = res.data.map((f: any) => f.label)
+      const tpl = (res.data || []).find((t: any) => t.uid === templateUid)
+      if (tpl?.fields) {
+        templateFieldOrder.value = tpl.fields.map((f: any) => f.label)
+        return
+      }
     }
   } catch (err) { /* ignore */ }
+  templateFieldOrder.value = []
 }
 
 onMounted(async () => {
-  loadFieldOrder()
   await loadRunningApps()
   await loadStats()
   if (runningApps.value.length > 0) {
@@ -390,6 +402,9 @@ function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.item = item
   detailsDialog.show = true
   chatStore.clearUnreadCount(item.id)
+  if (item.app && item.template_uid) {
+    loadTemplateFieldOrder(item.app, item.template_uid)
+  }
 }
 
 function handleDetailsClose() {
@@ -490,7 +505,7 @@ async function copyDetailText() {
   if (!item?.registration_info) return
   const info = item.registration_info
   const keys = Object.keys(info)
-  const order = ['跑步APP', ...fieldOrder.value]
+  const order = ['跑步APP', ...templateFieldOrder.value]
   const sorted = [...keys].sort((a, b) => {
     const ai = order.indexOf(a)
     const bi = order.indexOf(b)
@@ -503,6 +518,20 @@ async function copyDetailText() {
   try {
     await navigator.clipboard.writeText(text)
     showMsg('已复制到剪贴板')
+  } catch {
+    showMsg('复制失败', 'error')
+  }
+}
+
+function isAccountField(key: string): boolean {
+  const lower = key.toLowerCase()
+  return lower.includes('账号') || lower.includes('密码') || lower.includes('account') || lower.includes('password')
+}
+
+async function copyFieldValue(key: string, value: string) {
+  try {
+    await navigator.clipboard.writeText(value)
+    showMsg(`已复制：${key}`)
   } catch {
     showMsg('复制失败', 'error')
   }
