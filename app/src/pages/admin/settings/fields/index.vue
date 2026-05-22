@@ -102,7 +102,7 @@
                             <v-expand-transition>
                                 <div v-if="element.default || (element.options && isOptionType(element.type)) || isRangeType(element.type)">
                                     <v-divider class="mx-2 mx-sm-4 border-opacity-50"></v-divider>
-                                    <div class="px-4 px-sm-12 py-3 bg-grey-lighten-5 rounded-b-lg">
+                                    <div class="px-4 px-sm-12 py-3 bg-surface rounded-b-lg">
                                         <v-row dense>
                                             <v-col cols="12" sm="6" v-if="element.default">
                                                 <div class="text-caption text-grey-darken-1 mb-1">默认值</div>
@@ -135,7 +135,7 @@
 
                 <!-- 空状态：响应式内边距 -->
                 <v-card v-if="fields.length === 0" elevation="0" rounded="lg"
-                    class="text-center py-10 py-sm-16 px-4 dashed-border bg-grey-lighten-5">
+                    class="text-center py-10 py-sm-16 px-4 dashed-border bg-surface">
                     <v-avatar color="grey-lighten-3" size="70" class="mb-4">
                         <v-icon size="36" color="grey-darken-1">mdi-file-document-outline</v-icon>
                     </v-avatar>
@@ -203,7 +203,7 @@
                         </v-col>
 
                         <v-col cols="12" class="pt-2 pb-2">
-                            <v-sheet class="pa-3 pa-sm-4 bg-grey-lighten-4 rounded-lg d-flex align-center border gap-2">
+                            <v-sheet class="pa-3 pa-sm-4 bg-surface rounded-lg d-flex align-center border gap-2">
                                 <span class="text-subtitle-2 text-grey-darken-3 mr-auto mr-sm-4">通用设置：</span>
                                 <v-switch v-model="editFieldData.required" label="必填项" color="error" hide-details
                                     density="compact" class="ml-auto ml-sm-0 mr-sm-6"></v-switch>
@@ -239,7 +239,7 @@
                         <!-- 选项配置区域：极致的响应式 Flex 布局 -->
                         <v-col cols="12" v-if="isOptionType(editFieldData.type)">
                             <v-card variant="outlined" class="border-opacity-50" rounded="lg">
-                                <v-card-title class="bg-grey-lighten-4 text-subtitle-2 py-2 px-3 px-sm-4 d-flex align-center flex-wrap gap-2"
+                                <v-card-title class="bg-surface text-subtitle-2 py-2 px-3 px-sm-4 d-flex align-center flex-wrap gap-2"
                                     style="font-size: 0.9em">
                                     <div class="d-flex align-center">
                                         <v-icon size="small" class="mr-2">mdi-format-list-bulleted</v-icon>
@@ -263,10 +263,10 @@
                                     <div v-for="(opt, i) in editFieldData.options" :key="i" class="d-flex align-stretch mb-3 gap-2 pa-2 pa-sm-0 border-sm-none rounded-lg">
                                         <div class="d-flex flex-column flex-sm-row flex-grow-1 gap-2">
                                             <v-text-field v-model="opt.label" label="显示文本" placeholder="如：男"
-                                                hide-details density="comfortable" variant="outlined" bg-color="white"
+                                                hide-details density="comfortable" variant="outlined" bg-color="surface"
                                                 class="custom-font-input"></v-text-field>
                                             <v-text-field v-model="opt.value" label="数据值" placeholder="如：male"
-                                                hide-details density="comfortable" variant="outlined" bg-color="white"
+                                                hide-details density="comfortable" variant="outlined" bg-color="surface"
                                                 class="custom-font-input"></v-text-field>
                                         </div>
                                         <div class="d-flex align-center justify-center px-1">
@@ -289,7 +289,7 @@
 
                 <v-divider></v-divider>
 
-                <v-card-actions class="pa-3 pa-sm-4 bg-grey-lighten-5">
+                <v-card-actions class="pa-3 pa-sm-4 bg-surface">
                     <v-spacer></v-spacer>
                     <v-btn variant="text" class="px-4 px-sm-5 font-weight-medium" @click="dialog = false">取消</v-btn>
                     <v-btn color="primary" variant="flat" class="px-4 px-sm-5 font-weight-medium" elevation="1"
@@ -623,16 +623,15 @@ function handleFileImport(event: any) {
 .field-card {
     position: relative;
     overflow: hidden;
-    border: 1px solid rgba(0, 0, 0, 0.08) !important;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
+    border: 1px solid rgba(var(--v-theme-on-surface), 0.08) !important;
+    background: rgb(var(--v-theme-background));
     transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02), 0 4px 12px rgba(0, 0, 0, 0.02);
+    box-shadow: 0 1px 3px rgba(var(--v-theme-on-surface), 0.03), 0 4px 12px rgba(var(--v-theme-on-surface), 0.03);
 }
 
 .field-card:hover {
     border-color: rgba(var(--v-theme-primary), 0.4) !important;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+    box-shadow: 0 4px 16px rgba(var(--v-theme-on-surface), 0.08) !important;
     transform: translateY(-1px);
 }
 
@@ -678,7 +677,7 @@ function handleFileImport(event: any) {
 /* 拖拽相关类 */
 .ghost-card {
     opacity: 0.7;
-    background: #f8fbff !important;
+    background: rgb(var(--v-theme-surface)) !important;
     border: 2px dashed rgba(var(--v-theme-primary), 0.45) !important;
     box-shadow: none !important;
     transform: scale(1.02);
@@ -689,27 +688,23 @@ function handleFileImport(event: any) {
 .sortable-drag {
     opacity: 1 !important;
     transform: rotate(1deg);
-    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.12) !important;
+    box-shadow: 0 18px 40px rgba(var(--v-theme-on-surface), 0.2) !important;
 }
 
-/* 其他辅助样式 */
-.bg-grey-lighten-5 {
-    background: linear-gradient(to bottom, rgba(248, 250, 252, 0.95), rgba(243, 244, 246, 0.95)) !important;
-}
-
-.dashed-border {
-    border: 2px dashed rgba(0, 0, 0, 0.15) !important;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(248, 250, 252, 0.95)) !important;
+/* 拖拽相关类 */
+.ghost-card {
+    border: 2px dashed rgba(var(--v-theme-on-surface), 0.15) !important;
+    background: rgb(var(--v-theme-surface)) !important;
     transition: border-color .2s ease, transform .2s ease, background .2s ease;
 }
 .dashed-border:hover {
     border-color: rgba(var(--v-theme-primary), 0.4) !important;
     transform: translateY(-2px);
-    background: linear-gradient(180deg, rgba(255, 255, 255, 1), rgba(245, 247, 250, 1)) !important;
+    background: rgb(var(--v-theme-surface)) !important;
 }
 
 .border-bottom {
-    border-bottom: 1px solid rgba(0, 0, 0, .08);
+    border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08);
 }
 
 .custom-font-input :deep(.v-field__input) {

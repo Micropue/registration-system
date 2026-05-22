@@ -95,7 +95,7 @@
                 <div class="d-flex align-center pa-3">
                   <v-icon class="mr-2 drag-handle" color="grey-lighten-1" size="24">mdi-drag</v-icon>
                   <div class="d-flex flex-column flex-grow-1 overflow-hidden mr-2">
-                    <span class="text-subtitle-1 font-weight-bold text-grey-darken-3 text-truncate">
+                    <span class="text-subtitle-1 font-weight-bold text-truncate">
                       {{ element.label || '未命名字段' }}
                     </span>
                     <div class="d-flex align-center gap-1 mt-1">
@@ -129,7 +129,7 @@
 
         <v-divider></v-divider>
 
-        <v-card-actions class="pa-4 bg-grey-lighten-5">
+        <v-card-actions class="pa-4">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="editorDialog.show = false">取消</v-btn>
           <v-btn color="primary" variant="flat" :loading="saving" @click="saveFields">保存配置</v-btn>
@@ -182,8 +182,8 @@
             </v-col>
 
             <v-col cols="12" class="pt-2 pb-2">
-              <v-sheet class="pa-3 bg-grey-lighten-4 rounded-lg d-flex align-center">
-                <span class="text-subtitle-2 text-grey-darken-3 mr-4">必填项</span>
+              <v-sheet class="pa-3 bg-surface rounded-lg d-flex align-center">
+                <span class="text-subtitle-2 mr-4">必填项</span>
                 <v-switch v-model="editFieldData.required" color="error" hide-details density="compact"></v-switch>
               </v-sheet>
             </v-col>
@@ -201,7 +201,7 @@
             </v-col>
 
             <v-col cols="12" v-if="isRangeType(editFieldData.type)">
-              <div class="text-subtitle-2 text-grey-darken-3 mb-2">默认范围设置</div>
+              <div class="text-subtitle-2 mb-2">默认范围设置</div>
               <v-row dense>
                 <v-col cols="6">
                   <v-text-field
@@ -228,7 +228,7 @@
 
             <v-col cols="12" v-if="isOptionType(editFieldData.type)">
               <v-card variant="outlined" rounded="lg">
-                <v-card-title class="bg-grey-lighten-4 text-subtitle-2 py-2 px-3 d-flex align-center">
+                <v-card-title class="bg-surface text-subtitle-2 py-2 px-3 d-flex align-center">
                   <v-icon size="small" class="mr-2">mdi-format-list-bulleted</v-icon>
                   选项列表
                   <v-spacer></v-spacer>
@@ -295,7 +295,7 @@
 
         <v-divider></v-divider>
 
-        <v-card-actions class="pa-4 bg-grey-lighten-5">
+        <v-card-actions class="pa-4">
           <v-spacer></v-spacer>
           <v-btn variant="text" @click="fieldDialog.show = false">取消</v-btn>
           <v-btn
@@ -355,10 +355,10 @@
 <style scoped>
 .gap-1 { gap: 4px; }
 .gap-2 { gap: 8px; }
-.border-bottom { border-bottom: 1px solid rgba(0, 0, 0, .08); }
-.ghost-card { opacity: 0.4; background: #E3F2FD; }
+.border-bottom { border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.08); }
+.ghost-card { opacity: 0.4; background: rgb(var(--v-theme-surface)); }
 .field-card { transition: box-shadow 0.2s; }
-.field-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.field-card:hover { box-shadow: 0 2px 8px rgba(var(--v-theme-on-surface), 0.08); }
 </style>
 
 <script setup lang="ts">
