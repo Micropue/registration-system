@@ -25,7 +25,7 @@
         </template>
         <template v-slot:item.actions="{ item }">
           <v-btn variant="tonal" rounded size="small" color="primary" @click="openEditDialog(item)">编辑</v-btn>
-          <v-btn v-if="item.name !== '超级管理员'" variant="tonal" rounded size="small" color="error" @click="confirmDelete(item)">删除</v-btn>
+          <v-btn v-if="item.name !== '超级管理员'" class="ml-2" variant="tonal" rounded size="small" color="error" @click="confirmDelete(item)">删除</v-btn>
         </template>
       </app-data-table>
     </div>

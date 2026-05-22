@@ -3,7 +3,10 @@
     <!-- 左侧导航栏 (桌面端响应式固定，移动端为抽屉) -->
     <v-navigation-drawer v-model="sideOpen" app width="260" elevation="0" class="border-e">
       <!-- 用户信息 -->
-      <div v-if="user" class="py-3 d-flex align-center px-4">
+      <div v-if="user" class="py-3 d-flex align-center px-4 user-agent">
+        <div class="background">
+          <Prism style="height: 100%;" :intensity="3" :speed="1" :distort="5.3" />
+        </div>
         <v-avatar size="32" color="primary" class="me-3">
           <span class="text-white font-weight-bold text-body-2">{{ user.username.charAt(0).toUpperCase() }}</span>
         </v-avatar>
@@ -13,7 +16,7 @@
         </div>
       </div>
       <div v-else-if="!isAuthChecking" class="pa-4">
-        <v-btn color="primary" variant="flat" to="/login" class="rounded-pill" block elevation="0" size="small">
+        <v-btn color="primary" variant="flat" to="/login" block elevation="0">
           登录
         </v-btn>
       </div>
@@ -30,9 +33,8 @@
     <v-app-bar app flat class="px-3 px-md-6 border-b" style="backdrop-filter: blur(12px);">
       <v-container class="d-flex align-center pa-0" fluid>
         <v-app-bar-nav-icon class="me-1" @click="toggleSidebar"></v-app-bar-nav-icon>
-
         <div class="d-flex align-center cursor-pointer" @click="router.push('/')">
-          <v-avatar size="36" class="me-2">
+          <v-avatar size="36" class="me-2 ml-5">
             <v-img src="@/assets/logo.jpg"></v-img>
           </v-avatar>
           <span class="text-h6 font-weight-bold color-primary d-none d-sm-flex">
@@ -111,6 +113,7 @@ import { functions } from '@/config/functions'
 import { useAppStore } from '@/stores/app'
 import { useChatStore } from '@/stores/chat'
 import type { CheckLoginData } from '@/config/api-type'
+import Prism from './components/effect/prism.vue'
 
 const router = useRouter()
 const route = useRoute()
@@ -347,5 +350,24 @@ body,
 .border-md {
   border-width: 2px !important;
   border-style: solid;
+}
+
+.user-agent {
+  position: relative;
+  color: white;
+  height: 60px;
+  margin: 5px;
+  overflow: hidden;
+  border-radius: 8px;
+
+  .background {
+    position: absolute;
+    width: 100%;
+    top: 0;
+    left: 0;
+    height: 100%;
+    background-color: black;
+    z-index: -1;
+  }
 }
 </style>
