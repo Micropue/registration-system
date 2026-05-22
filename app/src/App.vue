@@ -7,7 +7,7 @@
         <div class="background">
           <Prism style="height: 100%;" :intensity="3" :speed="1" :distort="5.3" />
         </div>
-        <v-avatar size="32" color="primary" class="me-3">
+        <v-avatar size="32" class="me-3 avatar">
           <span class="text-white font-weight-bold text-body-2">{{ user.username.charAt(0).toUpperCase() }}</span>
         </v-avatar>
         <div>
@@ -360,6 +360,10 @@ body,
   overflow: hidden;
   border-radius: 8px;
 
+  .avatar{
+    background-color: rgba(185, 185, 185, 0.167);
+    backdrop-filter: blur(2px);
+  }
   .background {
     position: absolute;
     width: 100%;

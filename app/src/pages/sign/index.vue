@@ -4,104 +4,104 @@
     <!-- 顶部操作区 -->
     <div class="d-flex justify-space-between align-center mb-4">
       <h1 class="text-h5 text-sm-h4">数据登记</h1>
-      <v-btn v-if="!showForm" color="primary" size="default" prepend-icon="mdi-plus" @click="openNewDialog" class="text-none">
+      <v-btn color="primary" size="default" prepend-icon="mdi-plus" @click="openNewDialog" class="text-none">
         新建登记
       </v-btn>
     </div>
 
-    <!-- 正在登记表单 -->
-    <v-expand-transition>
-      <div v-if="showForm" class="form-section mb-4 pa-3 pa-sm-6 rounded-lg">
-        <div class="d-flex align-center pb-2">
-          <v-icon color="primary" size="24" class="me-2">mdi-run-fast</v-icon>
-          <span class="text-h6 font-weight-bold">新建登记</span>
-        </div>
-        <div class="text-body-2 text-medium-emphasis pb-3">
-          已选择：
-          <v-chip size="x-small" color="primary" label>{{ selectedApp }}</v-chip>
-        </div>
+    <!-- 新建登记表单 Dialog -->
+    <v-dialog v-model="formDialog.show" max-width="700" persistent scrollable>
+      <v-card class="pa-4">
+        <v-card-title class="d-flex align-center">
+          <span class="text-h5">新建登记</span>
+          <v-spacer></v-spacer>
+          <v-avatar v-if="selectedAppIcon" size="22" rounded class="me-1">
+            <v-img :src="selectedAppIcon" cover></v-img>
+          </v-avatar>
+          <v-chip size="small" color="primary" label>{{ selectedApp }}</v-chip>
+        </v-card-title>
         <v-divider class="mb-4"></v-divider>
-
-        <div class="mb-4">
-          <div class="text-subtitle-2 mb-2 text-medium-emphasis">优先级</div>
-          <v-btn-toggle v-model="priority" mandatory density="comfortable" variant="outlined" divided color="primary">
-            <v-btn value="low" size="small">低</v-btn>
-            <v-btn value="medium" size="small">中</v-btn>
-            <v-btn value="high" size="small">高</v-btn>
-          </v-btn-toggle>
-        </div>
-
-        <div v-if="isLoading" class="d-flex flex-column align-center py-6">
-          <v-progress-circular indeterminate color="primary" size="40" width="4"></v-progress-circular>
-        </div>
-
-        <v-form v-else ref="formRef" v-model="isFormValid" @submit.prevent="submitForm">
-          <v-row dense>
-            <v-col v-for="field in formFields" :key="field.label" cols="12" class="mb-1">
-              <template v-if="['text', 'textarea', 'number', 'date'].includes(field.type)">
-                <v-textarea v-if="field.type === 'textarea'" v-model="formData[field.label]" :label="field.label"
-                  :required="field.required" :rules="field.required ? [v => !!v || `${field.label}是必填项`] : []"
-                  variant="outlined" density="comfortable" color="primary" rows="2" auto-grow></v-textarea>
-                <v-text-field v-else v-model="formData[field.label]" :label="field.label" :type="field.type"
-                  :required="field.required" :rules="field.required ? [v => !!v || `${field.label}是必填项`] : []"
-                  variant="outlined" density="comfortable" color="primary"></v-text-field>
-              </template>
-              <template v-else-if="field.type === 'radio'">
-                <div class="text-subtitle-2 mb-1 text-medium-emphasis">
-                  {{ field.label }} <span v-if="field.required" class="text-error">*</span>
-                </div>
-                <v-radio-group v-model="formData[field.label]" :rules="field.required ? [v => !!v || '请选择一个选项'] : []"
-                  inline color="primary" density="comfortable" class="mt-n2">
-                  <v-radio v-for="opt in field.options" :key="opt.value" :label="opt.label" :value="opt.value"></v-radio>
-                </v-radio-group>
-              </template>
-              <template v-else-if="field.type === 'select'">
-                <v-select v-model="formData[field.label]" :items="field.options" item-title="label" item-value="value"
-                  :label="field.label" :required="field.required" :rules="field.required ? [v => !!v || '请选择一个选项'] : []"
-                  variant="outlined" density="comfortable" color="primary"></v-select>
-              </template>
-              <template v-else-if="field.type === 'checkbox'">
-                <div class="text-subtitle-2 mb-1 text-medium-emphasis">
-                  {{ field.label }} <span v-if="field.required" class="text-error">*</span>
-                </div>
-                <div class="d-flex flex-wrap gap-x-4 mt-n1">
-                  <v-checkbox v-for="opt in field.options" :key="opt.value" v-model="formData[field.label]"
-                    :label="opt.label" :value="opt.value"
-                    :rules="field.required ? [v => (formData[field.label] && formData[field.label].length > 0) || '至少选择一项'] : []"
-                    color="primary" density="compact" hide-details class="me-2"></v-checkbox>
-                </div>
-              </template>
-              <template v-else-if="field.type.endsWith('-range')">
-                <div class="text-subtitle-2 mb-1 text-medium-emphasis">
-                  {{ field.label }} <span v-if="field.required" class="text-error">*</span>
-                </div>
-                <v-row dense>
-                  <v-col cols="6">
-                    <v-text-field v-model="formData[field.label][0]" label="开始" :type="field.type.replace('-range', '')"
-                      variant="outlined" density="comfortable"
-                      :rules="field.required ? [v => !!v || '必填'] : []"></v-text-field>
-                  </v-col>
-                  <v-col cols="6">
-                    <v-text-field v-model="formData[field.label][1]" label="结束" :type="field.type.replace('-range', '')"
-                      variant="outlined" density="comfortable"
-                      :rules="field.required ? [v => !!v || '必填'] : []"></v-text-field>
-                  </v-col>
-                </v-row>
-              </template>
-            </v-col>
-          </v-row>
-
-          <div class="d-flex ga-2 mt-4">
-            <v-btn variant="text" @click="cancelForm">取消</v-btn>
-            <v-spacer></v-spacer>
-            <v-btn color="primary" size="large" rounded="pill" class="font-weight-bold"
-              :loading="isSubmitting" :disabled="!isFormValid || isLoading" @click="openConfirm">
-              提交登记
-            </v-btn>
+        <v-card-text>
+          <div class="mb-4">
+            <div class="text-subtitle-2 mb-2 text-medium-emphasis">优先级</div>
+            <v-btn-toggle v-model="priority" mandatory density="comfortable" variant="outlined" divided color="primary">
+              <v-btn value="low" size="small">低</v-btn>
+              <v-btn value="medium" size="small">中</v-btn>
+              <v-btn value="high" size="small">高</v-btn>
+            </v-btn-toggle>
           </div>
-        </v-form>
-      </div>
-    </v-expand-transition>
+
+          <div v-if="isLoading" class="d-flex flex-column align-center py-6">
+            <v-progress-circular indeterminate color="primary" size="40" width="4"></v-progress-circular>
+          </div>
+
+          <v-form v-else ref="formRef" v-model="isFormValid">
+            <v-row dense>
+              <v-col v-for="field in formFields" :key="field.label" cols="12" class="mb-1">
+                <template v-if="['text', 'textarea', 'number', 'date'].includes(field.type)">
+                  <v-textarea v-if="field.type === 'textarea'" v-model="formData[field.label]" :label="field.label"
+                    :required="field.required" :rules="field.required ? [v => !!v || `${field.label}是必填项`] : []"
+                    variant="outlined" density="comfortable" color="primary" rows="2" auto-grow></v-textarea>
+                  <v-text-field v-else v-model="formData[field.label]" :label="field.label" :type="field.type"
+                    :required="field.required" :rules="field.required ? [v => !!v || `${field.label}是必填项`] : []"
+                    variant="outlined" density="comfortable" color="primary"></v-text-field>
+                </template>
+                <template v-else-if="field.type === 'radio'">
+                  <div class="text-subtitle-2 mb-1 text-medium-emphasis">
+                    {{ field.label }} <span v-if="field.required" class="text-error">*</span>
+                  </div>
+                  <v-radio-group v-model="formData[field.label]" :rules="field.required ? [v => !!v || '请选择一个选项'] : []"
+                    inline color="primary" density="comfortable" class="mt-n2">
+                    <v-radio v-for="opt in field.options" :key="opt.value" :label="opt.label" :value="opt.value"></v-radio>
+                  </v-radio-group>
+                </template>
+                <template v-else-if="field.type === 'select'">
+                  <v-select v-model="formData[field.label]" :items="field.options" item-title="label" item-value="value"
+                    :label="field.label" :required="field.required" :rules="field.required ? [v => !!v || '请选择一个选项'] : []"
+                    variant="outlined" density="comfortable" color="primary"></v-select>
+                </template>
+                <template v-else-if="field.type === 'checkbox'">
+                  <div class="text-subtitle-2 mb-1 text-medium-emphasis">
+                    {{ field.label }} <span v-if="field.required" class="text-error">*</span>
+                  </div>
+                  <div class="d-flex flex-wrap gap-x-4 mt-n1">
+                    <v-checkbox v-for="opt in field.options" :key="opt.value" v-model="formData[field.label]"
+                      :label="opt.label" :value="opt.value"
+                      :rules="field.required ? [v => (formData[field.label] && formData[field.label].length > 0) || '至少选择一项'] : []"
+                      color="primary" density="compact" hide-details class="me-2"></v-checkbox>
+                  </div>
+                </template>
+                <template v-else-if="field.type.endsWith('-range')">
+                  <div class="text-subtitle-2 mb-1 text-medium-emphasis">
+                    {{ field.label }} <span v-if="field.required" class="text-error">*</span>
+                  </div>
+                  <v-row dense>
+                    <v-col cols="6">
+                      <v-text-field v-model="formData[field.label][0]" label="开始" :type="field.type.replace('-range', '')"
+                        variant="outlined" density="comfortable"
+                        :rules="field.required ? [v => !!v || '必填'] : []"></v-text-field>
+                    </v-col>
+                    <v-col cols="6">
+                      <v-text-field v-model="formData[field.label][1]" label="结束" :type="field.type.replace('-range', '')"
+                        variant="outlined" density="comfortable"
+                        :rules="field.required ? [v => !!v || '必填'] : []"></v-text-field>
+                    </v-col>
+                  </v-row>
+                </template>
+              </v-col>
+            </v-row>
+          </v-form>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="cancelForm">取消</v-btn>
+          <v-btn color="primary" size="large" rounded="pill" class="font-weight-bold"
+            :loading="isSubmitting" :disabled="!isFormValid || isLoading" @click="openConfirm">
+            提交登记
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- 选择APP的Dialog -->
     <v-dialog v-model="newDialog.show" max-width="500" persistent>
@@ -434,7 +434,7 @@ const currentPage = ref(1)
 const totalRegistrations = ref(0)
 const isSubmitting = ref(false)
 const isFormValid = ref(false)
-const showForm = ref(false)
+const formDialog = reactive({ show: false })
 const priority = ref('low')
 const resubmitPriority = ref('low')
 const resubmitTemplateUid = ref('')
@@ -666,7 +666,7 @@ function startNewRegistration() {
   } else {
     registrationAmount.value = null
     initFormData()
-    showForm.value = true
+    formDialog.show = true
   }
 }
 
@@ -684,7 +684,7 @@ function confirmAmount() {
     fillResubmitForm()
   } else {
     initFormData()
-    showForm.value = true
+    formDialog.show = true
     nextTick(() => {
       formRef.value?.resetValidation()
     })
@@ -692,7 +692,7 @@ function confirmAmount() {
 }
 
 function cancelForm() {
-  showForm.value = false
+  formDialog.show = false
   selectedApp.value = ''
 }
 
@@ -722,7 +722,7 @@ async function submitForm() {
     })
     if (res.code === 200) {
       confirmDialog.value = false
-      showForm.value = false
+      formDialog.show = false
       selectedApp.value = ''
       showMsg('登记提交成功')
       currentPage.value = 1
