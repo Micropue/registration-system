@@ -33,18 +33,15 @@
           <span class="color-dot" :style="{ backgroundColor: item.accent_color || '#1976D2' }"></span>
           {{ item.accent_color || '#1976D2' }}
         </template>
-        <template v-slot:item.balance="{ item }">
-          <div class="d-flex align-center ga-1">
-            <v-chip size="x-small" :color="item.balance_mode === 'mileage' ? 'blue' : item.balance_mode === 'count' ? 'green' : 'grey'">
-              {{ item.balance_mode === 'mileage' ? '公里数' : item.balance_mode === 'count' ? '次数' : '未设置' }}
-            </v-chip>
-            <span class="text-body-2">{{ item.balance ?? 0 }}</span>
-            <v-btn icon="mdi-pencil" size="x-small" variant="text" color="primary" @click="openBalanceDialog(item)"></v-btn>
-          </div>
+        <template v-slot:item.balance_mode="{ item }">
+          <v-chip size="x-small" :color="item.balance_mode === 'mileage' ? 'blue' : item.balance_mode === 'count' ? 'green' : 'grey'">
+            {{ item.balance_mode === 'mileage' ? '公里数' : item.balance_mode === 'count' ? '次数' : '未设置' }}
+          </v-chip>
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
             <v-btn variant="tonal" rounded color="secondary" :to="`/admin/running-apps/${item.uid}/templates`">模板管理</v-btn>
+            <v-btn variant="tonal" rounded color="info" :to="`/admin/running-apps/${item.uid}/balance`">余额管理</v-btn>
             <v-btn variant="tonal" rounded color="primary" @click="openEditDialog(item)">修改</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
           </div>
@@ -74,6 +71,7 @@
                 <v-text-field v-model="dialog.name" label="APP名称" variant="outlined"
                   :rules="[v => !!v || 'APP名称必填']" hide-details="auto" class="mb-4" required></v-text-field>
             <v-textarea v-model="dialog.note" label="备注" variant="outlined" rows="3" hide-details="auto"></v-textarea>
+            <v-select v-model="dialog.balance_mode" :items="balanceModeOptions" label="余额类型" variant="outlined" density="comfortable" class="mt-3" hide-details></v-select>
             <div class="d-flex align-center ga-3 mt-4">
               <label class="color-picker-label">
                 <div class="color-preview" :style="{ backgroundColor: dialog.accent_color || '#1976D2' }"></div>
@@ -182,25 +180,6 @@
       </v-card>
     </v-dialog>
 
-    <!-- 余额调整 Dialog -->
-    <v-dialog v-model="balanceDialog.show" max-width="400">
-      <v-card class="pa-4">
-        <v-card-title>调整余额 - {{ balanceDialog.appName }}</v-card-title>
-        <v-card-text>
-          <v-select v-model="balanceDialog.balanceMode" :items="balanceModeOptions" label="余额计算模式" variant="outlined" density="comfortable" class="mb-3"></v-select>
-          <div class="text-subtitle-2 mb-2">当前余额: {{ balanceDialog.currentBalance }}</div>
-          <v-text-field v-model.number="balanceDialog.adjustAmount" label="增减数额（正数增加，负数减少）" type="number" variant="outlined" density="comfortable"
-            :rules="[v => v !== 0 || '请输入非零数值']" hide-details class="mb-3"></v-text-field>
-          <div class="text-caption text-medium-emphasis">调整后: {{ balanceDialog.currentBalance + (balanceDialog.adjustAmount || 0) }}</div>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer></v-spacer>
-          <v-btn variant="tonal" @click="balanceDialog.show = false">取消</v-btn>
-          <v-btn color="primary" variant="flat" :loading="balanceSaving" @click="saveBalance">确认调整</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
@@ -240,40 +219,13 @@ const dialog = reactive({
   note: '',
   accent_color: '#1976D2',
   icon: '',
-  iconPreview: ''
+  iconPreview: '',
+  balance_mode: ''
 })
 
 const deleteDialog = reactive({ show: false, id: 0, name: '' })
 
-const balanceDialog = reactive({ show: false, appUid: '', appName: '', currentBalance: 0, balanceMode: '', adjustAmount: 0 })
 const balanceModeOptions = [{ title: '未设置', value: '' }, { title: '公里数', value: 'mileage' }, { title: '次数', value: 'count' }]
-const balanceSaving = ref(false)
-
-function openBalanceDialog(app: RunningApp) {
-  balanceDialog.appUid = app.uid
-  balanceDialog.appName = app.name
-  balanceDialog.currentBalance = app.balance || 0
-  balanceDialog.balanceMode = app.balance_mode || ''
-  balanceDialog.adjustAmount = 0
-  balanceDialog.show = true
-}
-
-async function saveBalance() {
-  balanceSaving.value = true
-  try {
-    const res = await ajax(`${ApiUrl.UPDATE_APP_BALANCE}/${balanceDialog.appUid}/balance`, {
-      method: 'PATCH',
-      body: { balance_mode: balanceDialog.balanceMode, adjust_amount: balanceDialog.adjustAmount },
-      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
-    })
-    if (res.code === 200) {
-      showMsg('余额已更新')
-      balanceDialog.show = false
-      loadApps()
-    } else showMsg(res.msg, 'error')
-  } catch (e) { showMsg('操作失败', 'error') }
-  finally { balanceSaving.value = false }
-}
 
 const bulkDialog = reactive({
   show: false,
@@ -295,7 +247,7 @@ const headers = [
   { title: '备注', key: 'note', searchable: true },
   { title: '强调色', key: 'accent_color', sortable: false },
   { title: '模板数', key: 'template_count', sortable: true },
-  { title: '余额', key: 'balance', sortable: false },
+  { title: '余额类型', key: 'balance_mode', sortable: false },
   { title: '操作', key: 'actions', sortable: false }
 ]
 
@@ -383,6 +335,7 @@ function openCreateDialog() {
   dialog.accent_color = '#1976D2'
   dialog.icon = ''
   dialog.iconPreview = ''
+  dialog.balance_mode = ''
 }
 
 function openEditDialog(item: RunningApp) {
@@ -394,6 +347,7 @@ function openEditDialog(item: RunningApp) {
   dialog.accent_color = item.accent_color || '#1976D2'
   dialog.icon = item.icon || ''
   dialog.iconPreview = item.icon || ''
+  dialog.balance_mode = item.balance_mode || ''
 }
 
 async function submitApp() {
@@ -404,7 +358,7 @@ async function submitApp() {
     if (dialog.isEdit) {
       const res = await ajax(`${ApiUrl.UPDATE_RUNNING_APP}/${dialog.editId}`, {
         method: 'PUT',
-        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
+        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon, balance_mode: dialog.balance_mode },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('修改成功'); dialog.show = false; loadApps() }
@@ -412,7 +366,7 @@ async function submitApp() {
     } else {
       const res = await ajax(ApiUrl.CREATE_RUNNING_APP, {
         method: 'POST',
-        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon },
+        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon, balance_mode: dialog.balance_mode },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('创建成功'); dialog.show = false; loadApps() }

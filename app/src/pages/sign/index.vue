@@ -172,7 +172,7 @@
         <v-card-actions>
           <v-spacer></v-spacer>
           <v-btn variant="tonal" @click="amountDialog.show = false; templateDialog.show = true">返回</v-btn>
-          <v-btn color="primary" variant="flat" :disabled="!amountDialog.value || amountDialog.value <= 0" @click="confirmAmount">继续填写</v-btn>
+          <v-btn color="primary" variant="flat" :disabled="!amountDialog.value || amountDialog.value <= 0" :loading="amountChecking" @click="confirmAmount">继续填写</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -409,7 +409,6 @@ interface AppItem {
   note: string
   icon?: string
   balance_mode?: string
-  balance?: number
 }
 
 interface RegistrationItem {
@@ -447,6 +446,7 @@ const templateFormValid = ref(false)
 const templateFormRef = ref<any>(null)
 const confirmDialog = ref(false)
 const registrationAmount = ref<number | null>(null)
+const amountChecking = ref(false)
 
 const amountDialog = reactive({
   show: false,
@@ -673,13 +673,28 @@ function startNewRegistration() {
   }
 }
 
-function confirmAmount() {
+async function confirmAmount() {
   if (!amountDialog.value || amountDialog.value <= 0) return
   const app = runningApps.value.find(a => a.name === selectedApp.value)
-  const bal = app?.balance ?? 0
-  if (bal < amountDialog.value) {
-    showMsg(`${selectedApp.value} 余额不足（当前余额：${bal}，需要：${amountDialog.value}），无法创建登记`, 'error')
-    return
+  if (app) {
+    amountChecking.value = true
+    try {
+      const res = await ajax<any[]>(ApiUrl.GET_USER_BALANCES, {
+        headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+      })
+      if (res.code === 200) {
+        const bal = res.data.find((b: any) => b.app_uid === app.uid)
+        const currentBalance = bal?.balance ?? 0
+        const mode = app.balance_mode
+        const unit = mode === 'mileage' ? '公里' : mode === 'count' ? '次' : ''
+        if (currentBalance < amountDialog.value) {
+          showMsg(`${selectedApp.value} 余额不足（当前余额：${currentBalance}${unit}，需要：${amountDialog.value}${unit}）`, 'error')
+          amountChecking.value = false
+          return
+        }
+      }
+    } catch (e) { /* ignore */ }
+    finally { amountChecking.value = false }
   }
   registrationAmount.value = amountDialog.value
   amountDialog.show = false

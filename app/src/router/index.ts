@@ -96,6 +96,18 @@ const router = createRouter({
       meta: { title: '充值申请' }
     },
     {
+      path: '/balance',
+      component: () => import("@/pages/balance/index.vue"),
+      beforeEnter: requireDefault,
+      meta: { title: '余额查看' }
+    },
+    {
+      path: '/balance-transactions',
+      component: () => import("@/pages/balance-transactions/index.vue"),
+      beforeEnter: requireDefault,
+      meta: { title: '余额流水' }
+    },
+    {
       path: '/admin',
       component: () => import("@/pages/admin/index.vue"),
       beforeEnter: requireAdmin,
@@ -112,7 +124,7 @@ const router = createRouter({
         { path: 'settings', redirect: '/admin' },
         { path: 'groups', component: () => import("@/pages/admin/groups/index.vue"), meta: { title: '账户组管理' } },
         { path: 'recharges', component: () => import("@/pages/admin/recharges/index.vue"), meta: { title: '充值审批' } },
-        { path: 'balance-transactions', component: () => import("@/pages/admin/balance-transactions/index.vue"), meta: { title: '余额流水' } },
+        { path: 'running-apps/:appUid/balance', component: () => import("@/pages/admin/running-apps/balance/index.vue"), meta: { title: '用户余额管理' } },
       ]
     }
   ],

@@ -79,7 +79,6 @@ export interface RunningApp {
   icon?: string;
   template_count?: number;
   balance_mode?: string;
-  balance?: number;
 }
 
 /** APP模板 */
@@ -96,6 +95,43 @@ export interface UserGroup {
   uid: string;
   name: string;
   permissions: Record<string, any>;
+  created_at: string;
+}
+
+/** 用户余额 */
+export interface UserBalance {
+  id: string;
+  app_uid: string;
+  app_name: string;
+  balance: number;
+  balance_mode: string;
+  icon?: string;
+}
+
+/** APP用户余额（管理员查看） */
+export interface AppUserBalance {
+  id: string;
+  user_uid: string;
+  app_uid: string;
+  username: string;
+  balance: number;
+  updated_at: string;
+}
+
+/** 余额流水项 */
+export interface BalanceTransaction {
+  id: string;
+  app_uid: string;
+  app_name: string;
+  app_icon?: string;
+  type: string;
+  amount: number;
+  balance_after: number;
+  related_uid: string;
+  related_type: string;
+  note: string;
+  user_uid?: string;
+  username?: string;
   created_at: string;
 }
 

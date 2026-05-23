@@ -39,7 +39,7 @@
             label="选择跑步APP" variant="outlined" density="comfortable" class="mb-3"
             :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : {}" />
           <div v-if="dialog.appUid" class="mb-3 text-body-2 text-medium-emphasis">
-            该 APP 余额模式：{{ selectedAppMode || '未设置' }}，当前余额：{{ selectedAppBalance ?? 0 }}
+            余额模式：{{ selectedAppMode || '未设置' }}
           </div>
           <v-text-field v-model.number="dialog.amount" label="充值数量" type="number" variant="outlined"
             density="comfortable" class="mb-3" :rules="[v => !!v || '必填', v => v > 0 || '必须大于0']" />
@@ -87,9 +87,6 @@ const selectedAppMode = computed(() => {
   if (a?.balance_mode === 'mileage') return '公里数'
   if (a?.balance_mode === 'count') return '次数'
   return ''
-})
-const selectedAppBalance = computed(() => {
-  return runningApps.value.find(a => a.uid === dialog.appUid)?.balance
 })
 
 const headers = [

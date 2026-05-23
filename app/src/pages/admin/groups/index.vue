@@ -118,6 +118,7 @@ function defaultPermissions(): Record<string, any> {
     "新建登记": false,
     "新建工单": false,
     "充值申请": false,
+    "余额查看": false,
   }
 }
 

@@ -78,9 +78,15 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
+    title: '余额查看',
+    to: '/balance',
+    icon: 'mdi-wallet-outline',
+    role: 'default'
+  },
+  {
     title: '余额流水',
-    to: '/admin/balance-transactions',
+    to: '/balance-transactions',
     icon: 'mdi-history',
-    role: 'admin'
+    role: 'default'
   },
 ];

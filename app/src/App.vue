@@ -166,10 +166,11 @@ const PERM_MAP: Record<string, string> = {
   '/admin/registers': '订单处理',
   '/admin/feedbacks': '工单处理',
   '/admin/running-apps': 'APP配置',
-  '/admin/balance-transactions': 'APP配置',
   '/sign': '新建登记',
   '/feedback': '新建工单',
   '/recharge': '充值申请',
+  '/balance': '余额查看',
+  '/balance-transactions': '余额查看',
 }
 
 const displayFunctions = computed(() => {
@@ -216,7 +217,7 @@ async function fetchNotifications() {
   try {
     const [countRes, listRes] = await Promise.all([
       ajax<any>('/api/notifications/unread-count', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } }),
-      ajax<any[]>('/api/notifications', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } })
+      ajax<any[]>('/api/notifications?read_within_days=3', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } })
     ])
     if (countRes.code === 200) unreadCount.value = countRes.data.count
     if (listRes.code === 200) {

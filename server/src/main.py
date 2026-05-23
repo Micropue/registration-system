@@ -78,6 +78,7 @@ class RunningAppRequest(BaseModel):
     note: str = ''
     accent_color: str = '#1976D2'
     icon: str = ''
+    balance_mode: str = ''
 
 @app.post("/upload/image")
 async def upload_image(
@@ -397,7 +398,7 @@ async def create_running_app(
     session, err = require_perm(authorization, "APP配置", "修改")
     if err: return err
     try:
-        app_id = account_service.create_running_app(request.name, request.note, request.accent_color, request.icon)
+        app_id = account_service.create_running_app(request.name, request.note, request.accent_color, request.icon, request.balance_mode)
         return api_response(200, "Running app created", {'id': app_id})
     except Exception as e:
         return api_response(500, f"Error creating running app: {str(e)}")
@@ -411,7 +412,7 @@ async def update_running_app(
     session, err = require_perm(authorization, "APP配置", "修改")
     if err: return err
     try:
-        account_service.update_running_app(app_id, request.name, request.note, request.accent_color, request.icon)
+        account_service.update_running_app(app_id, request.name, request.note, request.accent_color, request.icon, request.balance_mode)
         return api_response(200, "Running app updated")
     except Exception as e:
         return api_response(500, f"Error updating running app: {str(e)}")
@@ -446,10 +447,10 @@ def _get_app_id(app_uid: str) -> int:
     return app['id']
 
 @app.get("/admin/balance-transactions")
-async def get_balance_transactions(authorization: Optional[str] = Header(None), app_uid: str = "", page: int = 1, page_size: int = 20):
+async def get_balance_transactions(authorization: Optional[str] = Header(None), app_uid: str = "", user_uid: str = "", page: int = 1, page_size: int = 20):
     session, err = require_perm(authorization, "APP配置", "查看")
     if err: return err
-    data = account_service.get_balance_transactions(app_uid=app_uid, page=page, page_size=page_size)
+    data = account_service.get_balance_transactions(app_uid=app_uid, user_uid=user_uid, page=page, page_size=page_size)
     return api_response(200, "Success", data)
 
 @app.get("/admin/dashboard/stats")
@@ -576,8 +577,10 @@ async def resubmit_registration(
         if amount is not None:
             amount = float(amount)
             app_name = data.get('跑步APP', '') if isinstance(data, dict) else ''
-            if app_name and not account_service.check_app_balance(app_name, amount):
-                return api_response(400, f"'{app_name}' 余额不足，无法重新提交")
+            if app_name:
+                app = account_service.get_running_app_by_name(app_name)
+                if app and not account_service.check_user_balance(session.user_uid, app['uid'], amount):
+                    return api_response(400, f"'{app_name}' 余额不足，无法重新提交")
         account_service.resubmit_registration(uid, session.user_uid, data, priority, template_uid, amount)
         return api_response(200, "Registration resubmitted successfully")
     except AccountError as e:
@@ -622,8 +625,10 @@ async def submit_registration(
         if amount is not None:
             amount = float(amount)
             app_name = data.get('跑步APP', '') if isinstance(data, dict) else ''
-            if app_name and not account_service.check_app_balance(app_name, amount):
-                return api_response(400, f"'{app_name}' 余额不足，无法创建登记")
+            if app_name:
+                app = account_service.get_running_app_by_name(app_name)
+                if app and not account_service.check_user_balance(session.user_uid, app['uid'], amount):
+                    return api_response(400, f"'{app_name}' 余额不足，无法创建登记")
         account_service.submit_registration(session.user_uid, data, priority, template_uid, amount)
         account_service.create_notification_for_admins("new_registration", f"新登记", f"用户 {session.username} 提交了新登记")
         return api_response(200, "Registration submitted successfully")
@@ -811,12 +816,55 @@ async def update_app_balance(app_uid: str, data: dict[str, Any], authorization: 
     session, err = require_perm(authorization, "APP配置", "余额管理")
     if err: return err
     try:
-        result = account_service.update_app_balance(
-            app_uid,
-            data.get('balance_mode'),
-            data.get('adjust_amount')
-        )
-        return api_response(200, "Balance updated", result)
+        balance_mode = data.get('balance_mode')
+        if balance_mode is not None:
+            account_service.set_app_balance_mode(app_uid, balance_mode)
+        return api_response(200, "Balance mode updated")
+    except AccountError as e:
+        return api_response(400, str(e))
+
+# --- 用户余额查看 ---
+
+@app.get("/user/balances")
+async def get_user_balances(authorization: Optional[str] = Header(None)):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "余额查看"):
+        return api_response(403, "您没有此操作权限")
+    data = account_service.get_user_balances(session.user_uid)
+    return api_response(200, "Success", data)
+
+@app.get("/user/balance-transactions")
+async def get_user_balance_transactions(authorization: Optional[str] = Header(None), app_uid: str = "", page: int = 1, page_size: int = 20):
+    if not authorization: return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session: return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "余额查看"):
+        return api_response(403, "您没有此操作权限")
+    data = account_service.get_user_balance_transactions(session.user_uid, app_uid=app_uid, page=page, page_size=page_size)
+    return api_response(200, "Success", data)
+
+# --- APP 用户余额管理（管理员） ---
+
+@app.get("/admin/running-apps/{app_uid}/users-balance")
+async def get_app_user_balances(app_uid: str, authorization: Optional[str] = Header(None), page: int = 1, page_size: int = 20):
+    session, err = require_perm(authorization, "APP配置", "余额管理")
+    if err: return err
+    data = account_service.get_app_user_balances(app_uid, page=page, page_size=page_size)
+    return api_response(200, "Success", data)
+
+@app.patch("/admin/running-apps/{app_uid}/users/{user_uid}/balance")
+async def adjust_user_balance(app_uid: str, user_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "APP配置", "余额管理")
+    if err: return err
+    try:
+        amount = float(data.get('amount', 0))
+        note = data.get('note', '')
+        result = account_service.adjust_user_balance(user_uid, app_uid, amount, note=note)
+        return api_response(200, "Balance adjusted", result)
     except AccountError as e:
         return api_response(400, str(e))
 
@@ -870,12 +918,12 @@ async def process_recharge(uid: str, data: dict[str, Any], authorization: Option
 # --- 通知接口 ---
 
 @app.get("/notifications")
-async def get_notifications(authorization: Optional[str] = Header(None)):
+async def get_notifications(authorization: Optional[str] = Header(None), read_within_days: int = 0, page: int = 0, page_size: int = 0):
     if not authorization: return api_response(401, "Missing Authorization Header")
     token = get_token(authorization)
     session = account_service.get_login_session(token)
     if not session: return api_response(401, "Unauthorized")
-    notifications = account_service.get_user_notifications(session.user_uid)
+    notifications = account_service.get_user_notifications(session.user_uid, read_within_days=read_within_days, page=page, page_size=page_size)
     return api_response(200, "Success", notifications)
 
 @app.get("/notifications/unread-count")

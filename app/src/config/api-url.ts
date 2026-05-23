@@ -97,6 +97,12 @@ export enum ApiUrl {
   UPDATE_APP_BALANCE = '/api/admin/running-apps',
   /** 余额流水 */
   GET_BALANCE_TRANSACTIONS = '/api/admin/balance-transactions',
+  /** 用户余额 */
+  GET_USER_BALANCES = '/api/user/balances',
+  GET_USER_BALANCE_TRANSACTIONS = '/api/user/balance-transactions',
+  /** APP用户余额管理 */
+  GET_APP_USER_BALANCES = '/api/admin/running-apps',
+  ADJUST_APP_USER_BALANCE = '/api/admin/running-apps',
   /** 充值申请 */
   CREATE_RECHARGE = '/api/balance-recharges',
   GET_MY_RECHARGES = '/api/balance-recharges',

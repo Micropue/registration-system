@@ -15,6 +15,15 @@
         @update:options="loadTransactions"
         @reset="loadTransactions"
       >
+        <template v-slot:item.app_name="{ item }">
+          <div class="d-flex align-center ga-2">
+            <v-avatar v-if="item.app_icon" size="22" rounded>
+              <v-img :src="item.app_icon" cover></v-img>
+            </v-avatar>
+            <v-icon v-else size="18" color="grey">mdi-run-fast</v-icon>
+            {{ item.app_name }}
+          </div>
+        </template>
         <template v-slot:item.type="{ item }">
           <v-chip size="small" :color="item.type === 'recharge' ? 'success' : item.type === 'deduction' ? 'error' : 'warning'">
             {{ item.type === 'recharge' ? '充值' : item.type === 'deduction' ? '减少' : '撤销' }}
