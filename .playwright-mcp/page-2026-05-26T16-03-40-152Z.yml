@@ -1,0 +1,246 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e12]: R
+        - generic [ref=e13]:
+          - generic [ref=e14]: root
+          - generic [ref=e15]: 超级管理员
+      - list [ref=e16]:
+        - link "订单处理" [ref=e17] [cursor=pointer]:
+          - /url: /admin/registers
+          - generic [ref=e21]: 󰷉
+          - generic [ref=e23]: 订单处理
+        - link "工单处理" [ref=e24] [cursor=pointer]:
+          - /url: /admin/feedbacks
+          - generic [ref=e28]: 󰉕
+          - generic [ref=e30]: 工单处理
+        - link "充值审批" [ref=e31] [cursor=pointer]:
+          - /url: /admin/recharges
+          - generic [ref=e35]: 󱓮
+          - generic [ref=e37]: 充值审批
+        - link "数据登记" [ref=e38] [cursor=pointer]:
+          - /url: /sign
+          - generic [ref=e42]: 󰐙
+          - generic [ref=e44]: 数据登记
+        - link "Badge 工单反馈" [ref=e125] [cursor=pointer]:
+          - /url: /feedback
+          - generic [ref=e48]:
+            - generic [ref=e49]: 󰍪
+            - status "Badge" [ref=e126]: "2"
+          - generic [ref=e51]: 工单反馈
+        - link "Badge 充值申请" [ref=e127] [cursor=pointer]:
+          - /url: /recharge
+          - generic [ref=e55]:
+            - generic [ref=e56]: 󱉡
+            - status "Badge" [ref=e128]: "1"
+          - generic [ref=e58]: 充值申请
+        - link "仪表盘" [ref=e59] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e63]: 󰨝
+          - generic [ref=e65]: 仪表盘
+        - link "账户管理" [ref=e66] [cursor=pointer]:
+          - /url: /admin/users
+          - generic [ref=e70]: 󰭘
+          - generic [ref=e72]: 账户管理
+        - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+          - /url: /admin/running-apps
+          - generic [ref=e77]: 󰜎
+          - generic [ref=e79]: 跑步APP配置
+        - link "账户组管理" [ref=e80] [cursor=pointer]:
+          - /url: /admin/groups
+          - generic [ref=e84]: 󰨒
+          - generic [ref=e86]: 账户组管理
+        - link "余额查看" [ref=e87] [cursor=pointer]:
+          - /url: /balance
+          - generic [ref=e91]: 󰯝
+          - generic [ref=e93]: 余额查看
+        - link "余额流水" [ref=e94] [cursor=pointer]:
+          - /url: /balance-transactions
+          - generic [ref=e98]: 󰋚
+          - generic [ref=e100]: 余额流水
+  - banner [ref=e101]:
+    - generic [ref=e103]:
+      - button [ref=e104] [cursor=pointer]:
+        - generic [ref=e106]: 󰍜
+      - generic [ref=e107] [cursor=pointer]:
+        - img [ref=e110]
+        - generic [ref=e111]: 哆啦A梦（校园跑版）
+      - generic [ref=e112]:
+        - generic [ref=e118]:
+          - button [ref=e119] [cursor=pointer]:
+            - generic [ref=e121]: 󰂜
+          - status "Badge" [ref=e129]: "4"
+        - button "退出登录" [ref=e122] [cursor=pointer]:
+          - generic [ref=e123]: 退出登录
+  - main [ref=e124]:
+    - generic [ref=e131]:
+      - generic [ref=e132]:
+        - heading "跑步APP配置" [level=1] [ref=e134]
+        - generic [ref=e135]:
+          - button "Excel批量导入" [ref=e136] [cursor=pointer]:
+            - generic [ref=e138]: 󰩍
+            - generic [ref=e139]: Excel批量导入
+          - button "新增APP" [ref=e140] [cursor=pointer]:
+            - generic [ref=e142]: 󰐕
+            - generic [ref=e143]: 新增APP
+      - generic [ref=e144]:
+        - generic [ref=e146]:
+          - generic [ref=e150]:
+            - generic [ref=e152]: 󰍉
+            - generic [ref=e153]:
+              - generic: 搜索APP名称/备注
+              - textbox "搜索APP名称/备注" [ref=e154]
+            - text: 󰅙
+          - combobox [ref=e158] [cursor=pointer]:
+            - generic [ref=e160]:
+              - combobox "筛选字段"
+            - generic [ref=e162]: 󰍝
+            - generic:
+              - generic:
+                - generic: 筛选字段
+          - generic [ref=e163]:
+            - generic:
+              - generic:
+                - combobox:
+                  - generic:
+                    - generic:
+                      - combobox "筛选值" [disabled]
+                  - generic:
+                    - generic: 󰍝
+                  - generic:
+                    - generic:
+                      - generic: 筛选值
+          - button "重置" [ref=e165] [cursor=pointer]:
+            - generic [ref=e166]: 重置
+        - table [ref=e170]:
+          - rowgroup [ref=e171]:
+            - row "APP名称 备注 强调色 模板数 余额类型 操作" [ref=e172]:
+              - columnheader [ref=e173]
+              - columnheader "APP名称" [ref=e174]
+              - columnheader "备注" [ref=e175]
+              - columnheader "强调色" [ref=e176]
+              - columnheader "模板数" [ref=e177]
+              - columnheader "余额类型" [ref=e178]
+              - columnheader "操作" [ref=e179]
+          - rowgroup [ref=e180]:
+            - 'row "步道乐跑 - #ff0000 1 公里数 模板管理 余额管理 修改 删除" [ref=e181]':
+              - cell [ref=e182]:
+                - generic [ref=e183]: 󰇝
+              - cell "步道乐跑" [ref=e184]:
+                - generic [ref=e185]:
+                  - img [ref=e188]
+                  - text: 步道乐跑
+              - cell "-" [ref=e189]
+              - cell "#ff0000" [ref=e190]: "#ff0000"
+              - cell "1" [ref=e192]
+              - cell "公里数" [ref=e193]:
+                - generic [ref=e195]: 公里数
+              - cell "模板管理 余额管理 修改 删除" [ref=e196]:
+                - generic [ref=e197]:
+                  - link "模板管理" [ref=e198] [cursor=pointer]:
+                    - /url: /admin/running-apps/79a74f59c3044ca7a3812478832541d6/templates
+                    - generic [ref=e199]: 模板管理
+                  - link "余额管理" [ref=e200] [cursor=pointer]:
+                    - /url: /admin/running-apps/79a74f59c3044ca7a3812478832541d6/balance
+                    - generic [ref=e201]: 余额管理
+                  - button "修改" [ref=e202] [cursor=pointer]:
+                    - generic [ref=e203]: 修改
+                  - button "删除" [ref=e204] [cursor=pointer]:
+                    - generic [ref=e205]: 删除
+            - 'row "闪动校园 - #99ff00 0 未设置 模板管理 余额管理 修改 删除" [ref=e206]':
+              - cell [ref=e207]:
+                - generic [ref=e208]: 󰇝
+              - cell "闪动校园" [ref=e209]:
+                - generic [ref=e210]:
+                  - img [ref=e213]
+                  - text: 闪动校园
+              - cell "-" [ref=e214]
+              - cell "#99ff00" [ref=e215]: "#99ff00"
+              - cell "0" [ref=e217]
+              - cell "未设置" [ref=e218]:
+                - generic [ref=e220]: 未设置
+              - cell "模板管理 余额管理 修改 删除" [ref=e221]:
+                - generic [ref=e222]:
+                  - link "模板管理" [ref=e223] [cursor=pointer]:
+                    - /url: /admin/running-apps/5896baf6855c4e528d2443fec409fbe6/templates
+                    - generic [ref=e224]: 模板管理
+                  - link "余额管理" [ref=e225] [cursor=pointer]:
+                    - /url: /admin/running-apps/5896baf6855c4e528d2443fec409fbe6/balance
+                    - generic [ref=e226]: 余额管理
+                  - button "修改" [ref=e227] [cursor=pointer]:
+                    - generic [ref=e228]: 修改
+                  - button "删除" [ref=e229] [cursor=pointer]:
+                    - generic [ref=e230]: 删除
+            - 'row "Keep - #1976D2 0 未设置 模板管理 余额管理 修改 删除" [ref=e231]':
+              - cell [ref=e232]:
+                - generic [ref=e233]: 󰇝
+              - cell "Keep" [ref=e234]:
+                - generic [ref=e235]:
+                  - generic [ref=e236]: 󰑮
+                  - text: Keep
+              - cell "-" [ref=e237]
+              - cell "#1976D2" [ref=e238]: "#1976D2"
+              - cell "0" [ref=e240]
+              - cell "未设置" [ref=e241]:
+                - generic [ref=e243]: 未设置
+              - cell "模板管理 余额管理 修改 删除" [ref=e244]:
+                - generic [ref=e245]:
+                  - link "模板管理" [ref=e246] [cursor=pointer]:
+                    - /url: /admin/running-apps/798302dc970e42fdbb928b2d2f0d33cb/templates
+                    - generic [ref=e247]: 模板管理
+                  - link "余额管理" [ref=e248] [cursor=pointer]:
+                    - /url: /admin/running-apps/798302dc970e42fdbb928b2d2f0d33cb/balance
+                    - generic [ref=e249]: 余额管理
+                  - button "修改" [ref=e250] [cursor=pointer]:
+                    - generic [ref=e251]: 修改
+                  - button "删除" [ref=e252] [cursor=pointer]:
+                    - generic [ref=e253]: 删除
+            - 'row "支付宝阳光跑 - #1976D2 0 未设置 模板管理 余额管理 修改 删除" [ref=e254]':
+              - cell [ref=e255]:
+                - generic [ref=e256]: 󰇝
+              - cell "支付宝阳光跑" [ref=e257]:
+                - generic [ref=e258]:
+                  - generic [ref=e259]: 󰑮
+                  - text: 支付宝阳光跑
+              - cell "-" [ref=e260]
+              - cell "#1976D2" [ref=e261]: "#1976D2"
+              - cell "0" [ref=e263]
+              - cell "未设置" [ref=e264]:
+                - generic [ref=e266]: 未设置
+              - cell "模板管理 余额管理 修改 删除" [ref=e267]:
+                - generic [ref=e268]:
+                  - link "模板管理" [ref=e269] [cursor=pointer]:
+                    - /url: /admin/running-apps/c966d4db6759409a900b2137c03b3435/templates
+                    - generic [ref=e270]: 模板管理
+                  - link "余额管理" [ref=e271] [cursor=pointer]:
+                    - /url: /admin/running-apps/c966d4db6759409a900b2137c03b3435/balance
+                    - generic [ref=e272]: 余额管理
+                  - button "修改" [ref=e273] [cursor=pointer]:
+                    - generic [ref=e274]: 修改
+                  - button "删除" [ref=e275] [cursor=pointer]:
+                    - generic [ref=e276]: 删除
+            - 'row "运动世界 - #1976D2 0 未设置 模板管理 余额管理 修改 删除" [ref=e277]':
+              - cell [ref=e278]:
+                - generic [ref=e279]: 󰇝
+              - cell "运动世界" [ref=e280]:
+                - generic [ref=e281]:
+                  - generic [ref=e282]: 󰑮
+                  - text: 运动世界
+              - cell "-" [ref=e283]
+              - cell "#1976D2" [ref=e284]: "#1976D2"
+              - cell "0" [ref=e286]
+              - cell "未设置" [ref=e287]:
+                - generic [ref=e289]: 未设置
+              - cell "模板管理 余额管理 修改 删除" [ref=e290]:
+                - generic [ref=e291]:
+                  - link "模板管理" [ref=e292] [cursor=pointer]:
+                    - /url: /admin/running-apps/738f651e357f4a58b001c29f1e54ef31/templates
+                    - generic [ref=e293]: 模板管理
+                  - link "余额管理" [ref=e294] [cursor=pointer]:
+                    - /url: /admin/running-apps/738f651e357f4a58b001c29f1e54ef31/balance
+                    - generic [ref=e295]: 余额管理
+                  - button "修改" [ref=e296] [cursor=pointer]:
+                    - generic [ref=e297]: 修改
+                  - button "删除" [ref=e298] [cursor=pointer]:
+                    - generic [ref=e299]: 删除

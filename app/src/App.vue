@@ -220,30 +220,61 @@ async function fetchNotifications() {
       ajax<any[]>('/api/notifications?read_within_days=3', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } })
     ])
     if (countRes.code === 200) unreadCount.value = countRes.data.count
-    if (listRes.code === 200) {
-      notifications.value = listRes.data
-      const counts: Record<string, number> = {}
-      for (const n of listRes.data) {
-        if (n.type === 'chat_message' && !n.is_read && n.reference_id) {
-          counts[n.reference_id] = (counts[n.reference_id] || 0) + 1
-        }
-      }
-      chatStore.setUnreadCounts(counts)
-    }
+    if (listRes.code === 200) notifications.value = listRes.data
   } catch (e) { /* ignore */ }
 }
 
 async function fetchPendingCounts() {
   if (!user.value) return
+  const isAdmin = user.value.role !== 'default'
   try {
-    const res = await ajax<any>('/api/admin/dashboard/stats', {
+    if (isAdmin) {
+      const res = await ajax<any>('/api/admin/dashboard/stats', {
+        headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+      })
+      if (res.code === 200 && res.data) {
+        pendingCounts.value = {
+          ...pendingCounts.value,
+          '订单处理': res.data.pending_registrations || 0,
+          '工单处理': res.data.pending_feedbacks || 0,
+          '充值审批': res.data.pending_recharges || 0,
+        }
+      }
+    }
+
+    const notifRes = await ajax<any[]>('/api/notifications?read_within_days=7', {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
-    if (res.code === 200 && res.data) {
+    if (notifRes.code === 200) {
+      const unread = (notifRes.data || []).filter((n: any) => !n.is_read)
+      const userCounts: Record<string, number> = {}
+      let signCount = 0
+      let feedbackCount = 0
+      let rechargeCount = 0
+      for (const n of unread) {
+        if (n.type === 'registration_rejected') {
+          signCount++
+        } else if (n.type === 'feedback_replied' || n.type === 'feedback_status') {
+          feedbackCount++
+        } else if (n.type === 'recharge_processed' || n.title?.includes('充值')) {
+          rechargeCount++
+        } else if (n.type === 'chat_message') {
+          if (isAdmin) {
+            userCounts[n.reference_id] = (userCounts[n.reference_id] || 0) + 1
+          } else {
+            signCount++
+          }
+        }
+      }
       pendingCounts.value = {
-        '订单处理': res.data.pending_registrations || 0,
-        '工单处理': res.data.pending_feedbacks || 0,
-        '充值审批': res.data.pending_recharges || 0,
+        ...pendingCounts.value,
+        '数据登记': signCount,
+        '工单反馈': feedbackCount,
+        '充值申请': rechargeCount,
+        ...(isAdmin ? {} : {}),
+      }
+      if (isAdmin) {
+        chatStore.setUnreadCounts(userCounts)
       }
     }
   } catch (e) { /* ignore */ }
@@ -295,6 +326,9 @@ async function handleNotificationClick(n: any) {
     } else {
       router.push(targetPath)
     }
+  }
+  else if (n.type === 'recharge_processed') {
+    router.push('/recharge')
   }
   notifMenuOpen.value = false
 }

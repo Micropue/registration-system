@@ -19,6 +19,8 @@
         clientSide
         show-search show-filter
         search-label="搜索APP名称/备注"
+        enableDragSort
+        @reorder="onReorder"
       >
         <template v-slot:item.name="{ item }">
           <div class="d-flex align-center ga-2">
@@ -29,9 +31,15 @@
             {{ item.name }}
           </div>
         </template>
+        <template v-slot:item.note="{ item }">
+          {{ item.note || '-' }}
+        </template>
         <template v-slot:item.accent_color="{ item }">
           <span class="color-dot" :style="{ backgroundColor: item.accent_color || '#1976D2' }"></span>
           {{ item.accent_color || '#1976D2' }}
+        </template>
+        <template v-slot:item.template_count="{ item }">
+          {{ item.template_count ?? '-' }}
         </template>
         <template v-slot:item.balance_mode="{ item }">
           <v-chip size="x-small" :color="item.balance_mode === 'mileage' ? 'blue' : item.balance_mode === 'count' ? 'green' : 'grey'">
@@ -40,10 +48,10 @@
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn variant="tonal" rounded color="secondary" :to="`/admin/running-apps/${item.uid}/templates`">模板管理</v-btn>
-            <v-btn variant="tonal" rounded color="info" :to="`/admin/running-apps/${item.uid}/balance`">余额管理</v-btn>
-            <v-btn variant="tonal" rounded color="primary" @click="openEditDialog(item)">修改</v-btn>
-            <v-btn variant="tonal" rounded color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="secondary" :to="`/admin/running-apps/${item.uid}/templates`">模板管理</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="info" :to="`/admin/running-apps/${item.uid}/balance`">余额管理</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="primary" @click="openEditDialog(item)">修改</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
           </div>
         </template>
       </app-data-table>
@@ -250,6 +258,24 @@ const headers = [
   { title: '余额类型', key: 'balance_mode', sortable: false },
   { title: '操作', key: 'actions', sortable: false }
 ]
+
+async function onReorder(orderedIds: number[]) {
+  const idToApp = new Map(apps.value.map(a => [a.id, a]))
+  const reordered = orderedIds.map(id => idToApp.get(id)).filter(Boolean) as RunningApp[]
+  if (reordered.length === apps.value.length) {
+    apps.value.splice(0, apps.value.length, ...reordered)
+  }
+  try {
+    await ajax(`${ApiUrl.GET_RUNNING_APPS}/sort`, {
+      method: 'POST',
+      body: { ordered_ids: orderedIds },
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+  } catch (err) {
+    showMsg('排序保存失败', 'error')
+    loadApps()
+  }
+}
 
 watch(() => bulkDialog.file, (newFile) => {
   if (newFile) {

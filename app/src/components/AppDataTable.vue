@@ -25,8 +25,43 @@
       </v-row>
     </v-card>
 
+    <!-- 拖动排序模式 -->
+    <v-card v-if="enableDragSort && clientSide" class="elevation-0" border style="overflow: auto;">
+      <v-table density="compact" hover>
+        <thead>
+          <tr>
+            <th style="width: 40px;"></th>
+            <th v-for="h in visibleHeaders" :key="h.key" class="text-left" :style="{ minWidth: h.key === 'actions' ? 'auto' : '120px' }">
+              {{ h.title }}
+            </th>
+          </tr>
+        </thead>
+        <draggable
+          v-model="dragItems"
+          tag="tbody"
+          item-key="__drag_id"
+          handle=".drag-handle"
+          ghost-class="sortable-ghost"
+          @end="onDragEnd"
+        >
+          <template #item="{ element, index }">
+            <tr :class="dragRowClass(element)">
+              <td class="pa-2">
+                <v-icon class="drag-handle" size="small" color="grey" style="cursor: grab;">mdi-drag-vertical</v-icon>
+              </td>
+              <td v-for="h in visibleHeaders" :key="h.key" class="pa-2">
+                <slot :name="'item.' + h.key" :item="element" :index="index">
+                  {{ getCellValue(element, h.key) }}
+                </slot>
+              </td>
+            </tr>
+          </template>
+        </draggable>
+      </v-table>
+    </v-card>
+
     <!-- 数据表格 -->
-    <v-card class="elevation-0" border style="overflow: auto; ">
+    <v-card v-else class="elevation-0" border style="overflow: auto; ">
       <!-- 客户端模式：v-data-table 自己处理分页/排序/搜索 -->
       <v-data-table v-if="clientSide" :headers="headers" :items="filteredItems" :loading="loading"
         v-model:page="localPage" v-model:items-per-page="localItemsPerPage"
@@ -52,6 +87,7 @@
 
 <script lang="ts" setup>
 import { ref, computed, watch } from 'vue'
+import draggable from 'vuedraggable'
 
 interface Header {
   title: string
@@ -59,7 +95,6 @@ interface Header {
   sortable?: boolean
   searchable?: boolean
   filterable?: boolean
-  // 可选：自定义格式化函数（仅用于生成筛选候选值）
   filterFormatter?: (val: any) => string
 }
 
@@ -75,22 +110,21 @@ const props = defineProps<{
   searchLabel?: string
   clientSide?: boolean
   rowProps?: any
+  enableDragSort?: boolean
+  dragRowClassFn?: (item: any) => string
 }>()
 
-const emit = defineEmits(['update:options', 'update:page', 'update:itemsPerPage', 'reset'])
+const emit = defineEmits(['update:options', 'update:page', 'update:itemsPerPage', 'reset', 'reorder'])
 
-// 本地状态
 const search = ref('')
 const filterField = ref('')
 const filterValue = ref('')
 const localPage = ref(props.page || 1)
 const localItemsPerPage = ref(props.itemsPerPage || 20)
 
-// 暴露给外部的计算属性：处理前端过滤和搜索
 const filteredItems = computed(() => {
   let result = [...props.items]
 
-  // 1. 字段筛选
   if (filterField.value && filterValue.value) {
     const header = props.headers.find(h => h.key === filterField.value)
     result = result.filter(item => {
@@ -100,12 +134,11 @@ const filteredItems = computed(() => {
     })
   }
 
-  // 2. 纯前端搜索 (include)
   if (search.value) {
     const q = search.value.toLowerCase()
     const searchableKeys = props.headers.filter(h => h.searchable).map(h => h.key)
-    
-    result = result.filter(item => 
+
+    result = result.filter(item =>
       searchableKeys.some(key => {
         const val = item[key]
         return val !== null && val !== undefined && String(val).toLowerCase().includes(q)
@@ -116,7 +149,6 @@ const filteredItems = computed(() => {
   return result
 })
 
-// 筛选候选值计算
 const filterableHeaders = computed(() => props.headers.filter(h => h.filterable))
 const filterValues = computed(() => {
   if (!filterField.value) return []
@@ -129,7 +161,36 @@ const filterValues = computed(() => {
   return [...new Set(values)]
 })
 
-// 事件处理
+const visibleHeaders = computed(() => {
+  return props.headers.filter(h => h.key !== '__drag_id')
+})
+
+const dragItems = ref<any[]>([])
+
+function syncDragItems() {
+  dragItems.value = filteredItems.value.map((item: any, index: number) => ({ ...item, __drag_id: item.id || item.uid || index }))
+}
+
+watch(filteredItems, () => {
+  syncDragItems()
+}, { immediate: true })
+
+function dragRowClass(item: any): string {
+  if (props.dragRowClassFn) return props.dragRowClassFn(item)
+  return ''
+}
+
+function getCellValue(item: any, key: string): string {
+  const val = item[key]
+  if (val === null || val === undefined) return '-'
+  return String(val)
+}
+
+function onDragEnd() {
+  const orderedIds = dragItems.value.map((item: any) => item.id)
+  emit('reorder', orderedIds)
+}
+
 function onOptionsUpdate(options: any) {
   emit('update:options', options)
 }
@@ -141,12 +202,10 @@ function resetFilters() {
   emit('reset')
 }
 
-// 同步外部 Props
 watch(() => props.page, (val) => { if (val) localPage.value = val })
 watch(() => props.itemsPerPage, (val) => { if (val) localItemsPerPage.value = val })
 watch(localPage, (val) => emit('update:page', val))
 watch(localItemsPerPage, (val) => emit('update:itemsPerPage', val))
-
 </script>
 
 <style scoped>
@@ -156,5 +215,9 @@ watch(localItemsPerPage, (val) => emit('update:itemsPerPage', val))
 }
 .app-data-table :deep(th) {
   white-space: nowrap !important;
+}
+.sortable-ghost {
+  opacity: 0.4;
+  background: #f0f0f0;
 }
 </style>

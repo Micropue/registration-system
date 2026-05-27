@@ -270,6 +270,43 @@
       </v-card>
     </v-dialog>
 
+    <!-- 查看信息对话框（仅查看表单数据） -->
+    <v-dialog v-model="infoDialog.show" max-width="700">
+      <v-card class="pa-4">
+        <v-card-title class="d-flex align-center pa-4 pb-0">
+          登记信息
+          <v-spacer></v-spacer>
+          <v-chip v-if="infoDialogItem" :color="getStatusColor(infoDialogItem.status)" size="small" variant="tonal" class="me-2">
+            {{ getStatusText(infoDialogItem.status) }}
+          </v-chip>
+          <v-btn variant="text" size="small" @click="infoDialog.show = false">关闭</v-btn>
+        </v-card-title>
+        <v-card-text class="pa-4">
+          <v-table v-if="infoDialogItem" density="compact" border>
+            <thead>
+              <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
+            </thead>
+            <tbody>
+              <tr v-if="infoDialogItem.amount != null">
+                <td class="font-weight-bold text-primary">跑量</td>
+                <td class="font-weight-bold text-primary">{{ infoDialogItem.amount }}{{ getAmountUnit(infoDialogItem.data['跑步APP']) }}</td>
+              </tr>
+              <tr v-for="key in infoSortedKeys" :key="key">
+                <td class="font-weight-bold">{{ key }}</td>
+                <td>{{ formatValue(infoDialogItem.data[key]) }}</td>
+              </tr>
+            </tbody>
+          </v-table>
+          <v-alert v-if="infoDialogItem?.reject_reason" type="error" variant="tonal" class="mt-3" density="compact">
+            <strong>驳回原因：</strong>{{ infoDialogItem.reject_reason }}
+          </v-alert>
+          <div class="text-caption text-medium-emphasis mt-2" v-if="infoDialogItem">
+            提交时间：{{ formatDate(infoDialogItem.created_at) }}
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
     <!-- 登记历史 -->
     <h2 class="text-h6 font-weight-bold mb-3">登记历史</h2>
 
@@ -280,6 +317,8 @@
       :loading="historyLoading"
       v-model:page="currentPage"
       v-model:items-per-page="itemsPerPage"
+      show-search show-filter
+      search-label="搜索跑步APP/模板/状态"
       @update:options="loadHistory"
       @reset="loadHistory"
     >
@@ -319,8 +358,9 @@
 
       <template v-slot:item.actions="{ item }">
         <div class="d-flex ga-1">
+          <v-btn variant="tonal" rounded size="small" color="primary" @click="openInfoDialog(item)">查看信息</v-btn>
           <v-badge :model-value="chatStore.chatUnreadCounts[item.id] > 0" :content="chatStore.chatUnreadCounts[item.id]" color="error" offset-x="-4" offset-y="-4">
-            <v-btn variant="tonal" rounded size="small" color="primary" @click="openDetailDialog(item)">联系管理员</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="secondary" @click="openDetailDialog(item)">联系管理员</v-btn>
           </v-badge>
           <v-btn v-if="item.status === 'rejected'" variant="tonal" rounded size="small" color="warning" @click="openResubmitDialog(item)">重新提交</v-btn>
         </div>
@@ -559,11 +599,11 @@ function getPriorityText(p: string) {
 }
 
 const historyHeaders = [
-  { title: '跑步APP', key: 'app', sortable: false },
-  { title: '模板', key: 'template', sortable: false },
+  { title: '跑步APP', key: 'app', sortable: false, searchable: true, filterable: true },
+  { title: '模板', key: 'template', sortable: false, searchable: true },
   { title: '跑量', key: 'amount', sortable: false },
-  { title: '状态', key: 'status', sortable: false },
-  { title: '优先级', key: 'priority', sortable: false },
+  { title: '状态', key: 'status', sortable: false, filterable: true },
+  { title: '优先级', key: 'priority', sortable: false, filterable: true },
   { title: '操作', key: 'actions', sortable: false },
   { title: '创建时间', key: 'created_at', sortable: true },
 ]
@@ -781,6 +821,7 @@ async function loadHistory(options: any = { page: 1, itemsPerPage: 20 }) {
 }
 
 function openDetailDialog(item: RegistrationItem) {
+  infoDialogItem.value = item
   detailDialog.id = item.id
   detailDialog.data = item.data
   detailDialog.status = item.status
@@ -791,6 +832,30 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.show = true
   chatStore.clearUnreadCount(item.id)
   loadDetailTemplateOrder(item.data['跑步APP'], item.template_uid || '')
+}
+
+const infoDialogItem = ref<RegistrationItem | null>(null)
+const infoDialog = reactive({ show: false })
+
+const infoSortedKeys = computed(() => {
+  if (!infoDialogItem.value) return []
+  const data = infoDialogItem.value.data
+  const keys = Object.keys(data)
+  const fieldOrder = ['跑步APP', ...detailTemplateFieldOrder.value]
+  return keys.sort((a, b) => {
+    const ai = fieldOrder.indexOf(a)
+    const bi = fieldOrder.indexOf(b)
+    if (ai === -1 && bi === -1) return a.localeCompare(b)
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+})
+
+function openInfoDialog(item: RegistrationItem) {
+  infoDialogItem.value = item
+  loadDetailTemplateOrder(item.data['跑步APP'], item.template_uid || '')
+  infoDialog.show = true
 }
 
 async function loadDetailTemplateOrder(appName: string, templateUid: string) {

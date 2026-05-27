@@ -326,6 +326,10 @@ class AccountService:
             cursor.execute("ALTER TABLE running_apps DROP COLUMN morning_price")
         except:
             pass
+        try:
+            cursor.execute("ALTER TABLE running_apps ADD COLUMN sort_order INT DEFAULT 0")
+        except:
+            pass
         cursor.execute("SHOW COLUMNS FROM running_apps LIKE 'uid'")
         if not cursor.fetchone():
             cursor.execute("ALTER TABLE running_apps ADD COLUMN uid VARCHAR(64) UNIQUE")
@@ -512,7 +516,7 @@ class AccountService:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
             try:
-                cursor.execute("SELECT id, uid, name, note, accent_color, icon, balance_mode FROM running_apps ORDER BY id ASC")
+                cursor.execute("SELECT id, uid, name, note, accent_color, icon, balance_mode, sort_order FROM running_apps ORDER BY sort_order ASC, id ASC")
             except Exception:
                 cursor.execute("SELECT id, uid, name, note, accent_color, icon FROM running_apps ORDER BY id ASC")
             rows = cursor.fetchall()
@@ -766,6 +770,22 @@ class AccountService:
         if status == "approved":
             self.adjust_user_balance(recharge["user_uid"], recharge["app_uid"], float(recharge["amount"]),
                 note=f"充值审批通过")
+
+    def get_balance_recharge(self, recharge_uid: str) -> dict[str, Any] | None:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT br.uid, br.amount, br.status, br.user_uid, br.app_uid, ra.name as app_name FROM balance_recharges br JOIN running_apps ra ON ra.uid = br.app_uid WHERE br.uid = %s", (recharge_uid,))
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'uid': row['uid'],
+            'amount': row['amount'],
+            'status': row['status'],
+            'user_uid': row['user_uid'],
+            'app_uid': row['app_uid'],
+            'app_name': row['app_name']
+        }
 
     # ---- Registration with Amount ----
 
@@ -1253,6 +1273,14 @@ class AccountService:
                 count += 1
             connection.commit()
             return count
+
+    def sort_running_apps(self, ordered_ids: list[int]) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            for idx, app_id in enumerate(ordered_ids):
+                cursor.execute("UPDATE running_apps SET sort_order = %s WHERE id = %s", (idx, app_id))
+            connection.commit()
+        return True
 
     # ---- App Templates ----
 

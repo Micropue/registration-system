@@ -1,0 +1,205 @@
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e12]: R
+          - generic [ref=e13]:
+            - generic [ref=e14]: root
+            - generic [ref=e15]: 超级管理员
+        - list [ref=e16]:
+          - link "订单处理" [ref=e17] [cursor=pointer]:
+            - /url: /admin/registers
+            - generic [ref=e21]: 󰷉
+            - generic [ref=e23]: 订单处理
+          - link "工单处理" [ref=e24] [cursor=pointer]:
+            - /url: /admin/feedbacks
+            - generic [ref=e28]: 󰉕
+            - generic [ref=e30]: 工单处理
+          - link "充值审批" [ref=e31] [cursor=pointer]:
+            - /url: /admin/recharges
+            - generic [ref=e35]: 󱓮
+            - generic [ref=e37]: 充值审批
+          - link "数据登记" [ref=e38] [cursor=pointer]:
+            - /url: /sign
+            - generic [ref=e42]: 󰐙
+            - generic [ref=e44]: 数据登记
+          - link "Badge 工单反馈" [ref=e125] [cursor=pointer]:
+            - /url: /feedback
+            - generic [ref=e48]:
+              - generic [ref=e49]: 󰍪
+              - status "Badge" [ref=e126]: "2"
+            - generic [ref=e51]: 工单反馈
+          - link "Badge 充值申请" [ref=e127] [cursor=pointer]:
+            - /url: /recharge
+            - generic [ref=e55]:
+              - generic [ref=e56]: 󱉡
+              - status "Badge" [ref=e128]: "1"
+            - generic [ref=e58]: 充值申请
+          - link "仪表盘" [ref=e59] [cursor=pointer]:
+            - /url: /admin
+            - generic [ref=e63]: 󰨝
+            - generic [ref=e65]: 仪表盘
+          - link "账户管理" [ref=e66] [cursor=pointer]:
+            - /url: /admin/users
+            - generic [ref=e70]: 󰭘
+            - generic [ref=e72]: 账户管理
+          - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+            - /url: /admin/running-apps
+            - generic [ref=e77]: 󰜎
+            - generic [ref=e79]: 跑步APP配置
+          - link "账户组管理" [ref=e80] [cursor=pointer]:
+            - /url: /admin/groups
+            - generic [ref=e84]: 󰨒
+            - generic [ref=e86]: 账户组管理
+          - link "余额查看" [ref=e87] [cursor=pointer]:
+            - /url: /balance
+            - generic [ref=e91]: 󰯝
+            - generic [ref=e93]: 余额查看
+          - link "余额流水" [ref=e94] [cursor=pointer]:
+            - /url: /balance-transactions
+            - generic [ref=e98]: 󰋚
+            - generic [ref=e100]: 余额流水
+    - banner [ref=e101]:
+      - generic [ref=e103]:
+        - button [ref=e104] [cursor=pointer]:
+          - generic [ref=e106]: 󰍜
+        - generic [ref=e107] [cursor=pointer]:
+          - img [ref=e110]
+          - generic [ref=e111]: 哆啦A梦（校园跑版）
+        - generic [ref=e112]:
+          - generic [ref=e118]:
+            - button [ref=e119] [cursor=pointer]:
+              - generic [ref=e121]: 󰂜
+            - status "Badge" [ref=e129]: "4"
+          - button "退出登录" [ref=e122] [cursor=pointer]:
+            - generic [ref=e123]: 退出登录
+    - main [ref=e124]:
+      - generic [ref=e131]:
+        - generic [ref=e132]:
+          - heading "数据登记" [level=1] [ref=e133]
+          - button "新建登记" [ref=e134] [cursor=pointer]:
+            - generic [ref=e136]: 󰐕
+            - generic [ref=e137]: 新建登记
+        - heading "登记历史" [level=2] [ref=e138]
+        - generic [ref=e139]:
+          - generic [ref=e141]:
+            - generic [ref=e145]:
+              - generic [ref=e147]: 󰍉
+              - generic [ref=e148]:
+                - generic: 搜索跑步APP/模板/状态
+                - textbox "搜索跑步APP/模板/状态" [ref=e149]
+              - text: 󰅙
+            - combobox [ref=e153] [cursor=pointer]:
+              - generic [ref=e155]:
+                - combobox "筛选字段"
+              - generic [ref=e157]: 󰍝
+              - generic:
+                - generic:
+                  - generic: 筛选字段
+            - generic [ref=e158]:
+              - generic:
+                - generic:
+                  - combobox:
+                    - generic:
+                      - generic:
+                        - combobox "筛选值" [disabled]
+                    - generic:
+                      - generic: 󰍝
+                    - generic:
+                      - generic:
+                        - generic: 筛选值
+            - button "重置" [ref=e160] [cursor=pointer]:
+              - generic [ref=e161]: 重置
+          - generic [ref=e163]:
+            - table [ref=e165]:
+              - rowgroup [ref=e166]:
+                - row "跑步APP 模板 跑量 状态 优先级 操作 创建时间" [ref=e167]:
+                  - columnheader "跑步APP" [ref=e168]:
+                    - generic [ref=e170]: 跑步APP
+                  - columnheader "模板" [ref=e171]:
+                    - generic [ref=e173]: 模板
+                  - columnheader "跑量" [ref=e174]:
+                    - generic [ref=e176]: 跑量
+                  - columnheader "状态" [ref=e177]:
+                    - generic [ref=e179]: 状态
+                  - columnheader "优先级" [ref=e180]:
+                    - generic [ref=e182]: 优先级
+                  - columnheader "操作" [ref=e183]:
+                    - generic [ref=e185]: 操作
+                  - columnheader "创建时间" [ref=e186]:
+                    - generic [ref=e187]:
+                      - generic [ref=e188]: 创建时间
+                      - generic [ref=e189]: 󰁝
+              - rowgroup [ref=e190]:
+                - row "步道乐跑 v1.01 1 公里 已处理 低 查看信息 联系管理员 2026/05/23 08:55" [ref=e191]:
+                  - cell "步道乐跑" [ref=e192]:
+                    - generic [ref=e193]:
+                      - img [ref=e196]
+                      - generic [ref=e197]: 步道乐跑
+                  - cell "v1.01" [ref=e198]
+                  - cell "1 公里" [ref=e199]
+                  - cell "已处理" [ref=e200]:
+                    - generic [ref=e202]: 已处理
+                  - cell "低" [ref=e203]:
+                    - generic [ref=e205]: 低
+                  - cell "查看信息 联系管理员" [ref=e206]:
+                    - generic [ref=e207]:
+                      - button "查看信息" [ref=e208] [cursor=pointer]:
+                        - generic [ref=e209]: 查看信息
+                      - button "联系管理员" [ref=e212] [cursor=pointer]:
+                        - generic [ref=e213]: 联系管理员
+                  - cell "2026/05/23 08:55" [ref=e214]
+            - separator [ref=e215]
+            - generic [ref=e216]:
+              - generic [ref=e217]:
+                - generic [ref=e218]: 每页行数
+                - combobox [ref=e221] [cursor=pointer]:
+                  - generic [ref=e223]:
+                    - generic [ref=e225]: "20"
+                    - combobox "每页行数": "20"
+                  - generic [ref=e227]: 󰍝
+              - generic [ref=e229]: 1-1 共 1
+              - navigation "Pagination Navigation" [ref=e231]:
+                - list [ref=e232]:
+                  - listitem [ref=e233]:
+                    - button "First page" [disabled]:
+                      - generic:
+                        - generic: 󰘀
+                  - listitem [ref=e234]:
+                    - button "Previous page" [disabled]:
+                      - generic:
+                        - generic: 󰅁
+                  - listitem [ref=e235]:
+                    - button "Next page" [disabled]:
+                      - generic:
+                        - generic: 󰅂
+                  - listitem [ref=e236]:
+                    - button "Last page" [disabled]:
+                      - generic:
+                        - generic: 󰘁
+  - generic:
+    - dialog:
+      - generic [ref=e239]:
+        - generic [ref=e240]:
+          - text: 登记信息
+          - generic [ref=e242]: 已处理
+          - button "关闭" [ref=e243] [cursor=pointer]:
+            - generic [ref=e244]: 关闭
+        - generic [ref=e245]:
+          - table [ref=e248]:
+            - rowgroup [ref=e249]:
+              - row "字段 内容" [ref=e250]:
+                - columnheader "字段" [ref=e251]
+                - columnheader "内容" [ref=e252]
+            - rowgroup [ref=e253]:
+              - row "跑量 1 公里" [ref=e254]:
+                - cell "跑量" [ref=e255]
+                - cell "1 公里" [ref=e256]
+              - row "跑步APP 步道乐跑" [ref=e257]:
+                - cell "跑步APP" [ref=e258]
+                - cell "步道乐跑" [ref=e259]
+              - row "? 111" [ref=e260]:
+                - cell "?" [ref=e261]
+                - cell "111" [ref=e262]
+          - generic [ref=e263]: 提交时间：2026/05/23 08:55

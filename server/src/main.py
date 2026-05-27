@@ -440,6 +440,22 @@ async def bulk_create_running_apps(
     except Exception as e:
         return api_response(500, f"Error bulk importing: {str(e)}")
 
+class SortRunningAppsRequest(BaseModel):
+    ordered_ids: list[int]
+
+@app.post("/admin/settings/running-apps/sort")
+async def sort_running_apps(
+    request: SortRunningAppsRequest,
+    authorization: Optional[str] = Header(None)
+):
+    session, err = require_perm(authorization, "APP配置", "修改")
+    if err: return err
+    try:
+        account_service.sort_running_apps(request.ordered_ids)
+        return api_response(200, "Sort order updated")
+    except Exception as e:
+        return api_response(500, f"Error sorting: {str(e)}")
+
 def _get_app_id(app_uid: str) -> int:
     app = account_service.get_running_app_by_uid(app_uid)
     if not app:
@@ -905,12 +921,23 @@ async def process_recharge(uid: str, data: dict[str, Any], authorization: Option
     session, err = require_perm(authorization, "充值审批", "处理")
     if err: return err
     try:
+        recharge = account_service.get_balance_recharge(uid)
+        if not recharge:
+            return api_response(404, "Recharge not found")
+        status = data.get('status', 'approved')
+        reject_reason = data.get('reject_reason', '')
         account_service.process_balance_recharge(
             uid,
-            data.get('status', 'approved'),
-            data.get('reject_reason', ''),
+            status,
+            reject_reason,
             session.username
         )
+        if status == 'approved':
+            account_service.create_notification(recharge['user_uid'], 'recharge_processed',
+                '充值申请已通过', f'您在 {recharge["app_name"]} 的充值申请（{recharge["amount"]}）已通过')
+        else:
+            account_service.create_notification(recharge['user_uid'], 'recharge_processed',
+                '充值申请已驳回', f'您在 {recharge["app_name"]} 的充值申请已被驳回：{reject_reason}')
         return api_response(200, "Recharge processed")
     except AccountError as e:
         return api_response(400, str(e))

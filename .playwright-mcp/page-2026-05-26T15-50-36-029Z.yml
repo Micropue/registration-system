@@ -1,0 +1,335 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e12]: R
+        - generic [ref=e13]:
+          - generic [ref=e14]: root
+          - generic [ref=e15]: 超级管理员
+      - list [ref=e16]:
+        - link "订单处理" [ref=e17] [cursor=pointer]:
+          - /url: /admin/registers
+          - generic [ref=e21]: 󰷉
+          - generic [ref=e23]: 订单处理
+        - link "工单处理" [ref=e24] [cursor=pointer]:
+          - /url: /admin/feedbacks
+          - generic [ref=e28]: 󰉕
+          - generic [ref=e30]: 工单处理
+        - link "充值审批" [ref=e31] [cursor=pointer]:
+          - /url: /admin/recharges
+          - generic [ref=e35]: 󱓮
+          - generic [ref=e37]: 充值审批
+        - link "数据登记" [ref=e38] [cursor=pointer]:
+          - /url: /sign
+          - generic [ref=e42]: 󰐙
+          - generic [ref=e44]: 数据登记
+        - link "工单反馈" [ref=e45] [cursor=pointer]:
+          - /url: /feedback
+          - generic [ref=e49]: 󰍪
+          - generic [ref=e51]: 工单反馈
+        - link "充值申请" [ref=e52] [cursor=pointer]:
+          - /url: /recharge
+          - generic [ref=e56]: 󱉡
+          - generic [ref=e58]: 充值申请
+        - link "仪表盘" [ref=e59] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e63]: 󰨝
+          - generic [ref=e65]: 仪表盘
+        - link "账户管理" [ref=e66] [cursor=pointer]:
+          - /url: /admin/users
+          - generic [ref=e70]: 󰭘
+          - generic [ref=e72]: 账户管理
+        - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+          - /url: /admin/running-apps
+          - generic [ref=e77]: 󰜎
+          - generic [ref=e79]: 跑步APP配置
+        - link "账户组管理" [ref=e80] [cursor=pointer]:
+          - /url: /admin/groups
+          - generic [ref=e84]: 󰨒
+          - generic [ref=e86]: 账户组管理
+        - link "余额查看" [ref=e87] [cursor=pointer]:
+          - /url: /balance
+          - generic [ref=e91]: 󰯝
+          - generic [ref=e93]: 余额查看
+        - link "余额流水" [ref=e94] [cursor=pointer]:
+          - /url: /balance-transactions
+          - generic [ref=e98]: 󰋚
+          - generic [ref=e100]: 余额流水
+  - banner [ref=e101]:
+    - generic [ref=e103]:
+      - button [ref=e104] [cursor=pointer]:
+        - generic [ref=e106]: 󰍜
+      - generic [ref=e107] [cursor=pointer]:
+        - img [ref=e110]
+        - generic [ref=e111]: 哆啦A梦（校园跑版）
+      - generic [ref=e112]:
+        - progressbar [ref=e113]:
+          - img [ref=e114]
+        - button [ref=e119] [cursor=pointer]:
+          - generic [ref=e121]: 󰂜
+        - button "退出登录" [ref=e122] [cursor=pointer]:
+          - generic [ref=e123]: 退出登录
+  - main [ref=e124]:
+    - generic [ref=e126]:
+      - heading "通知中心" [level=1] [ref=e127]
+      - generic [ref=e128]:
+        - generic [ref=e130]:
+          - generic [ref=e134]:
+            - generic [ref=e136]: 󰍉
+            - generic [ref=e137]:
+              - generic: 搜索通知
+              - textbox "搜索通知" [ref=e138]
+            - text: 󰅙
+          - button "重置" [ref=e140] [cursor=pointer]:
+            - generic [ref=e141]: 重置
+        - generic [ref=e143]:
+          - table [ref=e145]:
+            - rowgroup [ref=e146]:
+              - row "状态 标题 内容 时间 操作" [ref=e147]:
+                - columnheader "状态" [ref=e148]:
+                  - generic [ref=e149]:
+                    - generic [ref=e150]: 状态
+                    - generic [ref=e151]: 󰁝
+                - columnheader "标题" [ref=e152]:
+                  - generic [ref=e153]:
+                    - generic [ref=e154]: 标题
+                    - generic [ref=e155]: 󰁝
+                - columnheader "内容" [ref=e156]:
+                  - generic [ref=e157]:
+                    - generic [ref=e158]: 内容
+                    - generic [ref=e159]: 󰁝
+                - columnheader "时间" [ref=e160]:
+                  - generic [ref=e161]:
+                    - generic [ref=e162]: 时间
+                    - generic [ref=e163]: 󰁝
+                - columnheader "操作" [ref=e164]:
+                  - generic [ref=e165]:
+                    - generic [ref=e166]: 操作
+                    - generic [ref=e167]: 󰁝
+            - rowgroup [ref=e168]:
+              - 'row "工单有新回复 管理员回复了您的工单: 1 8小时前 查看" [ref=e169]':
+                - cell [ref=e170]:
+                  - generic [ref=e171]: 󰝥
+                - cell "工单有新回复" [ref=e172]:
+                  - generic [ref=e174]: 工单有新回复
+                - 'cell "管理员回复了您的工单: 1" [ref=e175]'
+                - cell "8小时前" [ref=e176]
+                - cell "查看" [ref=e177]:
+                  - button "查看" [ref=e178] [cursor=pointer]:
+                    - generic [ref=e179]: 查看
+              - 'row "工单状态更新 您的工单 \"1\" 状态已更新为: 已处理 8小时前 查看" [ref=e180]':
+                - cell [ref=e181]:
+                  - generic [ref=e182]: 󰝥
+                - cell "工单状态更新" [ref=e183]:
+                  - generic [ref=e185]: 工单状态更新
+                - 'cell "您的工单 \"1\" 状态已更新为: 已处理" [ref=e186]'
+                - cell "8小时前" [ref=e187]
+                - cell "查看" [ref=e188]:
+                  - button "查看" [ref=e189] [cursor=pointer]:
+                    - generic [ref=e190]: 查看
+              - row "新充值申请 用户 root 申请充值 2026/5/23 08:56:34 查看" [ref=e191]:
+                - cell [ref=e192]:
+                  - generic [ref=e193]: 󰝥
+                - cell "新充值申请" [ref=e194]:
+                  - generic [ref=e196]: 新充值申请
+                - cell "用户 root 申请充值" [ref=e197]
+                - cell "2026/5/23 08:56:34" [ref=e198]
+                - cell "查看" [ref=e199]:
+                  - button "查看" [ref=e200] [cursor=pointer]:
+                    - generic [ref=e201]: 查看
+              - row "新登记 用户 root 提交了新登记 2026/5/23 08:55:05 查看" [ref=e202]:
+                - cell [ref=e203]:
+                  - generic [ref=e204]: 󰝥
+                - cell "新登记" [ref=e205]:
+                  - generic [ref=e207]: 新登记
+                - cell "用户 root 提交了新登记" [ref=e208]
+                - cell "2026/5/23 08:55:05" [ref=e209]
+                - cell "查看" [ref=e210]:
+                  - button "查看" [ref=e211] [cursor=pointer]:
+                    - generic [ref=e212]: 查看
+              - row "登记聊天新消息 管理员回复了您的登记 8小时前 查看" [ref=e213]:
+                - cell [ref=e214]:
+                  - generic [ref=e215]: 󰗡
+                - cell "登记聊天新消息" [ref=e216]:
+                  - generic [ref=e218]: 登记聊天新消息
+                - cell "管理员回复了您的登记" [ref=e219]
+                - cell "8小时前" [ref=e220]
+                - cell "查看" [ref=e221]:
+                  - button "查看" [ref=e222] [cursor=pointer]:
+                    - generic [ref=e223]: 查看
+              - row "登记聊天新消息 管理员回复了您的登记 8小时前 查看" [ref=e224]:
+                - cell [ref=e225]:
+                  - generic [ref=e226]: 󰗡
+                - cell "登记聊天新消息" [ref=e227]:
+                  - generic [ref=e229]: 登记聊天新消息
+                - cell "管理员回复了您的登记" [ref=e230]
+                - cell "8小时前" [ref=e231]
+                - cell "查看" [ref=e232]:
+                  - button "查看" [ref=e233] [cursor=pointer]:
+                    - generic [ref=e234]: 查看
+              - row "登记聊天新消息 管理员回复了您的登记 8小时前 查看" [ref=e235]:
+                - cell [ref=e236]:
+                  - generic [ref=e237]: 󰗡
+                - cell "登记聊天新消息" [ref=e238]:
+                  - generic [ref=e240]: 登记聊天新消息
+                - cell "管理员回复了您的登记" [ref=e241]
+                - cell "8小时前" [ref=e242]
+                - cell "查看" [ref=e243]:
+                  - button "查看" [ref=e244] [cursor=pointer]:
+                    - generic [ref=e245]: 查看
+              - row "登记聊天新消息 管理员回复了您的登记 8小时前 查看" [ref=e246]:
+                - cell [ref=e247]:
+                  - generic [ref=e248]: 󰗡
+                - cell "登记聊天新消息" [ref=e249]:
+                  - generic [ref=e251]: 登记聊天新消息
+                - cell "管理员回复了您的登记" [ref=e252]
+                - cell "8小时前" [ref=e253]
+                - cell "查看" [ref=e254]:
+                  - button "查看" [ref=e255] [cursor=pointer]:
+                    - generic [ref=e256]: 查看
+              - row "登记聊天新消息 管理员回复了您的登记 8小时前 查看" [ref=e257]:
+                - cell [ref=e258]:
+                  - generic [ref=e259]: 󰗡
+                - cell "登记聊天新消息" [ref=e260]:
+                  - generic [ref=e262]: 登记聊天新消息
+                - cell "管理员回复了您的登记" [ref=e263]
+                - cell "8小时前" [ref=e264]
+                - cell "查看" [ref=e265]:
+                  - button "查看" [ref=e266] [cursor=pointer]:
+                    - generic [ref=e267]: 查看
+              - row "登记被驳回 您的登记已被驳回 2026/5/23 08:56:04 查看" [ref=e268]:
+                - cell [ref=e269]:
+                  - generic [ref=e270]: 󰗡
+                - cell "登记被驳回" [ref=e271]:
+                  - generic [ref=e273]: 登记被驳回
+                - cell "您的登记已被驳回" [ref=e274]
+                - cell "2026/5/23 08:56:04" [ref=e275]
+                - cell "查看" [ref=e276]:
+                  - button "查看" [ref=e277] [cursor=pointer]:
+                    - generic [ref=e278]: 查看
+              - row "登记被驳回 您的登记已被驳回 2026/5/23 08:56:04 查看" [ref=e279]:
+                - cell [ref=e280]:
+                  - generic [ref=e281]: 󰗡
+                - cell "登记被驳回" [ref=e282]:
+                  - generic [ref=e284]: 登记被驳回
+                - cell "您的登记已被驳回" [ref=e285]
+                - cell "2026/5/23 08:56:04" [ref=e286]
+                - cell "查看" [ref=e287]:
+                  - button "查看" [ref=e288] [cursor=pointer]:
+                    - generic [ref=e289]: 查看
+              - row "登记被驳回 buhege 2026/5/23 08:51:15 查看" [ref=e290]:
+                - cell [ref=e291]:
+                  - generic [ref=e292]: 󰗡
+                - cell "登记被驳回" [ref=e293]:
+                  - generic [ref=e295]: 登记被驳回
+                - cell "buhege" [ref=e296]
+                - cell "2026/5/23 08:51:15" [ref=e297]
+                - cell "查看" [ref=e298]:
+                  - button "查看" [ref=e299] [cursor=pointer]:
+                    - generic [ref=e300]: 查看
+              - row "登记被驳回 buhege 2026/5/23 08:51:15 查看" [ref=e301]:
+                - cell [ref=e302]:
+                  - generic [ref=e303]: 󰗡
+                - cell "登记被驳回" [ref=e304]:
+                  - generic [ref=e306]: 登记被驳回
+                - cell "buhege" [ref=e307]
+                - cell "2026/5/23 08:51:15" [ref=e308]
+                - cell "查看" [ref=e309]:
+                  - button "查看" [ref=e310] [cursor=pointer]:
+                    - generic [ref=e311]: 查看
+              - row "新登记 用户 root 提交了新登记 2026/5/23 08:50:56 查看" [ref=e312]:
+                - cell [ref=e313]:
+                  - generic [ref=e314]: 󰗡
+                - cell "新登记" [ref=e315]:
+                  - generic [ref=e317]: 新登记
+                - cell "用户 root 提交了新登记" [ref=e318]
+                - cell "2026/5/23 08:50:56" [ref=e319]
+                - cell "查看" [ref=e320]:
+                  - button "查看" [ref=e321] [cursor=pointer]:
+                    - generic [ref=e322]: 查看
+              - 'row "工单有新回复 管理员回复了您的工单: 1 2026/5/22 04:08:03 查看" [ref=e323]':
+                - cell [ref=e324]:
+                  - generic [ref=e325]: 󰗡
+                - cell "工单有新回复" [ref=e326]:
+                  - generic [ref=e328]: 工单有新回复
+                - 'cell "管理员回复了您的工单: 1" [ref=e329]'
+                - cell "2026/5/22 04:08:03" [ref=e330]
+                - cell "查看" [ref=e331]:
+                  - button "查看" [ref=e332] [cursor=pointer]:
+                    - generic [ref=e333]: 查看
+              - 'row "工单状态更新 您的工单 \"1\" 状态已更新为: 待处理 2026/5/22 04:07:24 查看" [ref=e334]':
+                - cell [ref=e335]:
+                  - generic [ref=e336]: 󰗡
+                - cell "工单状态更新" [ref=e337]:
+                  - generic [ref=e339]: 工单状态更新
+                - 'cell "您的工单 \"1\" 状态已更新为: 待处理" [ref=e340]'
+                - cell "2026/5/22 04:07:24" [ref=e341]
+                - cell "查看" [ref=e342]:
+                  - button "查看" [ref=e343] [cursor=pointer]:
+                    - generic [ref=e344]: 查看
+              - 'row "工单状态更新 您的工单 \"1\" 状态已更新为: 已驳回 2026/5/22 04:07:23 查看" [ref=e345]':
+                - cell [ref=e346]:
+                  - generic [ref=e347]: 󰗡
+                - cell "工单状态更新" [ref=e348]:
+                  - generic [ref=e350]: 工单状态更新
+                - 'cell "您的工单 \"1\" 状态已更新为: 已驳回" [ref=e351]'
+                - cell "2026/5/22 04:07:23" [ref=e352]
+                - cell "查看" [ref=e353]:
+                  - button "查看" [ref=e354] [cursor=pointer]:
+                    - generic [ref=e355]: 查看
+              - 'row "工单有新回复 管理员回复了您的工单: 1 2026/5/22 04:05:47 查看" [ref=e356]':
+                - cell [ref=e357]:
+                  - generic [ref=e358]: 󰗡
+                - cell "工单有新回复" [ref=e359]:
+                  - generic [ref=e361]: 工单有新回复
+                - 'cell "管理员回复了您的工单: 1" [ref=e362]'
+                - cell "2026/5/22 04:05:47" [ref=e363]
+                - cell "查看" [ref=e364]:
+                  - button "查看" [ref=e365] [cursor=pointer]:
+                    - generic [ref=e366]: 查看
+              - 'row "工单有新回复 管理员回复了您的工单: 1 2026/5/22 04:05:46 查看" [ref=e367]':
+                - cell [ref=e368]:
+                  - generic [ref=e369]: 󰗡
+                - cell "工单有新回复" [ref=e370]:
+                  - generic [ref=e372]: 工单有新回复
+                - 'cell "管理员回复了您的工单: 1" [ref=e373]'
+                - cell "2026/5/22 04:05:46" [ref=e374]
+                - cell "查看" [ref=e375]:
+                  - button "查看" [ref=e376] [cursor=pointer]:
+                    - generic [ref=e377]: 查看
+              - 'row "新工单 用户 root 提交了工单: 1 2026/5/22 04:05:43 查看" [ref=e378]':
+                - cell [ref=e379]:
+                  - generic [ref=e380]: 󰗡
+                - cell "新工单" [ref=e381]:
+                  - generic [ref=e383]: 新工单
+                - 'cell "用户 root 提交了工单: 1" [ref=e384]'
+                - cell "2026/5/22 04:05:43" [ref=e385]
+                - cell "查看" [ref=e386]:
+                  - button "查看" [ref=e387] [cursor=pointer]:
+                    - generic [ref=e388]: 查看
+          - separator [ref=e389]
+          - generic [ref=e390]:
+            - generic [ref=e391]:
+              - generic [ref=e392]: 每页行数
+              - combobox [ref=e395] [cursor=pointer]:
+                - generic [ref=e397]:
+                  - generic [ref=e399]: "20"
+                  - combobox "每页行数": "20"
+                - generic [ref=e401]: 󰍝
+            - generic [ref=e403]: 1-20 共 95
+            - navigation "Pagination Navigation" [ref=e405]:
+              - list [ref=e406]:
+                - listitem [ref=e407]:
+                  - button "First page" [disabled]:
+                    - generic:
+                      - generic: 󰘀
+                - listitem [ref=e408]:
+                  - button "Previous page" [disabled]:
+                    - generic:
+                      - generic: 󰅁
+                - listitem [ref=e409]:
+                  - button "Next page" [ref=e410] [cursor=pointer]:
+                    - generic [ref=e412]: 󰅂
+                - listitem [ref=e413]:
+                  - button "Last page" [ref=e414] [cursor=pointer]:
+                    - generic [ref=e416]: 󰘁
