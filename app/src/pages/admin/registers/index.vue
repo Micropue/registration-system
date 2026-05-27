@@ -154,6 +154,9 @@
             </v-card-text>
             <v-card-actions class="pa-4 pt-0">
               <v-btn variant="text" size="small" prepend-icon="mdi-content-copy" @click="copyDetailText">复制为文本</v-btn>
+              <v-spacer></v-spacer>
+              <v-btn v-if="detailsDialog.item?.status !== 'approved'" variant="elevated" rounded size="small" color="success" prepend-icon="mdi-check" class="px-4 font-weight-bold" @click="doDetailsApprove">已处理</v-btn>
+              <v-btn v-if="detailsDialog.item?.status !== 'rejected'" variant="elevated" rounded size="small" color="error" prepend-icon="mdi-close" class="px-4 font-weight-bold" @click="doDetailsReject">驳回</v-btn>
             </v-card-actions>
           </div>
 
@@ -412,6 +415,18 @@ function handleDetailsClose() {
   if (route.query.chat) {
     router.replace({ query: { ...route.query, chat: undefined } })
   }
+}
+
+function doDetailsApprove() {
+  if (!detailsDialog.item) return
+  updateStatus(detailsDialog.item, 'approved')
+  detailsDialog.show = false
+}
+
+function doDetailsReject() {
+  if (!detailsDialog.item) return
+  openReject(detailsDialog.item)
+  detailsDialog.show = false
 }
 
 function openChatFromQuery() {
