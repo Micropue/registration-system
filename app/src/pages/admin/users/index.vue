@@ -42,6 +42,7 @@
             <v-btn variant="tonal" rounded color="primary" @click="handleAction('修改', item)">修改</v-btn>
             <v-btn variant="tonal" rounded color="error" :disabled="isCurrentUser(item)" @click="handleAction('删除', item)">删除</v-btn>
             <v-btn variant="tonal" rounded @click="handleAction('查找工单', item)" v-if="item.type !== 'admin'">查找工单</v-btn>
+            <v-btn variant="tonal" rounded color="teal" @click="openBalanceDialog(item)">余额管理</v-btn>
             <v-btn variant="tonal" rounded color="warning" @click="handleAction('强制下线', item)">强制下线</v-btn>
             <v-menu location="bottom end">
               <template v-slot:activator="{ props: menuProps }">
@@ -226,6 +227,73 @@
       </v-card>
     </v-dialog>
 
+    <!-- 余额管理 Dialog -->
+    <v-dialog v-model="balanceDialog.show" max-width="600">
+      <v-card class="pa-4">
+        <v-card-title class="text-h5">余额管理 - {{ balanceDialog.username }}</v-card-title>
+        <v-card-text>
+          <div v-if="balanceDialog.loading" class="text-center py-6">
+            <v-progress-circular indeterminate color="primary" size="40" width="4"></v-progress-circular>
+          </div>
+          <v-table v-else density="compact" border>
+            <thead>
+              <tr><th class="text-left">APP</th><th class="text-left">当前余额</th><th class="text-left">操作</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="b in balanceDialog.balances" :key="b.app_uid">
+                <td>
+                  <div class="d-flex align-center ga-1">
+                    <v-avatar v-if="b.icon" size="22" rounded>
+                      <v-img :src="b.icon" cover></v-img>
+                    </v-avatar>
+                    <span class="font-weight-bold">{{ b.app_name }}</span>
+                  </div>
+                </td>
+                <td>
+                  <span class="font-weight-bold">{{ b.balance }}{{ b.balance_mode === 'mileage' ? ' 公里' : b.balance_mode === 'count' ? ' 次' : '' }}</span>
+                </td>
+                <td>
+                  <div class="d-flex ga-1">
+                    <v-btn variant="tonal" rounded size="x-small" color="success" @click="openBalanceAdjust(b, true)">增加</v-btn>
+                    <v-btn variant="tonal" rounded size="x-small" color="error" @click="openBalanceAdjust(b, false)">减少</v-btn>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="balanceDialog.balances.length === 0">
+                <td colspan="3" class="text-center text-grey">暂无余额数据</td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="balanceDialog.show = false">关闭</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 余额调整 Dialog -->
+    <v-dialog v-model="balanceAdjustDialog.show" max-width="400">
+      <v-card class="pa-4">
+        <v-card-title>{{ balanceAdjustDialog.isIncrease ? '增加余额' : '减少余额' }} - {{ balanceAdjustDialog.appName }}</v-card-title>
+        <v-card-text>
+          <div class="text-subtitle-2 mb-2">
+            用户: {{ balanceDialog.username }} | 当前余额: {{ balanceAdjustDialog.currentBalance }}{{ balanceAdjustDialog.unit }}
+          </div>
+          <v-text-field v-model.number="balanceAdjustDialog.amount" label="调整数额" type="number" variant="outlined" density="comfortable"
+            :rules="[v => v > 0 || '请输入正数']" hide-details class="mb-3" :min="0.01" step="0.01"></v-text-field>
+          <v-text-field v-model="balanceAdjustDialog.note" label="备注" variant="outlined" density="comfortable" hide-details></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="balanceAdjustDialog.show = false">取消</v-btn>
+          <v-btn :color="balanceAdjustDialog.isIncrease ? 'success' : 'error'" variant="flat" :loading="balanceAdjusting" @click="doBalanceAdjust">
+            {{ balanceAdjustDialog.isIncrease ? '确认增加' : '确认减少' }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
@@ -307,6 +375,27 @@ const bulkDialog = reactive({
 const editDialog = reactive({ show: false, uid: '', username: '', password: '' })
 const confirmDialog = reactive({ show: false, uid: '', username: '' })
 const logoutDialog = reactive({ show: false, uid: '', username: '' })
+const balanceDialog = reactive({
+  show: false,
+  loading: false,
+  userUid: '',
+  username: '',
+  balances: [] as { app_uid: string; app_name: string; balance: number; balance_mode: string; icon: string }[]
+})
+const balanceAdjustDialog = reactive({
+  show: false,
+  isIncrease: true,
+  appUid: '',
+  appName: '',
+  currentBalance: 0,
+  amount: 0,
+  note: '',
+  balanceMode: '',
+  get unit() {
+    return this.balanceMode === 'mileage' ? ' 公里' : this.balanceMode === 'count' ? ' 次' : ''
+  }
+})
+const balanceAdjusting = ref(false)
 const formRef = ref<any>(null)
 const editFormRef = ref<any>(null)
 const newUsername = ref('')
@@ -624,6 +713,65 @@ async function assignGroup(userUid: string, groupUid: string) {
       else showMsg(res.msg, 'error')
     }
   } catch (e) { showMsg('操作失败', 'error') }
+}
+
+async function openBalanceDialog(user: UserItem) {
+  balanceDialog.userUid = user.uid
+  balanceDialog.username = user.username
+  balanceDialog.show = true
+  balanceDialog.loading = true
+  try {
+    const res = await ajax<any[]>(`${ApiUrl.ADMIN_GET_USER_BALANCES}/${user.uid}/balances`, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      balanceDialog.balances = res.data || []
+    } else {
+      showMsg(res.msg || '获取余额失败', 'error')
+    }
+  } catch (e) {
+    showMsg('获取余额失败', 'error')
+  } finally {
+    balanceDialog.loading = false
+  }
+}
+
+function openBalanceAdjust(balance: any, isIncrease: boolean) {
+  balanceAdjustDialog.isIncrease = isIncrease
+  balanceAdjustDialog.appUid = balance.app_uid
+  balanceAdjustDialog.appName = balance.app_name
+  balanceAdjustDialog.currentBalance = balance.balance
+  balanceAdjustDialog.balanceMode = balance.balance_mode || ''
+  balanceAdjustDialog.amount = 0
+  balanceAdjustDialog.note = ''
+  balanceAdjustDialog.show = true
+}
+
+async function doBalanceAdjust() {
+  if (!balanceAdjustDialog.amount || balanceAdjustDialog.amount <= 0) return
+  balanceAdjusting.value = true
+  try {
+    const realAmount = balanceAdjustDialog.isIncrease ? balanceAdjustDialog.amount : -balanceAdjustDialog.amount
+    const res = await ajax(`${ApiUrl.ADJUST_APP_USER_BALANCE}/${balanceAdjustDialog.appUid}/users/${balanceDialog.userUid}/balance`, {
+      method: 'PATCH',
+      body: { amount: realAmount, note: balanceAdjustDialog.note || (balanceAdjustDialog.isIncrease ? '管理员手动增加余额' : '管理员手动减少余额') },
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      showMsg('余额调整成功')
+      balanceAdjustDialog.show = false
+      const balRes = await ajax<any[]>(`${ApiUrl.ADMIN_GET_USER_BALANCES}/${balanceDialog.userUid}/balances`, {
+        headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+      })
+      if (balRes.code === 200) balanceDialog.balances = balRes.data || []
+    } else {
+      showMsg(res.msg || '调整失败', 'error')
+    }
+  } catch (e) {
+    showMsg('操作失败', 'error')
+  } finally {
+    balanceAdjusting.value = false
+  }
 }
 
 loadGroups()

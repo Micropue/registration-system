@@ -863,6 +863,15 @@ async def get_user_balance_transactions(authorization: Optional[str] = Header(No
     data = account_service.get_user_balance_transactions(session.user_uid, app_uid=app_uid, page=page, page_size=page_size)
     return api_response(200, "Success", data)
 
+# --- 管理员查询指定用户余额 ---
+
+@app.get("/admin/users/{user_uid}/balances")
+async def admin_get_user_balances(user_uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "APP配置", "余额管理")
+    if err: return err
+    data = account_service.get_user_balances(user_uid)
+    return api_response(200, "Success", data)
+
 # --- APP 用户余额管理（管理员） ---
 
 @app.get("/admin/running-apps/{app_uid}/users-balance")

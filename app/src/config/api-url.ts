@@ -100,6 +100,8 @@ export enum ApiUrl {
   /** 用户余额 */
   GET_USER_BALANCES = '/api/user/balances',
   GET_USER_BALANCE_TRANSACTIONS = '/api/user/balance-transactions',
+  /** 管理员查询指定用户余额 */
+  ADMIN_GET_USER_BALANCES = '/api/admin/users',
   /** APP用户余额管理 */
   GET_APP_USER_BALANCES = '/api/admin/running-apps',
   ADJUST_APP_USER_BALANCE = '/api/admin/running-apps',
