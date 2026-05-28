@@ -143,7 +143,7 @@
                     <td class="font-weight-bold">{{ row.key }}</td>
                     <td>
                       {{ row.value }}
-                      <v-btn v-if="isAccountField(row.key)" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyFieldValue(row.key, row.value)"></v-btn>
+                      <v-btn v-if="templateFieldCopyable[row.key]" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyFieldValue(row.key, row.value)"></v-btn>
                     </td>
                   </tr>
                 </tbody>
@@ -311,6 +311,7 @@ const rejectDialog = reactive({ show: false, item: null as RegistrationItem | nu
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 const templateFieldOrder = ref<string[]>([])
+const templateFieldCopyable = ref<Record<string, boolean>>({})
 
 const detailFields = computed(() => {
   const info = detailsDialog.item?.registration_info
@@ -367,7 +368,7 @@ async function loadStats() {
 
 async function loadTemplateFieldOrder(appName: string, templateUid: string) {
   const app = runningApps.value.find(a => a.name === appName)
-  if (!app || !templateUid) { templateFieldOrder.value = []; return }
+  if (!app || !templateUid) { templateFieldOrder.value = []; templateFieldCopyable.value = {}; return }
   try {
     const res = await ajax<any[]>(`/api/admin/settings/running-apps/${app.uid}/templates`, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
@@ -376,11 +377,15 @@ async function loadTemplateFieldOrder(appName: string, templateUid: string) {
       const tpl = (res.data || []).find((t: any) => t.uid === templateUid)
       if (tpl?.fields) {
         templateFieldOrder.value = tpl.fields.map((f: any) => f.label)
+        const copyableMap: Record<string, boolean> = {}
+        tpl.fields.forEach((f: any) => { if (f.copyable) copyableMap[f.label] = true })
+        templateFieldCopyable.value = copyableMap
         return
       }
     }
   } catch (err) { /* ignore */ }
   templateFieldOrder.value = []
+  templateFieldCopyable.value = {}
 }
 
 onMounted(async () => {
@@ -536,11 +541,6 @@ async function copyDetailText() {
   } catch {
     showMsg('复制失败', 'error')
   }
-}
-
-function isAccountField(key: string): boolean {
-  const lower = key.toLowerCase()
-  return lower.includes('账号') || lower.includes('密码') || lower.includes('account') || lower.includes('password')
 }
 
 async function copyFieldValue(key: string, value: string) {

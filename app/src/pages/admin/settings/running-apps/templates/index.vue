@@ -185,6 +185,9 @@
               <v-sheet class="pa-3 bg-surface rounded-lg d-flex align-center">
                 <span class="text-subtitle-2 mr-4">必填项</span>
                 <v-switch v-model="editFieldData.required" color="error" hide-details density="compact"></v-switch>
+                <v-divider vertical class="mx-4" length="24"></v-divider>
+                <span class="text-subtitle-2 mr-4">自定义复制按钮</span>
+                <v-switch v-model="editFieldData.copyable" color="primary" hide-details density="compact"></v-switch>
               </v-sheet>
             </v-col>
 
@@ -380,6 +383,7 @@ interface Field {
   label: string
   type: string
   required: boolean
+  copyable: boolean
   default: string | string[]
   options: FieldOption[]
 }
@@ -419,6 +423,7 @@ const editFieldData = reactive<Field>({
   label: '',
   type: 'text',
   required: false,
+  copyable: false,
   default: '',
   options: []
 })
@@ -624,6 +629,7 @@ function addField() {
     label: '',
     type: 'text',
     required: false,
+    copyable: false,
     default: '',
     options: []
   })
