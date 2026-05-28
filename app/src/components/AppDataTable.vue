@@ -142,7 +142,9 @@ const filteredItems = computed(() => {
       searchableKeys.some(key => {
         const val = item[key]
         return val !== null && val !== undefined && String(val).toLowerCase().includes(q)
-      })
+      }) || (
+        item._searchable && String(item._searchable).toLowerCase().includes(q)
+      )
     )
   }
 

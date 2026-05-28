@@ -50,7 +50,7 @@
 
       <!-- 使用封装后的通用表格组件 -->
       <app-data-table :headers="headers" :items="registers" :total-items="totalRegisters" :loading="loading"
-        v-model:page="currentPage" v-model:items-per-page="itemsPerPage" show-search show-filter search-label="搜索用户名"
+        v-model:page="currentPage" v-model:items-per-page="itemsPerPage" show-search show-filter search-label="搜索"
         @update:options="loadRegisters" @reset="loadRegisters"
         :row-props="({ item }: any) => item.status !== 'pending' ? { class: 'row-processed' } : {}">
 
@@ -663,7 +663,13 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
       registers.value = res.data.items.map((item: any) => ({
         ...item,
         app: item.registration_info?.['跑步APP'] || '',
-        amount: item.amount ?? null
+        amount: item.amount ?? null,
+        _searchable: item.registration_info
+          ? Object.values(item.registration_info)
+              .filter((v: any) => v != null)
+              .map((v: any) => Array.isArray(v) ? v.join(', ') : String(v))
+              .join(' ')
+          : ''
       }))
       totalRegisters.value = res.data.total
       loadStats()
