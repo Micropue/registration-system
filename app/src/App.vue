@@ -24,11 +24,18 @@
 
       <!-- 导航菜单 -->
       <v-list nav density="compact" class="pa-2">
-        <v-list-item v-for="item in displayFunctions" :key="item.to" :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
+        <v-list-item v-for="item in mainFunctions" :key="item.to" :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
           <template v-slot:prepend>
             <v-badge :model-value="(pendingCounts[item.title] || 0) > 0" :content="pendingCounts[item.title]" color="error" offset-x="4" offset-y="4" size="small" inline>
               <v-icon>{{ item.icon }}</v-icon>
             </v-badge>
+          </template>
+          <v-list-item-title>{{ item.title }}</v-list-item-title>
+        </v-list-item>
+        <v-divider v-if="bottomFunctions.length > 0" class="mt-2 mb-1"></v-divider>
+        <v-list-item v-for="item in bottomFunctions" :key="item.to" :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
+          <template v-slot:prepend>
+            <v-icon>{{ item.icon }}</v-icon>
           </template>
           <v-list-item-title>{{ item.title }}</v-list-item-title>
         </v-list-item>
@@ -141,7 +148,7 @@ const isAuthChecking = ref(true)
 
 const isPageLoading = computed(() => appStore.isPageLoading)
 
-const ADMIN_PERM_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批']
+const ADMIN_PERM_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批', '下属管理']
 
 function hasAnyAdminPerm(permissions: Record<string, any> | undefined): boolean {
   if (!permissions) return false
@@ -166,6 +173,8 @@ const PERM_MAP: Record<string, string> = {
   '/admin/registers': '订单处理',
   '/admin/feedbacks': '工单处理',
   '/admin/running-apps': 'APP配置',
+  '/admin/update-logs': 'APP配置',
+  '/admin/subordinates': '下属管理',
   '/sign': '新建登记',
   '/feedback': '新建工单',
   '/recharge': '充值申请',
@@ -182,9 +191,13 @@ const displayFunctions = computed(() => {
     const required = PERM_MAP[item.to]
     if (required) return hasPerm(perms, required)
     if (item.to === '/admin' && item.exact) return hasAnyAdminPerm(perms)
+    if (item.role === 'default' || !item.role) return true
     return false
   })
 })
+
+const mainFunctions = computed(() => displayFunctions.value.filter(f => !f.group))
+const bottomFunctions = computed(() => displayFunctions.value.filter(f => f.group === 'bottom'))
 
 async function fetchUser() {
   isAuthChecking.value = true

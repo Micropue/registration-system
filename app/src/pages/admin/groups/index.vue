@@ -115,6 +115,7 @@ function defaultPermissions(): Record<string, any> {
     "工单处理": { "查看": false, "回复": false, "解决": false, "删除": false },
     "APP配置": { "查看": false, "修改": false, "余额管理": false },
     "充值审批": { "查看": false, "处理": false },
+    "下属管理": { "查看": false, "配置": false },
     "新建登记": false,
     "新建工单": false,
     "充值申请": false,

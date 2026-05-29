@@ -1,0 +1,286 @@
+- generic [ref=e1]:
+  - generic [ref=e4]:
+    - navigation [ref=e5]:
+      - generic [ref=e6]:
+        - generic [ref=e7]:
+          - generic [ref=e12]: R
+          - generic [ref=e13]:
+            - generic [ref=e14]: root
+            - generic [ref=e15]: 超级管理员
+        - list [ref=e16]:
+          - link "Badge 订单处理" [ref=e143] [cursor=pointer]:
+            - /url: /admin/registers
+            - generic [ref=e20]:
+              - generic [ref=e21]: 󰷉
+              - status "Badge" [ref=e144]: "3"
+            - generic [ref=e23]: 订单处理
+          - link "工单处理" [ref=e24] [cursor=pointer]:
+            - /url: /admin/feedbacks
+            - generic [ref=e28]: 󰉕
+            - generic [ref=e30]: 工单处理
+          - link "充值审批" [ref=e31] [cursor=pointer]:
+            - /url: /admin/recharges
+            - generic [ref=e35]: 󱓮
+            - generic [ref=e37]: 充值审批
+          - link "数据登记" [ref=e38] [cursor=pointer]:
+            - /url: /sign
+            - generic [ref=e42]: 󰐙
+            - generic [ref=e44]: 数据登记
+          - link "工单反馈" [ref=e45] [cursor=pointer]:
+            - /url: /feedback
+            - generic [ref=e49]: 󰍪
+            - generic [ref=e51]: 工单反馈
+          - link "充值申请" [ref=e52] [cursor=pointer]:
+            - /url: /recharge
+            - generic [ref=e56]: 󱉡
+            - generic [ref=e58]: 充值申请
+          - link "仪表盘" [ref=e59] [cursor=pointer]:
+            - /url: /admin
+            - generic [ref=e63]: 󰨝
+            - generic [ref=e65]: 仪表盘
+          - link "账户管理" [ref=e66] [cursor=pointer]:
+            - /url: /admin/users
+            - generic [ref=e70]: 󰭘
+            - generic [ref=e72]: 账户管理
+          - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+            - /url: /admin/running-apps
+            - generic [ref=e77]: 󰜎
+            - generic [ref=e79]: 跑步APP配置
+          - link "下属管理" [ref=e80] [cursor=pointer]:
+            - /url: /admin/subordinates
+            - generic [ref=e86]: 下属管理
+          - link "账户组管理" [ref=e87] [cursor=pointer]:
+            - /url: /admin/groups
+            - generic [ref=e91]: 󰨒
+            - generic [ref=e93]: 账户组管理
+          - link "余额查看" [ref=e94] [cursor=pointer]:
+            - /url: /balance
+            - generic [ref=e98]: 󰯝
+            - generic [ref=e100]: 余额查看
+          - link "余额流水" [ref=e101] [cursor=pointer]:
+            - /url: /balance-transactions
+            - generic [ref=e105]: 󰋚
+            - generic [ref=e107]: 余额流水
+          - separator [ref=e108]
+          - link "更新日志" [ref=e109] [cursor=pointer]:
+            - /url: /admin/update-logs
+            - generic [ref=e111]: 󰚰
+            - generic [ref=e113]: 更新日志
+          - link "关于" [ref=e114] [cursor=pointer]:
+            - /url: /about
+            - generic [ref=e116]: 󰋽
+            - generic [ref=e118]: 关于
+    - banner [ref=e119]:
+      - generic [ref=e121]:
+        - button [ref=e122] [cursor=pointer]:
+          - generic [ref=e124]: 󰍜
+        - generic [ref=e125] [cursor=pointer]:
+          - img [ref=e128]
+          - generic [ref=e129]: 哆啦A梦（校园跑版）
+        - generic [ref=e130]:
+          - generic [ref=e136]:
+            - button [ref=e137] [cursor=pointer]:
+              - generic [ref=e139]: 󰂜
+            - status "Badge" [ref=e145]: "1"
+          - button "退出登录" [ref=e140] [cursor=pointer]:
+            - generic [ref=e141]: 退出登录
+    - main [ref=e142]:
+      - generic [ref=e147]:
+        - generic [ref=e148]:
+          - heading "账户管理" [level=1] [ref=e150]
+          - generic [ref=e151]:
+            - button "批量新增" [ref=e152] [cursor=pointer]:
+              - generic [ref=e154]: 󰩍
+              - generic [ref=e155]: 批量新增
+            - button "新建账户" [ref=e156] [cursor=pointer]:
+              - generic [ref=e158]: 󰐕
+              - generic [ref=e159]: 新建账户
+        - generic [ref=e160]:
+          - generic [ref=e162]:
+            - generic [ref=e166]:
+              - generic [ref=e168]: 󰍉
+              - generic [ref=e169]:
+                - generic: 搜索用户名/IP/设备
+                - textbox "搜索用户名/IP/设备" [ref=e170]
+              - text: 󰅙
+            - combobox [ref=e174] [cursor=pointer]:
+              - generic [ref=e176]:
+                - combobox "筛选字段"
+              - generic [ref=e178]: 󰍝
+              - generic:
+                - generic:
+                  - generic: 筛选字段
+            - generic [ref=e179]:
+              - generic:
+                - generic:
+                  - combobox:
+                    - generic:
+                      - generic:
+                        - combobox "筛选值" [disabled]
+                    - generic:
+                      - generic: 󰍝
+                    - generic:
+                      - generic:
+                        - generic: 筛选值
+            - button "重置" [ref=e181] [cursor=pointer]:
+              - generic [ref=e182]: 重置
+          - generic [ref=e184]:
+            - table [ref=e186]:
+              - rowgroup [ref=e187]:
+                - row "用户名 活跃会话 类型 登录IP 登录设备 操作 注册时间 最后登录" [ref=e188]:
+                  - columnheader "用户名" [ref=e189]:
+                    - generic [ref=e190]:
+                      - generic [ref=e191]: 用户名
+                      - generic [ref=e192]: 󰁝
+                  - columnheader "活跃会话" [ref=e193]:
+                    - generic [ref=e194]:
+                      - generic [ref=e195]: 活跃会话
+                      - generic [ref=e196]: 󰁝
+                  - columnheader "类型" [ref=e197]:
+                    - generic [ref=e199]: 类型
+                  - columnheader "登录IP" [ref=e200]:
+                    - generic [ref=e202]: 登录IP
+                  - columnheader "登录设备" [ref=e203]:
+                    - generic [ref=e205]: 登录设备
+                  - columnheader "操作" [ref=e206]:
+                    - generic [ref=e208]: 操作
+                  - columnheader "注册时间" [ref=e209]:
+                    - generic [ref=e210]:
+                      - generic [ref=e211]: 注册时间
+                      - generic [ref=e212]: 󰁝
+                  - columnheader "最后登录" [ref=e213]:
+                    - generic [ref=e214]:
+                      - generic [ref=e215]: 最后登录
+                      - generic [ref=e216]: 󰁝
+              - rowgroup [ref=e217]:
+                - row "root 5 超级管理员 192.168.65.1 Mac / Chrome 修改 删除 查找工单 余额管理 强制下线 下属管理 超级管理员 2026-05-08 05:45:43 2026-05-29 16:59:12" [ref=e218]:
+                  - cell "root" [ref=e219]
+                  - cell "5" [ref=e220]
+                  - cell "超级管理员" [ref=e221]:
+                    - generic [ref=e223]: 超级管理员
+                  - cell "192.168.65.1" [ref=e224]
+                  - cell "Mac / Chrome" [ref=e225]
+                  - cell "修改 删除 查找工单 余额管理 强制下线 下属管理 超级管理员" [ref=e226]:
+                    - generic [ref=e227]:
+                      - button "修改" [ref=e228] [cursor=pointer]:
+                        - generic [ref=e229]: 修改
+                      - button "删除" [disabled]:
+                        - generic: 删除
+                      - button "查找工单" [ref=e230] [cursor=pointer]:
+                        - generic [ref=e231]: 查找工单
+                      - button "余额管理" [ref=e232] [cursor=pointer]:
+                        - generic [ref=e233]: 余额管理
+                      - button "强制下线" [ref=e234] [cursor=pointer]:
+                        - generic [ref=e235]: 强制下线
+                      - button "下属管理" [ref=e236] [cursor=pointer]:
+                        - generic [ref=e237]: 下属管理
+                      - button "超级管理员" [ref=e238] [cursor=pointer]:
+                        - generic [ref=e239]: 超级管理员
+                  - cell "2026-05-08 05:45:43" [ref=e240]
+                  - cell "2026-05-29 16:59:12" [ref=e241]
+                - row "尧舜禹 5 员工 192.168.65.1 Mac / Safari 修改 删除 查找工单 余额管理 强制下线 下属管理 员工 2026-05-18 13:08:02 2026-05-29 17:24:51" [ref=e242]:
+                  - cell "尧舜禹" [ref=e243]
+                  - cell "5" [ref=e244]
+                  - cell "员工" [ref=e245]:
+                    - generic [ref=e247]: 员工
+                  - cell "192.168.65.1" [ref=e248]
+                  - cell "Mac / Safari" [ref=e249]
+                  - cell "修改 删除 查找工单 余额管理 强制下线 下属管理 员工" [ref=e250]:
+                    - generic [ref=e251]:
+                      - button "修改" [ref=e252] [cursor=pointer]:
+                        - generic [ref=e253]: 修改
+                      - button "删除" [ref=e254] [cursor=pointer]:
+                        - generic [ref=e255]: 删除
+                      - button "查找工单" [ref=e256] [cursor=pointer]:
+                        - generic [ref=e257]: 查找工单
+                      - button "余额管理" [ref=e258] [cursor=pointer]:
+                        - generic [ref=e259]: 余额管理
+                      - button "强制下线" [ref=e260] [cursor=pointer]:
+                        - generic [ref=e261]: 强制下线
+                      - button "下属管理" [ref=e262] [cursor=pointer]:
+                        - generic [ref=e263]: 下属管理
+                      - button "员工" [ref=e264] [cursor=pointer]:
+                        - generic [ref=e265]: 员工
+                  - cell "2026-05-18 13:08:02" [ref=e266]
+                  - cell "2026-05-29 17:24:51" [ref=e267]
+                - row "admin 5 超级管理员 192.168.65.1 curl/8.7.1 修改 删除 查找工单 余额管理 强制下线 下属管理 超级管理员 2026-05-18 13:34:41 2026-05-29 16:36:30" [ref=e268]:
+                  - cell "admin" [ref=e269]
+                  - cell "5" [ref=e270]
+                  - cell "超级管理员" [ref=e271]:
+                    - generic [ref=e273]: 超级管理员
+                  - cell "192.168.65.1" [ref=e274]
+                  - cell "curl/8.7.1" [ref=e275]
+                  - cell "修改 删除 查找工单 余额管理 强制下线 下属管理 超级管理员" [ref=e276]:
+                    - generic [ref=e277]:
+                      - button "修改" [ref=e278] [cursor=pointer]:
+                        - generic [ref=e279]: 修改
+                      - button "删除" [ref=e280] [cursor=pointer]:
+                        - generic [ref=e281]: 删除
+                      - button "查找工单" [ref=e282] [cursor=pointer]:
+                        - generic [ref=e283]: 查找工单
+                      - button "余额管理" [ref=e284] [cursor=pointer]:
+                        - generic [ref=e285]: 余额管理
+                      - button "强制下线" [ref=e286] [cursor=pointer]:
+                        - generic [ref=e287]: 强制下线
+                      - button "下属管理" [ref=e288] [cursor=pointer]:
+                        - generic [ref=e289]: 下属管理
+                      - button "超级管理员" [ref=e290] [cursor=pointer]:
+                        - generic [ref=e291]: 超级管理员
+                  - cell "2026-05-18 13:34:41" [ref=e292]
+                  - cell "2026-05-29 16:36:30" [ref=e293]
+            - separator [ref=e294]
+            - generic [ref=e295]:
+              - generic [ref=e296]:
+                - generic [ref=e297]: 每页行数
+                - combobox [ref=e300] [cursor=pointer]:
+                  - generic [ref=e302]:
+                    - generic [ref=e304]: "20"
+                    - combobox "每页行数": "20"
+                  - generic [ref=e306]: 󰍝
+              - generic [ref=e308]: 1-3 共 3
+              - navigation "Pagination Navigation" [ref=e310]:
+                - list [ref=e311]:
+                  - listitem [ref=e312]:
+                    - button "First page" [disabled]:
+                      - generic:
+                        - generic: 󰘀
+                  - listitem [ref=e313]:
+                    - button "Previous page" [disabled]:
+                      - generic:
+                        - generic: 󰅁
+                  - listitem [ref=e314]:
+                    - button "Next page" [disabled]:
+                      - generic:
+                        - generic: 󰅂
+                  - listitem [ref=e315]:
+                    - button "Last page" [disabled]:
+                      - generic:
+                        - generic: 󰘁
+  - generic:
+    - dialog:
+      - generic [ref=e318]:
+        - generic [ref=e319]: 余额管理 - 尧舜禹
+        - table [ref=e323]:
+          - rowgroup [ref=e324]:
+            - row "APP 当前余额 操作" [ref=e325]:
+              - columnheader "APP" [ref=e326]
+              - columnheader "当前余额" [ref=e327]
+              - columnheader "操作" [ref=e328]
+          - rowgroup [ref=e329]:
+            - row "步道乐跑 已委托 0 公里 余额由 root 管理 增加 减少" [ref=e330]:
+              - cell "步道乐跑 已委托" [ref=e331]:
+                - generic [ref=e332]:
+                  - img [ref=e335]
+                  - generic [ref=e336]: 步道乐跑
+                  - generic [ref=e338]: 已委托
+              - cell "0 公里 余额由 root 管理" [ref=e339]:
+                - text: 0 公里
+                - generic [ref=e340]: 余额由 root 管理
+              - cell "增加 减少" [ref=e341]:
+                - generic [ref=e342]:
+                  - button "增加" [ref=e343] [cursor=pointer]:
+                    - generic [ref=e344]: 增加
+                  - button "减少" [ref=e345] [cursor=pointer]:
+                    - generic [ref=e346]: 减少
+        - button "关闭" [ref=e348] [cursor=pointer]:
+          - generic [ref=e349]: 关闭

@@ -1,0 +1,148 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e12]: R
+        - generic [ref=e13]:
+          - generic [ref=e14]: root
+          - generic [ref=e15]: 超级管理员
+      - list [ref=e16]:
+        - link "Badge 订单处理" [ref=e17] [cursor=pointer]:
+          - /url: /admin/registers
+          - generic [ref=e20]:
+            - generic [ref=e21]: 󰷉
+            - status "Badge" [ref=e22]: "2"
+          - generic [ref=e24]: 订单处理
+        - link "工单处理" [ref=e25] [cursor=pointer]:
+          - /url: /admin/feedbacks
+          - generic [ref=e29]: 󰉕
+          - generic [ref=e31]: 工单处理
+        - link "充值审批" [ref=e32] [cursor=pointer]:
+          - /url: /admin/recharges
+          - generic [ref=e36]: 󱓮
+          - generic [ref=e38]: 充值审批
+        - link "数据登记" [ref=e39] [cursor=pointer]:
+          - /url: /sign
+          - generic [ref=e43]: 󰐙
+          - generic [ref=e45]: 数据登记
+        - link "工单反馈" [ref=e46] [cursor=pointer]:
+          - /url: /feedback
+          - generic [ref=e50]: 󰍪
+          - generic [ref=e52]: 工单反馈
+        - link "充值申请" [ref=e53] [cursor=pointer]:
+          - /url: /recharge
+          - generic [ref=e57]: 󱉡
+          - generic [ref=e59]: 充值申请
+        - link "仪表盘" [ref=e60] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e64]: 󰨝
+          - generic [ref=e66]: 仪表盘
+        - link "账户管理" [ref=e67] [cursor=pointer]:
+          - /url: /admin/users
+          - generic [ref=e71]: 󰭘
+          - generic [ref=e73]: 账户管理
+        - link "跑步APP配置" [ref=e74] [cursor=pointer]:
+          - /url: /admin/running-apps
+          - generic [ref=e78]: 󰜎
+          - generic [ref=e80]: 跑步APP配置
+        - link "账户组管理" [ref=e81] [cursor=pointer]:
+          - /url: /admin/groups
+          - generic [ref=e85]: 󰨒
+          - generic [ref=e87]: 账户组管理
+        - link "余额查看" [ref=e88] [cursor=pointer]:
+          - /url: /balance
+          - generic [ref=e92]: 󰯝
+          - generic [ref=e94]: 余额查看
+        - link "余额流水" [ref=e95] [cursor=pointer]:
+          - /url: /balance-transactions
+          - generic [ref=e99]: 󰋚
+          - generic [ref=e101]: 余额流水
+        - separator [ref=e102]
+        - link "更新日志" [ref=e103] [cursor=pointer]:
+          - /url: /admin/update-logs
+          - generic [ref=e105]: 󰚰
+          - generic [ref=e107]: 更新日志
+        - link "关于" [ref=e108] [cursor=pointer]:
+          - /url: /about
+          - generic [ref=e110]: 󰋽
+          - generic [ref=e112]: 关于
+  - banner [ref=e113]:
+    - generic [ref=e115]:
+      - button [ref=e116] [cursor=pointer]:
+        - generic [ref=e118]: 󰍜
+      - generic [ref=e119] [cursor=pointer]:
+        - img [ref=e122]
+        - generic [ref=e123]: 哆啦A梦（校园跑版）
+      - generic [ref=e124]:
+        - button [ref=e127] [cursor=pointer]:
+          - generic [ref=e129]: 󰂜
+        - button "退出登录" [ref=e130] [cursor=pointer]:
+          - generic [ref=e131]: 退出登录
+  - main [ref=e132]:
+    - generic [ref=e137]:
+      - generic [ref=e138]:
+        - heading "MICROPUE" [level=1] [ref=e139]
+        - paragraph [ref=e140]: 全栈开发者 · 构建优雅的数字化体验
+        - paragraph [ref=e141]: 专注于前后端全栈开发，热爱打造高性能、易用的 Web 应用
+      - generic [ref=e142]:
+        - generic [ref=e143]:
+          - generic [ref=e144]:
+            - generic [ref=e145]: 󰨇
+            - heading "前端" [level=3] [ref=e146]
+          - generic [ref=e147]:
+            - generic [ref=e148]:
+              - generic [ref=e149]: 󰡄
+              - text: Vue 3
+            - generic [ref=e150]:
+              - generic [ref=e151]: 󱐋
+              - text: Vite
+            - generic [ref=e152]:
+              - generic [ref=e153]: 󰛦
+              - text: TypeScript
+            - generic [ref=e154]:
+              - generic [ref=e155]: 󰹭
+              - text: Vuetify 4
+            - generic [ref=e156]:
+              - generic [ref=e157]: 󱁆
+              - text: Pinia
+            - generic [ref=e158]:
+              - generic [ref=e159]: 󰑪
+              - text: Vue Router
+            - generic [ref=e160]:
+              - generic [ref=e161]: 󰤺
+              - text: GSAP
+            - generic [ref=e162]:
+              - generic [ref=e163]: 󰧕
+              - text: PWA
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - generic [ref=e166]: 󰒋
+            - heading "后端" [level=3] [ref=e167]
+          - generic [ref=e168]:
+            - generic [ref=e169]:
+              - generic [ref=e170]: 󰌠
+              - text: Python
+            - generic [ref=e171]:
+              - generic [ref=e172]: 󱂛
+              - text: FastAPI
+            - generic [ref=e173]:
+              - generic [ref=e174]: 󰆼
+              - text: MySQL 8.0
+            - generic [ref=e175]:
+              - generic [ref=e176]: 󱘖
+              - text: WebSocket
+        - generic [ref=e177]:
+          - generic [ref=e178]:
+            - generic [ref=e179]: 󰡨
+            - heading "部署运维" [level=3] [ref=e180]
+          - generic [ref=e181]:
+            - generic [ref=e182]:
+              - generic [ref=e183]: 󰡨
+              - text: Docker
+            - generic [ref=e184]:
+              - generic [ref=e185]: 󰽘
+              - text: Docker Compose
+            - generic [ref=e186]:
+              - generic [ref=e187]: 󰒍
+              - text: Nginx
+      - paragraph [ref=e188]: Built with love & GSAP

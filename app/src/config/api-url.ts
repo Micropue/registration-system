@@ -115,4 +115,12 @@ export enum ApiUrl {
   /** 更新日志 */
   GET_UPDATE_LOGS = '/api/admin/update-logs',
   SYNC_UPDATE_LOGS = '/api/admin/update-logs/sync',
+  /** 下属管理 */
+  GET_SUBORDINATES = '/api/admin/users',
+  ADD_SUBORDINATE = '/api/admin/users',
+  REMOVE_SUBORDINATE = '/api/admin/users',
+  GET_SUBORDINATE_TREE = '/api/admin/users',
+  CREATE_BALANCE_LINK = '/api/admin/subordinates',
+  REMOVE_BALANCE_LINK = '/api/admin/subordinates',
+  GET_USER_DELEGATIONS = '/api/admin/users',
 }

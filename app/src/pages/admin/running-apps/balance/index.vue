@@ -18,15 +18,32 @@
         @update:options="loadData"
       >
         <template v-slot:item.username="{ item }">
-          <span class="font-weight-bold">{{ item.username }}</span>
+          <div class="d-flex align-center ga-2">
+            <span class="font-weight-bold">{{ item.username }}</span>
+            <v-chip v-if="item.group_name" size="x-small" variant="flat"
+              :color="item.group_name === '超级管理员' ? '#DC2626' : item.group_name === '未分配' ? '#6B7280' : '#1677ff'">
+              {{ item.group_name }}
+            </v-chip>
+            <v-chip v-if="item.is_delegated" size="x-small" color="warning">已链接</v-chip>
+          </div>
+          <div v-if="item.is_delegated && item.delegated_to_name" class="text-caption text-grey">
+            余额由 {{ item.delegated_to_name }} 管理
+          </div>
         </template>
         <template v-slot:item.updated_at="{ item }">
           {{ formatDate(item.updated_at) }}
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn variant="tonal" rounded size="x-small" color="success" @click="openAdjust(item, true)">增加余额</v-btn>
-            <v-btn variant="tonal" rounded size="x-small" color="error" @click="openAdjust(item, false)">减少余额</v-btn>
+            <v-btn variant="tonal" rounded size="x-small" color="success"
+              @click="openAdjust(item, true)">增加余额</v-btn>
+            <v-btn variant="tonal" rounded size="x-small" color="error"
+              @click="openAdjust(item, false)">减少余额</v-btn>
+            <v-tooltip v-if="item.is_delegated" text="该用户余额已链接到上级，增减将作用于上级余额">
+              <template v-slot:activator="{ props }">
+                <v-icon v-bind="props" size="16" color="warning">mdi-link-variant</v-icon>
+              </template>
+            </v-tooltip>
           </div>
         </template>
       </app-data-table>
@@ -36,10 +53,10 @@
       <v-card class="pa-4">
         <v-card-title>{{ adjustDialog.isIncrease ? '增加余额' : '减少余额' }} - {{ adjustDialog.username }}</v-card-title>
         <v-card-text>
-          <div class="text-subtitle-2 mb-2">
+           <div class="text-subtitle-2 mb-2">
             当前余额: {{ adjustDialog.currentBalance }}
-            <v-chip size="x-small" class="ml-1" :color="balanceMode === 'mileage' ? 'blue' : balanceMode === 'count' ? 'green' : 'grey'">
-              {{ balanceMode === 'mileage' ? '公里' : balanceMode === 'count' ? '次' : '' }}
+            <v-chip v-if="balanceMode" size="x-small" class="ml-1" :color="balanceMode === 'mileage' ? 'blue' : 'green'">
+              {{ balanceMode === 'mileage' ? '公里' : '次' }}
             </v-chip>
           </div>
           <v-text-field v-model.number="adjustDialog.amount" label="调整数额" type="number" variant="outlined" density="comfortable"

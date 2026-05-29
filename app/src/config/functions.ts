@@ -13,6 +13,8 @@ export interface NavFunction {
   role?: 'admin' | 'default';
   /** 精确匹配（默认 false，即前缀匹配） */
   exact?: boolean;
+  /** 分组：undefined=主体菜单, 'bottom'=底部菜单 */
+  group?: 'bottom';
 }
 
 export const functions: NavFunction[] = [
@@ -72,6 +74,12 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
+    title: '下属管理',
+    to: '/admin/subordinates',
+    icon: 'mdi-file-tree-outline',
+    role: 'admin'
+  },
+  {
     title: '账户组管理',
     to: '/admin/groups',
     icon: 'mdi-shield-account-outline',
@@ -93,12 +101,14 @@ export const functions: NavFunction[] = [
     title: '更新日志',
     to: '/admin/update-logs',
     icon: 'mdi-update',
-    role: 'admin'
+    role: 'admin',
+    group: 'bottom'
   },
   {
     title: '关于',
     to: '/about',
     icon: 'mdi-information-outline',
-    role: 'default'
+    role: 'default',
+    group: 'bottom'
   },
 ];

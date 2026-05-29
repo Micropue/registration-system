@@ -1019,6 +1019,69 @@ async def mark_read_by_reference(reference_id: str, authorization: Optional[str]
     count = account_service.mark_notifications_read_by_reference(session.user_uid, reference_id)
     return api_response(200, "Marked read", { "count": count })
 
+# --- 下属管理 ---
+
+@app.get("/admin/users/{uid}/subordinates")
+async def get_subordinates(uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "下属管理", "查看")
+    if err: return err
+    data = account_service.get_subordinates(uid)
+    return api_response(200, "Success", data)
+
+@app.post("/admin/users/{uid}/subordinates")
+async def add_subordinate(uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "下属管理", "配置")
+    if err: return err
+    try:
+        result_uid = account_service.add_subordinate(uid, data.get('subordinate_uid', ''))
+        return api_response(200, "Subordinate added", {'uid': result_uid})
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.delete("/admin/users/{uid}/subordinates/{sub_uid}")
+async def remove_subordinate(uid: str, sub_uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "下属管理", "配置")
+    if err: return err
+    try:
+        account_service.remove_subordinate(uid, sub_uid)
+        return api_response(200, "Subordinate removed")
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.get("/admin/users/{uid}/subordinate-tree")
+async def get_subordinate_tree(uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "下属管理", "查看")
+    if err: return err
+    data = account_service.get_subordinate_tree(uid)
+    return api_response(200, "Success", data)
+
+@app.post("/admin/subordinates/{uid}/balance-link")
+async def create_balance_link(uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "下属管理", "配置")
+    if err: return err
+    try:
+        result_uid = account_service.create_balance_delegation(uid, data.get('parent_uid', ''), data.get('app_uid', ''))
+        return api_response(200, "Balance link created", {'uid': result_uid})
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.delete("/admin/subordinates/{uid}/balance-link/{app_uid}")
+async def remove_balance_link(uid: str, app_uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "下属管理", "配置")
+    if err: return err
+    try:
+        account_service.remove_balance_delegation(uid, app_uid)
+        return api_response(200, "Balance link removed")
+    except AccountError as e:
+        return api_response(400, str(e))
+
+@app.get("/admin/users/{uid}/balance-delegations")
+async def get_user_delegations(uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "下属管理", "查看")
+    if err: return err
+    data = account_service.get_user_balance_delegations(uid)
+    return api_response(200, "Success", data)
+
 # --- 登记聊天 WebSocket ---
 
 class ConnectionManager:

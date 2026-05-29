@@ -1,0 +1,228 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e12]: R
+        - generic [ref=e13]:
+          - generic [ref=e14]: root
+          - generic [ref=e15]: 超级管理员
+      - list [ref=e16]:
+        - link "Badge 订单处理" [ref=e131] [cursor=pointer]:
+          - /url: /admin/registers
+          - generic [ref=e20]:
+            - generic [ref=e21]: 󰷉
+            - status "Badge" [ref=e132]: "2"
+          - generic [ref=e23]: 订单处理
+        - link "工单处理" [ref=e24] [cursor=pointer]:
+          - /url: /admin/feedbacks
+          - generic [ref=e28]: 󰉕
+          - generic [ref=e30]: 工单处理
+        - link "充值审批" [ref=e31] [cursor=pointer]:
+          - /url: /admin/recharges
+          - generic [ref=e35]: 󱓮
+          - generic [ref=e37]: 充值审批
+        - link "数据登记" [ref=e38] [cursor=pointer]:
+          - /url: /sign
+          - generic [ref=e42]: 󰐙
+          - generic [ref=e44]: 数据登记
+        - link "工单反馈" [ref=e45] [cursor=pointer]:
+          - /url: /feedback
+          - generic [ref=e49]: 󰍪
+          - generic [ref=e51]: 工单反馈
+        - link "充值申请" [ref=e52] [cursor=pointer]:
+          - /url: /recharge
+          - generic [ref=e56]: 󱉡
+          - generic [ref=e58]: 充值申请
+        - link "仪表盘" [ref=e59] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e63]: 󰨝
+          - generic [ref=e65]: 仪表盘
+        - link "账户管理" [ref=e66] [cursor=pointer]:
+          - /url: /admin/users
+          - generic [ref=e70]: 󰭘
+          - generic [ref=e72]: 账户管理
+        - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+          - /url: /admin/running-apps
+          - generic [ref=e77]: 󰜎
+          - generic [ref=e79]: 跑步APP配置
+        - link "账户组管理" [ref=e80] [cursor=pointer]:
+          - /url: /admin/groups
+          - generic [ref=e84]: 󰨒
+          - generic [ref=e86]: 账户组管理
+        - link "余额查看" [ref=e87] [cursor=pointer]:
+          - /url: /balance
+          - generic [ref=e91]: 󰯝
+          - generic [ref=e93]: 余额查看
+        - link "余额流水" [ref=e94] [cursor=pointer]:
+          - /url: /balance-transactions
+          - generic [ref=e98]: 󰋚
+          - generic [ref=e100]: 余额流水
+        - separator [ref=e101]
+        - link "关于" [ref=e102] [cursor=pointer]:
+          - /url: /about
+          - generic [ref=e104]: 󰋽
+          - generic [ref=e106]: 关于
+  - banner [ref=e107]:
+    - generic [ref=e109]:
+      - button [ref=e110] [cursor=pointer]:
+        - generic [ref=e112]: 󰍜
+      - generic [ref=e113] [cursor=pointer]:
+        - img [ref=e116]
+        - generic [ref=e117]: 哆啦A梦（校园跑版）
+      - generic [ref=e118]:
+        - button [ref=e125] [cursor=pointer]:
+          - generic [ref=e127]: 󰂜
+        - button "退出登录" [ref=e128] [cursor=pointer]:
+          - generic [ref=e129]: 退出登录
+  - main [ref=e130]:
+    - generic [ref=e134]:
+      - heading "更新日志" [level=1] [ref=e135]
+      - generic [ref=e136]:
+        - generic [ref=e138]:
+          - generic [ref=e142]:
+            - generic [ref=e144]: 󰍉
+            - generic [ref=e145]:
+              - generic: 搜索提交信息...
+              - textbox "搜索提交信息..." [ref=e146]
+            - text: 󰅙
+          - button "重置" [ref=e148] [cursor=pointer]:
+            - generic [ref=e149]: 重置
+        - generic [ref=e151]:
+          - table [ref=e153]:
+            - rowgroup [ref=e154]:
+              - row "提交哈希 提交信息 提交时间" [ref=e155]:
+                - columnheader "提交哈希" [ref=e156]:
+                  - generic [ref=e158]: 提交哈希
+                - columnheader "提交信息" [ref=e159]:
+                  - generic [ref=e160]:
+                    - generic [ref=e161]: 提交信息
+                    - generic [ref=e162]: 󰁝
+                - columnheader "提交时间" [ref=e163]:
+                  - generic [ref=e165]: 提交时间
+            - rowgroup [ref=e166]:
+              - row "eb36d9d 为编程加入了丰富的skill，加入了关于界面和更新日志界面 2026/5/29 11:19:42" [ref=e167]:
+                - cell "eb36d9d" [ref=e168]:
+                  - code [ref=e169]: eb36d9d
+                - cell "为编程加入了丰富的skill，加入了关于界面和更新日志界面" [ref=e170]
+                - cell "2026/5/29 11:19:42" [ref=e171]
+              - 'row "36605ef docs(ui): 更新模板字段复制按钮的逻辑 2026/5/28 10:29:40" [ref=e172]':
+                - cell "36605ef" [ref=e173]:
+                  - code [ref=e174]: 36605ef
+                - 'cell "docs(ui): 更新模板字段复制按钮的逻辑" [ref=e175]'
+                - cell "2026/5/28 10:29:40" [ref=e176]
+              - row "d15488c 用户界面加入余额管理 2026/5/28 09:02:51" [ref=e177]:
+                - cell "d15488c" [ref=e178]:
+                  - code [ref=e179]: d15488c
+                - cell "用户界面加入余额管理" [ref=e180]
+                - cell "2026/5/28 09:02:51" [ref=e181]
+              - row "5b3363e 订单处理搜索支持搜索客户信息 2026/5/28 08:55:43" [ref=e182]:
+                - cell "5b3363e" [ref=e183]:
+                  - code [ref=e184]: 5b3363e
+                - cell "订单处理搜索支持搜索客户信息" [ref=e185]
+                - cell "2026/5/28 08:55:43" [ref=e186]
+              - 'row "3e1552b feat(ui): 添加注册详情的处理和驳回按钮 2026/5/27 15:14:03" [ref=e187]':
+                - cell "3e1552b" [ref=e188]:
+                  - code [ref=e189]: 3e1552b
+                - 'cell "feat(ui): 添加注册详情的处理和驳回按钮" [ref=e190]'
+                - cell "2026/5/27 15:14:03" [ref=e191]
+              - 'row "2402c11 feat: Add drag-and-drop sorting for running apps and enhance notification handling 2026/5/27 15:02:21" [ref=e192]':
+                - cell "2402c11" [ref=e193]:
+                  - code [ref=e194]: 2402c11
+                - 'cell "feat: Add drag-and-drop sorting for running apps and enhance notification handling" [ref=e195]'
+                - cell "2026/5/27 15:02:21" [ref=e196]
+              - 'row "279ea60 feat: Implement user balance management and notifications 2026/5/23 20:17:22" [ref=e197]':
+                - cell "279ea60" [ref=e198]:
+                  - code [ref=e199]: 279ea60
+                - 'cell "feat: Implement user balance management and notifications" [ref=e200]'
+                - cell "2026/5/23 20:17:22" [ref=e201]
+              - 'row "8e7a51c feat(admin): 添加订单处理、工单处理、充值审批的待处理计数功能 2026/5/23 01:02:30" [ref=e202]':
+                - cell "8e7a51c" [ref=e203]:
+                  - code [ref=e204]: 8e7a51c
+                - 'cell "feat(admin): 添加订单处理、工单处理、充值审批的待处理计数功能" [ref=e205]'
+                - cell "2026/5/23 01:02:30" [ref=e206]
+              - 'row "33d5ee1 style: 优化主题颜色变量使用 2026/5/22 13:21:47" [ref=e207]':
+                - cell "33d5ee1" [ref=e208]:
+                  - code [ref=e209]: 33d5ee1
+                - 'cell "style: 优化主题颜色变量使用" [ref=e210]'
+                - cell "2026/5/22 13:21:47" [ref=e211]
+              - 'row "bef4ab2 fix(ui): 修复首页文本对齐问题 2026/5/22 12:35:39" [ref=e212]':
+                - cell "bef4ab2" [ref=e213]:
+                  - code [ref=e214]: bef4ab2
+                - 'cell "fix(ui): 修复首页文本对齐问题" [ref=e215]'
+                - cell "2026/5/22 12:35:39" [ref=e216]
+              - 'row "f6957de feat: add PWA support with service worker and icons 2026/5/22 12:28:31" [ref=e217]':
+                - cell "f6957de" [ref=e218]:
+                  - code [ref=e219]: f6957de
+                - 'cell "feat: add PWA support with service worker and icons" [ref=e220]'
+                - cell "2026/5/22 12:28:31" [ref=e221]
+              - 'row "afe41c0 feat(ui): 新增数据登记表单对话框 2026/5/22 11:51:52" [ref=e222]':
+                - cell "afe41c0" [ref=e223]:
+                  - code [ref=e224]: afe41c0
+                - 'cell "feat(ui): 新增数据登记表单对话框" [ref=e225]'
+                - cell "2026/5/22 11:51:52" [ref=e226]
+              - 'row "40bb46d feat(ui): 添加Prism组件并优化首页样式 2026/5/22 11:02:45" [ref=e227]':
+                - cell "40bb46d" [ref=e228]:
+                  - code [ref=e229]: 40bb46d
+                - 'cell "feat(ui): 添加Prism组件并优化首页样式" [ref=e230]'
+                - cell "2026/5/22 11:02:45" [ref=e231]
+              - 'row "9d295e5 feat(ui): 更新注册聊天界面样式和功能 2026/5/22 02:10:39" [ref=e232]':
+                - cell "9d295e5" [ref=e233]:
+                  - code [ref=e234]: 9d295e5
+                - 'cell "feat(ui): 更新注册聊天界面样式和功能" [ref=e235]'
+                - cell "2026/5/22 02:10:39" [ref=e236]
+              - row "cfd6195 加了很多功能，聊天框的背景没改上 2026/5/22 01:33:23" [ref=e237]:
+                - cell "cfd6195" [ref=e238]:
+                  - code [ref=e239]: cfd6195
+                - cell "加了很多功能，聊天框的背景没改上" [ref=e240]
+                - cell "2026/5/22 01:33:23" [ref=e241]
+              - 'row "df5a771 feat(ui): 添加通知菜单打开状态控制与关联ID已读标记功能 2026/5/21 11:16:50" [ref=e242]':
+                - cell "df5a771" [ref=e243]:
+                  - code [ref=e244]: df5a771
+                - 'cell "feat(ui): 添加通知菜单打开状态控制与关联ID已读标记功能" [ref=e245]'
+                - cell "2026/5/21 11:16:50" [ref=e246]
+              - 'row "e20e9c1 fix: 修正导航功能项及模板管理中的字段名称 2026/5/19 18:43:22" [ref=e247]':
+                - cell "e20e9c1" [ref=e248]:
+                  - code [ref=e249]: e20e9c1
+                - 'cell "fix: 修正导航功能项及模板管理中的字段名称" [ref=e250]'
+                - cell "2026/5/19 18:43:22" [ref=e251]
+              - 'row "a35253d fix: remove deleteOriginalAssets option from viteCompression configuration 2026/5/19 16:21:22" [ref=e252]':
+                - cell "a35253d" [ref=e253]:
+                  - code [ref=e254]: a35253d
+                - 'cell "fix: remove deleteOriginalAssets option from viteCompression configuration" [ref=e255]'
+                - cell "2026/5/19 16:21:22" [ref=e256]
+              - 'row "5906163 feat: add icon support for running apps and image upload functionality 2026/5/19 16:20:58" [ref=e257]':
+                - cell "5906163" [ref=e258]:
+                  - code [ref=e259]: "5906163"
+                - 'cell "feat: add icon support for running apps and image upload functionality" [ref=e260]'
+                - cell "2026/5/19 16:20:58" [ref=e261]
+              - 'row "b40f7a6 refactor: 移除 ChatDrawer 及相关逻辑 2026/5/19 01:48:07" [ref=e262]':
+                - cell "b40f7a6" [ref=e263]:
+                  - code [ref=e264]: b40f7a6
+                - 'cell "refactor: 移除 ChatDrawer 及相关逻辑" [ref=e265]'
+                - cell "2026/5/19 01:48:07" [ref=e266]
+          - separator [ref=e267]
+          - generic [ref=e268]:
+            - generic [ref=e269]:
+              - generic [ref=e270]: 每页行数
+              - combobox [ref=e273] [cursor=pointer]:
+                - generic [ref=e275]:
+                  - generic [ref=e277]: "20"
+                  - combobox "每页行数": "20"
+                - generic [ref=e279]: 󰍝
+            - generic [ref=e281]: 1-20 共 36
+            - navigation "Pagination Navigation" [ref=e283]:
+              - list [ref=e284]:
+                - listitem [ref=e285]:
+                  - button "First page" [disabled]:
+                    - generic:
+                      - generic: 󰘀
+                - listitem [ref=e286]:
+                  - button "Previous page" [disabled]:
+                    - generic:
+                      - generic: 󰅁
+                - listitem [ref=e287]:
+                  - button "Next page" [ref=e288] [cursor=pointer]:
+                    - generic [ref=e290]: 󰅂
+                - listitem [ref=e291]:
+                  - button "Last page" [ref=e292] [cursor=pointer]:
+                    - generic [ref=e294]: 󰘁

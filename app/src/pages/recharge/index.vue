@@ -3,8 +3,11 @@
     <div class="table-wrapper" style="width: 90%;">
       <div class="d-flex justify-space-between align-center mb-4">
         <h1 class="text-h5 text-sm-h4">充值申请</h1>
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openDialog">新建申请</v-btn>
+        <v-btn color="primary" prepend-icon="mdi-plus" @click="openDialog" :disabled="isFullyDelegated">新建申请</v-btn>
       </div>
+      <v-alert v-if="isFullyDelegated" type="warning" variant="tonal" density="compact" class="mb-4">
+        您的余额已由上级管理，无法自行申请充值
+      </v-alert>
 
       <app-data-table
         :headers="headers"
@@ -79,6 +82,7 @@ const recharges = ref<BalanceRecharge[]>([])
 const runningApps = ref<RunningApp[]>([])
 const loading = ref(false)
 const submitting = ref(false)
+const isFullyDelegated = ref(false)
 const dialog = reactive({ show: false, appUid: '', amount: 0, reason: '' })
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 
@@ -106,6 +110,17 @@ async function loadApps() {
   try {
     const res = await ajax<RunningApp[]>(ApiUrl.GET_PUBLIC_RUNNING_APPS)
     if (res.code === 200) runningApps.value = res.data
+  } catch (e) { /* ignore */ }
+}
+
+async function checkDelegation() {
+  try {
+    const res = await ajax<any[]>(ApiUrl.GET_USER_BALANCES, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200 && res.data) {
+      isFullyDelegated.value = res.data.every((b: any) => b.is_delegated)
+    }
   } catch (e) { /* ignore */ }
 }
 
@@ -141,5 +156,5 @@ async function submit() {
   finally { submitting.value = false }
 }
 
-onMounted(() => { loadApps(); loadRecharges() })
+onMounted(() => { loadApps(); loadRecharges(); checkDelegation() })
 </script>

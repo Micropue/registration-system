@@ -1,0 +1,28 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - list [ref=e7]
+  - banner [ref=e8]:
+    - generic [ref=e10]:
+      - button [ref=e11] [cursor=pointer]:
+        - generic [ref=e13]: 󰍜
+      - generic [ref=e14] [cursor=pointer]:
+        - img [ref=e17]
+        - generic [ref=e18]: 哆啦A梦（校园跑版）
+      - generic [ref=e19]:
+        - progressbar [ref=e20]:
+          - img [ref=e21]
+        - button "检测中" [disabled]:
+          - generic: 检测中
+          - generic:
+            - progressbar:
+              - img
+  - main [ref=e24]:
+    - generic [ref=e26]:
+      - heading "404" [level=1] [ref=e27]
+      - heading "页面未找到" [level=2] [ref=e28]
+      - paragraph [ref=e29]: 你访问的页面不存在或已被移除
+      - link "返回首页" [ref=e30] [cursor=pointer]:
+        - /url: /
+        - generic [ref=e31]:
+          - generic [ref=e32]: 󰚡
+          - text: 返回首页

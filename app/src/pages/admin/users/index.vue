@@ -44,6 +44,7 @@
             <v-btn variant="tonal" rounded @click="handleAction('查找工单', item)" v-if="item.type !== 'admin'">查找工单</v-btn>
             <v-btn variant="tonal" rounded color="teal" @click="openBalanceDialog(item)">余额管理</v-btn>
             <v-btn variant="tonal" rounded color="warning" @click="handleAction('强制下线', item)">强制下线</v-btn>
+            <v-btn variant="tonal" rounded color="purple" @click="handleAction('下属管理', item)">下属管理</v-btn>
             <v-menu location="bottom end">
               <template v-slot:activator="{ props: menuProps }">
                 <v-btn variant="tonal" rounded v-bind="menuProps">{{ item.type || '划分账户组' }}</v-btn>
@@ -247,10 +248,14 @@
                       <v-img :src="b.icon" cover></v-img>
                     </v-avatar>
                     <span class="font-weight-bold">{{ b.app_name }}</span>
+                    <v-chip v-if="b.is_delegated" size="x-small" color="warning" variant="flat" class="ml-1">已委托</v-chip>
                   </div>
                 </td>
                 <td>
                   <span class="font-weight-bold">{{ b.balance }}{{ b.balance_mode === 'mileage' ? ' 公里' : b.balance_mode === 'count' ? ' 次' : '' }}</span>
+                  <div v-if="b.is_delegated && b.delegated_to_name" class="text-caption text-grey">
+                    余额由 {{ b.delegated_to_name }} 管理
+                  </div>
                 </td>
                 <td>
                   <div class="d-flex ga-1">
@@ -380,7 +385,7 @@ const balanceDialog = reactive({
   loading: false,
   userUid: '',
   username: '',
-  balances: [] as { app_uid: string; app_name: string; balance: number; balance_mode: string; icon: string }[]
+  balances: [] as { app_uid: string; app_name: string; balance: number; balance_mode: string; icon: string; is_delegated?: boolean; delegated_to_name?: string }[]
 })
 const balanceAdjustDialog = reactive({
   show: false,
@@ -474,6 +479,8 @@ function handleAction(action: string, user: UserItem) {
     logoutDialog.show = true
   } else if (action === '查找工单') {
     router.push({ path: '/admin/feedbacks', query: { username: user.username } })
+  } else if (action === '下属管理') {
+    router.push({ path: `/admin/subordinates/${user.uid}` })
   }
 }
 

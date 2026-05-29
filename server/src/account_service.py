@@ -226,6 +226,32 @@ class AccountService:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
             """)
             cursor.execute("""
+                CREATE TABLE IF NOT EXISTS user_subordinates (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    parent_uid VARCHAR(64) NOT NULL,
+                    subordinate_uid VARCHAR(64) NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    UNIQUE KEY uq_parent_sub (parent_uid, subordinate_uid),
+                    FOREIGN KEY (parent_uid) REFERENCES users(uid) ON DELETE CASCADE,
+                    FOREIGN KEY (subordinate_uid) REFERENCES users(uid) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS balance_delegations (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    user_uid VARCHAR(64) NOT NULL,
+                    parent_uid VARCHAR(64) NOT NULL,
+                    app_uid VARCHAR(64) NOT NULL,
+                    created_at DATETIME NOT NULL,
+                    UNIQUE KEY uq_user_app_deleg (user_uid, app_uid),
+                    FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE,
+                    FOREIGN KEY (parent_uid) REFERENCES users(uid) ON DELETE CASCADE,
+                    FOREIGN KEY (app_uid) REFERENCES running_apps(uid) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS balance_recharges (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     uid VARCHAR(64) UNIQUE NOT NULL,
@@ -367,6 +393,7 @@ class AccountService:
         "工单处理": {"查看": True, "回复": True, "解决": True, "删除": True},
         "APP配置": {"查看": True, "修改": True, "余额管理": True},
         "充值审批": {"查看": True, "处理": True},
+        "下属管理": {"查看": True, "配置": True},
         "新建登记": True,
         "新建工单": True,
         "充值申请": True,
@@ -376,10 +403,14 @@ class AccountService:
     def _init_default_groups(self, cursor: Any) -> None:
         now = self._now()
         cursor.execute("SELECT uid FROM user_groups WHERE name = '超级管理员'")
-        if not cursor.fetchone():
+        row = cursor.fetchone()
+        if not row:
             super_uid = self._new_uid()
             cursor.execute("INSERT INTO user_groups (uid, name, permissions, created_at) VALUES (%s, %s, %s, %s)",
                 (super_uid, '超级管理员', json.dumps(self.PERMISSION_TREE, ensure_ascii=False), now))
+        else:
+            cursor.execute("UPDATE user_groups SET permissions = %s WHERE uid = %s",
+                (json.dumps(self.PERMISSION_TREE, ensure_ascii=False), row[0]))
         cursor.execute("SELECT uid FROM users WHERE username = 'admin' AND (group_uid IS NULL OR group_uid NOT IN (SELECT uid FROM user_groups WHERE name = '超级管理员'))")
         admin_row = cursor.fetchone()
         if admin_row:
@@ -554,14 +585,15 @@ class AccountService:
                 connection.commit()
 
     def get_user_balance(self, user_uid: str, app_uid: str) -> dict[str, Any] | None:
-        self._ensure_user_balance(user_uid, app_uid)
+        owner_uid = self._resolve_balance_owner(user_uid, app_uid)
+        self._ensure_user_balance(owner_uid, app_uid)
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT ub.balance, ra.balance_mode FROM user_balances ub JOIN running_apps ra ON ra.uid = ub.app_uid WHERE ub.user_uid = %s AND ub.app_uid = %s", (user_uid, app_uid))
+            cursor.execute("SELECT ub.balance, ra.balance_mode FROM user_balances ub JOIN running_apps ra ON ra.uid = ub.app_uid WHERE ub.user_uid = %s AND ub.app_uid = %s", (owner_uid, app_uid))
             row = cursor.fetchone()
             if not row:
                 return None
-            return {"balance": float(row["balance"] or 0), "balance_mode": row.get("balance_mode") or ""}
+            return {"balance": float(row["balance"] or 0), "balance_mode": row.get("balance_mode") or "", "owner_uid": owner_uid}
 
     def get_user_balances(self, user_uid: str) -> list[dict[str, Any]]:
         with self._connect() as connection:
@@ -573,12 +605,35 @@ class AccountService:
                 WHERE ub.user_uid = %s
                 ORDER BY ra.name ASC
             """, (user_uid,))
-            rows = cursor.fetchall()
-        return [{
-            "id": row["uid"], "app_uid": row["app_uid"], "app_name": row["app_name"],
-            "balance": float(row["balance"] or 0), "balance_mode": row.get("balance_mode") or "",
-            "icon": row.get("icon") or ""
-        } for row in rows]
+            rows = list(cursor.fetchall())
+            seen_apps = {r["app_uid"] for r in rows}
+            cursor.execute("SELECT app_uid FROM balance_delegations WHERE user_uid = %s", (user_uid,))
+            for dr in cursor.fetchall():
+                if dr["app_uid"] not in seen_apps:
+                    seen_apps.add(dr["app_uid"])
+                    cursor.execute("SELECT name, balance_mode, icon FROM running_apps WHERE uid = %s", (dr["app_uid"],))
+                    ra = cursor.fetchone()
+                    if ra:
+                        rows.append({"uid": "", "app_uid": dr["app_uid"], "balance": 0, "app_name": ra["name"], "balance_mode": ra.get("balance_mode") or "", "icon": ra.get("icon") or ""})
+        result = []
+        for row in rows:
+            app_uid = row["app_uid"]
+            owner_uid = self._resolve_balance_owner(user_uid, app_uid)
+            del_info = self.get_balance_delegation(user_uid, app_uid)
+            item = {
+                "id": row["uid"], "app_uid": app_uid, "app_name": row["app_name"],
+                "balance": float(row["balance"] or 0), "balance_mode": row.get("balance_mode") or "",
+                "icon": row.get("icon") or "", "is_delegated": bool(del_info),
+                "delegated_to": del_info["parent_uid"] if del_info else None,
+                "delegated_to_name": del_info["parent_name"] if del_info else None,
+            }
+            if owner_uid != user_uid:
+                bal = self.get_user_balance(owner_uid, app_uid)
+                if bal:
+                    item["balance"] = bal["balance"]
+                    item["is_delegated"] = True
+            result.append(item)
+        return result
 
     def get_app_user_balances(self, app_uid: str, page: int = 1, page_size: int = 20) -> dict[str, Any]:
         offset = (page - 1) * page_size
@@ -593,26 +648,72 @@ class AccountService:
                 SELECT u.uid as user_uid, u.username,
                        COALESCE(ub.balance, 0) as balance,
                        COALESCE(ub.updated_at, u.register_time) as updated_at,
-                       ub.uid as balance_uid
+                       ub.uid as balance_uid,
+                       bd.parent_uid as del_parent_uid,
+                       u2.username as del_parent_name,
+                       ug.name as group_name
                 FROM users u
                 LEFT JOIN user_balances ub ON ub.user_uid = u.uid AND ub.app_uid = %s
+                LEFT JOIN balance_delegations bd ON bd.user_uid = u.uid AND bd.app_uid = %s
+                LEFT JOIN users u2 ON u2.uid = bd.parent_uid
+                LEFT JOIN user_groups ug ON ug.uid = u.group_uid
                 ORDER BY balance DESC
                 LIMIT %s OFFSET %s
-            """, (app_uid, page_size, offset))
+            """, (app_uid, app_uid, page_size, offset))
             rows = cursor.fetchall()
-        items = [{
-            "id": row["balance_uid"] or "", "user_uid": row["user_uid"], "app_uid": app_uid,
-            "username": row["username"], "balance": float(row["balance"] or 0),
-            "updated_at": row["updated_at"].isoformat()
-        } for row in rows]
+            all_user_uids = [r["user_uid"] for r in rows]
+            owner_map: dict[str, str] = {}
+            owner_balances: dict[str, float] = {}
+            if all_user_uids:
+                placeholders = ",".join(["%s"] * len(all_user_uids))
+                cursor.execute(f"SELECT user_uid, parent_uid FROM balance_delegations WHERE user_uid IN ({placeholders}) AND app_uid = %s", (*all_user_uids, app_uid))
+                deleg_rows = cursor.fetchall()
+                deleg_map = {dr["user_uid"]: dr["parent_uid"] for dr in deleg_rows}
+                for u_uid in all_user_uids:
+                    current = u_uid
+                    visited: set[str] = set()
+                    resolved = u_uid
+                    while current not in visited:
+                        visited.add(current)
+                        if current in deleg_map:
+                            resolved = deleg_map[current]
+                            current = resolved
+                        else:
+                            break
+                    owner_map[u_uid] = resolved
+                owner_uids = set(owner_map.values()) - set(all_user_uids)
+                if owner_uids:
+                    op = ",".join(["%s"] * len(owner_uids))
+                    cursor.execute(f"SELECT user_uid, balance FROM user_balances WHERE user_uid IN ({op}) AND app_uid = %s", (*owner_uids, app_uid))
+                    for ob in cursor.fetchall():
+                        owner_balances[ob["user_uid"]] = float(ob["balance"] or 0)
+        items = []
+        for row in rows:
+            user_uid = row["user_uid"]
+            owner_uid = owner_map.get(user_uid, user_uid)
+            is_delegated = bool(row.get("del_parent_uid"))
+            display_balance = float(row["balance"] or 0)
+            if owner_uid != user_uid:
+                if owner_uid in owner_balances:
+                    display_balance = owner_balances[owner_uid]
+            items.append({
+                "id": row["balance_uid"] or "", "user_uid": user_uid, "app_uid": app_uid,
+                "username": row["username"], "balance": display_balance,
+                "updated_at": row["updated_at"].isoformat(),
+                "is_delegated": is_delegated,
+                "delegated_to": row.get("del_parent_uid") or None,
+                "delegated_to_name": row.get("del_parent_name") or None,
+                "group_name": row.get("group_name") or "",
+            })
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def adjust_user_balance(self, user_uid: str, app_uid: str, amount: float, note: str = "") -> dict:
-        self._ensure_user_balance(user_uid, app_uid)
+        owner_uid = self._resolve_balance_owner(user_uid, app_uid)
+        self._ensure_user_balance(owner_uid, app_uid)
         now = self._now()
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT balance FROM user_balances WHERE user_uid = %s AND app_uid = %s", (user_uid, app_uid))
+            cursor.execute("SELECT balance FROM user_balances WHERE user_uid = %s AND app_uid = %s", (owner_uid, app_uid))
             row = cursor.fetchone()
             current = float(row["balance"] or 0) if row else 0
             new_balance = round(current + amount, 2)
@@ -621,12 +722,15 @@ class AccountService:
                 app_name = ra["name"] if ra else app_uid
                 raise AccountValidationError(f"用户余额不足，当前余额 {current}，无法减少 {abs(amount)}")
             cursor.execute("UPDATE user_balances SET balance = %s, updated_at = %s WHERE user_uid = %s AND app_uid = %s",
-                (new_balance, now, user_uid, app_uid))
+                (new_balance, now, owner_uid, app_uid))
             connection.commit()
             txn_type = "recharge" if amount > 0 else "deduction"
+            resolved_note = note
+            if owner_uid != user_uid:
+                resolved_note = f"{note}（经余额链接从用户 {user_uid} 扣除）" if note else f"经余额链接从用户 {user_uid} 扣除"
             self._record_balance_transaction(app_uid, txn_type, abs(amount),
-                user_uid=user_uid, note=note)
-        return {"balance": new_balance}
+                user_uid=owner_uid, note=resolved_note)
+        return {"balance": new_balance, "owner_uid": owner_uid}
 
     def set_app_balance_mode(self, app_uid: str, balance_mode: str) -> None:
         with self._connect() as connection:
@@ -711,6 +815,8 @@ class AccountService:
     # ---- Balance Recharges ----
 
     def create_balance_recharge(self, user_uid: str, app_uid: str, amount: float, reason: str) -> str:
+        if self.is_balance_delegated(user_uid, app_uid):
+            raise AccountValidationError("您的余额已由上级管理，无法自行申请充值")
         uid = self._new_uid()
         now = self._now()
         with self._connect() as connection:
@@ -1070,13 +1176,15 @@ class AccountService:
         now = self._now()
         old_amount = None
         old_app_name = None
+        old_status = None
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT amount, JSON_UNQUOTE(JSON_EXTRACT(data, '$.跑步APP')) as app_name FROM registrations WHERE uid = %s", (uid,))
+            cursor.execute("SELECT amount, status, JSON_UNQUOTE(JSON_EXTRACT(data, '$.跑步APP')) as app_name FROM registrations WHERE uid = %s", (uid,))
             reg = cursor.fetchone()
             if reg:
                 old_amount = reg.get("amount")
                 old_app_name = reg.get("app_name")
+                old_status = reg.get("status")
             cursor = connection.cursor()
             cursor.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
             row = cursor.fetchone()
@@ -1084,7 +1192,7 @@ class AccountService:
                 raise AccountError("登记记录不存在")
             cursor.execute("UPDATE registrations SET data = %s, create_time = %s, status = 'pending', reject_reason = NULL, priority = %s, template_uid = %s, amount = %s WHERE uid = %s", (json.dumps(data, ensure_ascii=False), now, priority, template_uid, amount, uid))
             connection.commit()
-        if old_amount and old_app_name:
+        if old_amount and old_app_name and old_status == 'approved':
             app_uid = None
             with self._connect() as conn2:
                 cur = conn2.cursor(dictionary=True)
@@ -1166,7 +1274,7 @@ class AccountService:
             else:
                 cursor.execute("UPDATE registrations SET status = %s WHERE uid = %s", (status, registration_uid))
             connection.commit()
-        if reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("user_uid") and status != 'approved' and status != reg_info.get("old_status"):
+        if reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("user_uid") and status == 'rejected' and reg_info.get("old_status") != 'rejected':
             app_name = reg_info["app_name"]
             app_uid = None
             with self._connect() as conn2:
@@ -1179,11 +1287,27 @@ class AccountService:
                     note=f"登记状态变为{status}，撤销扣除")
 
     def delete_registration(self, registration_uid: str) -> bool:
+        reg_info = None
         with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app_name, r.user_uid, r.status FROM registrations r WHERE r.uid = %s", (registration_uid,))
+            reg = cursor.fetchone()
+            if reg:
+                reg_info = {"amount": reg.get("amount"), "app_name": reg.get("app_name"), "user_uid": reg.get("user_uid"), "status": reg.get("status")}
             cursor = connection.cursor()
             cursor.execute("DELETE FROM registrations WHERE uid = %s", (registration_uid,))
+            deleted = cursor.rowcount > 0
             connection.commit()
-            return cursor.rowcount > 0
+        if deleted and reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("user_uid") and reg_info.get("status") == 'approved':
+            with self._connect() as conn2:
+                cur = conn2.cursor(dictionary=True)
+                cur.execute("SELECT uid FROM running_apps WHERE name = %s", (reg_info["app_name"],))
+                app = cur.fetchone()
+                app_uid = app["uid"] if app else None
+            if app_uid and reg_info.get("user_uid"):
+                self.adjust_user_balance(reg_info["user_uid"], app_uid, float(reg_info["amount"]),
+                    note="登记记录已删除，撤销扣除")
+        return deleted
 
     def get_registration_stats(self) -> list[dict[str, Any]]:
         with self._connect() as connection:
@@ -1568,3 +1692,268 @@ class AccountService:
                     if item.get(key):
                         item[key] = item[key].isoformat() if hasattr(item[key], 'isoformat') else str(item[key])
             return {'items': items, 'total': total}
+
+    # ---- Subordinate Management ----
+
+    def is_balance_delegated(self, user_uid: str, app_uid: str = "") -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            if app_uid:
+                cursor.execute("SELECT uid FROM balance_delegations WHERE user_uid = %s AND app_uid = %s LIMIT 1", (user_uid, app_uid))
+            else:
+                cursor.execute("SELECT uid FROM balance_delegations WHERE user_uid = %s LIMIT 1", (user_uid,))
+            return cursor.fetchone() is not None
+
+    def is_balance_delegated_for_any_app(self, user_uid: str) -> list[str]:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT app_uid FROM balance_delegations WHERE user_uid = %s", (user_uid,))
+            return [row[0] for row in cursor.fetchall()]
+
+    def _resolve_balance_owner(self, user_uid: str, app_uid: str) -> str:
+        visited: set[str] = set()
+        current = user_uid
+        with self._connect() as connection:
+            while current not in visited:
+                visited.add(current)
+                cursor = connection.cursor()
+                cursor.execute("SELECT parent_uid FROM balance_delegations WHERE user_uid = %s AND app_uid = %s LIMIT 1", (current, app_uid))
+                row = cursor.fetchone()
+                if not row:
+                    break
+                current = row[0]
+        return current
+
+    def get_balance_delegation(self, user_uid: str, app_uid: str = "") -> dict[str, Any] | None:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            if app_uid:
+                cursor.execute("SELECT bd.uid, bd.user_uid, bd.parent_uid, bd.app_uid, bd.created_at, u.username as parent_name FROM balance_delegations bd JOIN users u ON u.uid = bd.parent_uid WHERE bd.user_uid = %s AND bd.app_uid = %s LIMIT 1", (user_uid, app_uid))
+            else:
+                cursor.execute("SELECT bd.uid, bd.user_uid, bd.parent_uid, bd.app_uid, bd.created_at, u.username as parent_name FROM balance_delegations bd JOIN users u ON u.uid = bd.parent_uid WHERE bd.user_uid = %s LIMIT 1", (user_uid,))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            return {"uid": row["uid"], "user_uid": row["user_uid"], "parent_uid": row["parent_uid"], "app_uid": row["app_uid"], "parent_name": row["parent_name"], "created_at": row["created_at"].isoformat()}
+
+    def get_subordinates(self, parent_uid: str) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT us.uid as relation_id, us.subordinate_uid, us.created_at,
+                       u.username, ug.name as group_name
+                FROM user_subordinates us
+                JOIN users u ON u.uid = us.subordinate_uid
+                LEFT JOIN user_groups ug ON ug.uid = u.group_uid
+                WHERE us.parent_uid = %s
+                ORDER BY us.created_at ASC
+            """, (parent_uid,))
+            rows = cursor.fetchall()
+            sub_uids = [r["subordinate_uid"] for r in rows]
+            delegations: dict[str, dict[str, Any]] = {}
+            if sub_uids:
+                placeholders = ",".join(["%s"] * len(sub_uids))
+                cursor.execute(f"SELECT bd.user_uid, bd.parent_uid, u.username as parent_name FROM balance_delegations bd JOIN users u ON u.uid = bd.parent_uid WHERE bd.user_uid IN ({placeholders})", tuple(sub_uids))
+                for dr in cursor.fetchall():
+                    delegations[dr["user_uid"]] = {"parent_uid": dr["parent_uid"], "parent_name": dr["parent_name"]}
+        result = []
+        for row in rows:
+            sub_uid = row["subordinate_uid"]
+            del_info = delegations.get(sub_uid)
+            result.append({
+                "relation_id": row["relation_id"],
+                "uid": sub_uid,
+                "username": row["username"],
+                "group_name": row["group_name"] or "未分配",
+                "created_at": row["created_at"].isoformat(),
+                "is_delegated": bool(del_info),
+                "delegated_to": del_info["parent_uid"] if del_info else None,
+                "delegated_to_name": del_info["parent_name"] if del_info else None,
+            })
+        return result
+
+    def add_subordinate(self, parent_uid: str, subordinate_uid: str) -> str:
+        if parent_uid == subordinate_uid:
+            raise AccountValidationError("不能将自己添加为自己的下属")
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid FROM user_subordinates WHERE parent_uid = %s AND subordinate_uid = %s LIMIT 1", (parent_uid, subordinate_uid))
+            if cursor.fetchone():
+                raise AccountValidationError("该用户已经是您的下属")
+            cursor.execute("SELECT uid FROM user_subordinates WHERE subordinate_uid = %s LIMIT 1", (subordinate_uid,))
+            if cursor.fetchone():
+                raise AccountValidationError("该用户已是其他人的下属，不能重复添加")
+            ancestors = self._get_all_descendant_uids(subordinate_uid)
+            if parent_uid in ancestors:
+                raise AccountValidationError("不能将上级账户添加为自己的下属")
+            cursor.execute("SELECT uid FROM users WHERE uid = %s", (subordinate_uid,))
+            if not cursor.fetchone():
+                raise AccountValidationError("目标用户不存在")
+            uid = self._new_uid()
+            now = self._now()
+            cursor.execute("INSERT INTO user_subordinates (uid, parent_uid, subordinate_uid, created_at) VALUES (%s, %s, %s, %s)", (uid, parent_uid, subordinate_uid, now))
+            connection.commit()
+        return uid
+
+    def remove_subordinate(self, parent_uid: str, subordinate_uid: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM balance_delegations WHERE user_uid = %s AND parent_uid = %s", (subordinate_uid, parent_uid))
+            cursor.execute("DELETE FROM user_subordinates WHERE parent_uid = %s AND subordinate_uid = %s", (parent_uid, subordinate_uid))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def _get_all_descendant_uids(self, parent_uid: str) -> list[str]:
+        result: list[str] = []
+        queue: list[str] = [parent_uid]
+        visited: set[str] = set()
+        with self._connect() as connection:
+            while queue:
+                current = queue.pop(0)
+                if current in visited:
+                    continue
+                visited.add(current)
+                if current != parent_uid:
+                    result.append(current)
+                cursor = connection.cursor()
+                cursor.execute("SELECT subordinate_uid FROM user_subordinates WHERE parent_uid = %s", (current,))
+                for (sub_uid,) in cursor.fetchall():
+                    if sub_uid not in visited:
+                        queue.append(sub_uid)
+        return result
+
+    def get_subordinate_tree(self, parent_uid: str) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            all_sub_uids: list[str] = []
+            queue: list[str] = [parent_uid]
+            visited: set[str] = set()
+            while queue:
+                current = queue.pop(0)
+                if current in visited:
+                    continue
+                visited.add(current)
+                if current != parent_uid:
+                    all_sub_uids.append(current)
+                cursor.execute("SELECT subordinate_uid FROM user_subordinates WHERE parent_uid = %s", (current,))
+                for (sub_uid,) in cursor.fetchall():
+                    if sub_uid not in visited:
+                        queue.append(sub_uid)
+            delegations: dict[str, dict[str, Any]] = {}
+            if all_sub_uids:
+                placeholders = ",".join(["%s"] * len(all_sub_uids))
+                cursor.execute(f"SELECT bd.user_uid, bd.parent_uid, bd.app_uid, u.username as parent_name FROM balance_delegations bd JOIN users u ON u.uid = bd.parent_uid WHERE bd.user_uid IN ({placeholders})", tuple(all_sub_uids))
+                for dr in cursor.fetchall():
+                    delegations[dr["user_uid"]] = {"parent_uid": dr["parent_uid"], "parent_name": dr["parent_name"], "app_uid": dr["app_uid"]}
+            return self._build_tree(connection, parent_uid, delegations)
+
+    def _build_tree(self, connection: Any, parent_uid: str, delegations: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+        cursor = connection.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT us.subordinate_uid, us.parent_uid, u.username,
+                   ug.name as group_name
+            FROM user_subordinates us
+            JOIN users u ON u.uid = us.subordinate_uid
+            LEFT JOIN user_groups ug ON ug.uid = u.group_uid
+            WHERE us.parent_uid = %s
+            ORDER BY us.created_at ASC
+        """, (parent_uid,))
+        direct_subs = cursor.fetchall()
+        result: list[dict[str, Any]] = []
+        for sub in direct_subs:
+            sub_uid = sub["subordinate_uid"]
+            del_info = delegations.get(sub_uid)
+            item: dict[str, Any] = {
+                "uid": sub_uid,
+                "username": sub["username"],
+                "group_name": sub["group_name"] or "未分配",
+                "is_delegated": bool(del_info),
+                "delegated_to": del_info["parent_uid"] if del_info else None,
+                "delegated_to_name": del_info["parent_name"] if del_info else None,
+                "delegated_app_uid": del_info["app_uid"] if del_info else None,
+                "children": self._build_tree(connection, sub_uid, delegations),
+            }
+            result.append(item)
+        return result
+
+    def get_parent_of_subordinate(self, subordinate_uid: str) -> str | None:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT parent_uid FROM user_subordinates WHERE subordinate_uid = %s LIMIT 1", (subordinate_uid,))
+            row = cursor.fetchone()
+            return row[0] if row else None
+
+    def get_sibling_subordinates(self, parent_uid: str) -> list[dict[str, Any]]:
+        all_desc = self._get_all_descendant_uids(parent_uid)
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            result = []
+            for uid in all_desc:
+                cursor.execute("SELECT username FROM users WHERE uid = %s", (uid,))
+                user = cursor.fetchone()
+                if user:
+                    result.append({"uid": uid, "username": user["username"]})
+        return result
+
+    # ---- Balance Delegation ----
+
+    def create_balance_delegation(self, user_uid: str, parent_uid: str, app_uid: str) -> str:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid FROM user_subordinates WHERE parent_uid = %s AND subordinate_uid = %s LIMIT 1", (parent_uid, user_uid))
+            if not cursor.fetchone():
+                raise AccountValidationError("该用户不是您的下属，无法建立余额链接")
+            cursor.execute("SELECT uid FROM balance_delegations WHERE user_uid = %s AND app_uid = %s LIMIT 1", (user_uid, app_uid))
+            if cursor.fetchone():
+                raise AccountValidationError("该用户在此APP已有余额链接")
+            ancestor = parent_uid
+            visited: set[str] = {user_uid}
+            while ancestor and ancestor not in visited:
+                visited.add(ancestor)
+                cursor.execute("SELECT parent_uid FROM balance_delegations WHERE user_uid = %s AND app_uid = %s LIMIT 1", (ancestor, app_uid))
+                row = cursor.fetchone()
+                ancestor = row["parent_uid"] if row else None
+            if ancestor and ancestor in visited:
+                raise AccountValidationError("不能建立循环余额链接")
+            uid = self._new_uid()
+            now = self._now()
+            cursor.execute("INSERT INTO balance_delegations (uid, user_uid, parent_uid, app_uid, created_at) VALUES (%s, %s, %s, %s, %s)", (uid, user_uid, parent_uid, app_uid, now))
+            connection.commit()
+        return uid
+
+    def remove_balance_delegation(self, user_uid: str, app_uid: str) -> bool:
+        with self._connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM balance_delegations WHERE user_uid = %s AND app_uid = %s", (user_uid, app_uid))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def get_delegated_users(self, parent_uid: str) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT bd.uid, bd.user_uid, bd.app_uid, bd.created_at,
+                       u.username, ra.name as app_name
+                FROM balance_delegations bd
+                JOIN users u ON u.uid = bd.user_uid
+                JOIN running_apps ra ON ra.uid = bd.app_uid
+                WHERE bd.parent_uid = %s
+                ORDER BY bd.created_at ASC
+            """, (parent_uid,))
+            rows = cursor.fetchall()
+        return [{"uid": row["uid"], "user_uid": row["user_uid"], "username": row["username"], "app_uid": row["app_uid"], "app_name": row["app_name"], "created_at": row["created_at"].isoformat()} for row in rows]
+
+    def get_user_balance_delegations(self, user_uid: str) -> list[dict[str, Any]]:
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT bd.uid, bd.parent_uid, bd.app_uid, bd.created_at,
+                       u.username as parent_name, ra.name as app_name
+                FROM balance_delegations bd
+                JOIN users u ON u.uid = bd.parent_uid
+                JOIN running_apps ra ON ra.uid = bd.app_uid
+                WHERE bd.user_uid = %s
+                ORDER BY bd.created_at ASC
+            """, (user_uid,))
+            rows = cursor.fetchall()
+        return [{"uid": row["uid"], "parent_uid": row["parent_uid"], "parent_name": row["parent_name"], "app_uid": row["app_uid"], "app_name": row["app_name"], "created_at": row["created_at"].isoformat()} for row in rows]

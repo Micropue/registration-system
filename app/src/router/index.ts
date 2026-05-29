@@ -10,7 +10,7 @@ import Index from '@/pages/index.vue'
 import { checkLoginStatus } from '@/api/auth'
 import { useAppStore } from '@/stores/app'
 
-const ADMIN_PERMISSION_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批']
+const ADMIN_PERMISSION_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批', '下属管理']
 
 function hasAnyAdminPermission(permissions: Record<string, any> | undefined): boolean {
   if (!permissions) return false
@@ -129,10 +129,17 @@ const router = createRouter({
         { path: 'settings', redirect: '/admin' },
         { path: 'groups', component: () => import("@/pages/admin/groups/index.vue"), meta: { title: '账户组管理' } },
         { path: 'recharges', component: () => import("@/pages/admin/recharges/index.vue"), meta: { title: '充值审批' } },
+        { path: 'subordinates/:uid?', component: () => import("@/pages/admin/subordinates/index.vue"), meta: { title: '下属管理' } },
         { path: 'running-apps/:appUid/balance', component: () => import("@/pages/admin/running-apps/balance/index.vue"), meta: { title: '用户余额管理' } },
         { path: 'update-logs', component: () => import("@/pages/admin/update-logs/index.vue"), meta: { title: '更新日志' } },
       ]
-    }
+    },
+    {
+      path: '/:pathMatch(.*)*',
+      name: 'NotFound',
+      component: () => import("@/pages/404/index.vue"),
+      meta: { title: '404' }
+    },
   ],
 })
 

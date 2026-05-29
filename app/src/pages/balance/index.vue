@@ -2,6 +2,9 @@
   <v-container fluid class="pa-0 d-flex flex-column align-center">
     <div class="table-wrapper mt-4">
       <h1 class="text-h4 mb-4">余额查看</h1>
+      <v-alert v-if="hasDelegated" type="warning" variant="tonal" density="compact" class="mb-4" closable>
+        您的部分余额已由上级管理，对应APP的余额查看和充值功能将不可用
+      </v-alert>
       <app-data-table
         :headers="headers"
         :items="balances"
@@ -18,6 +21,7 @@
             </v-avatar>
             <v-icon v-else size="20" color="grey">mdi-run-fast</v-icon>
             {{ item.app_name }}
+            <v-chip v-if="item.is_delegated" size="x-small" color="warning" class="ml-1">已链接</v-chip>
           </div>
         </template>
         <template v-slot:item.balance_mode="{ item }">
@@ -25,9 +29,16 @@
             {{ item.balance_mode === 'mileage' ? '公里数' : item.balance_mode === 'count' ? '次数' : '未设置' }}
           </v-chip>
         </template>
+        <template v-slot:item.balance="{ item }">
+          <span>{{ item.balance }}</span>
+          <span v-if="item.is_delegated && item.delegated_to_name" class="text-caption text-grey">
+             (由 {{ item.delegated_to_name }} 管理)
+          </span>
+        </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn variant="tonal" rounded size="small" color="primary" @click="goRecharge(item)">充值申请</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="primary" @click="goRecharge(item)"
+              :disabled="item.is_delegated">充值申请</v-btn>
             <v-btn variant="tonal" rounded size="small" color="secondary" @click="openFlow(item)">查看流水</v-btn>
           </div>
         </template>
@@ -90,7 +101,7 @@
 </style>
 
 <script lang="ts" setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
@@ -102,6 +113,8 @@ const router = useRouter()
 
 const balances = ref<UserBalance[]>([])
 const loading = ref(false)
+
+const hasDelegated = computed(() => balances.value.some(b => b.is_delegated))
 
 const headers = [
   { title: 'APP名称', key: 'app_name', searchable: true, filterable: true },

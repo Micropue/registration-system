@@ -106,6 +106,9 @@ export interface UserBalance {
   balance: number;
   balance_mode: string;
   icon?: string;
+  is_delegated?: boolean;
+  delegated_to?: string | null;
+  delegated_to_name?: string | null;
 }
 
 /** APP用户余额（管理员查看） */
@@ -116,6 +119,10 @@ export interface AppUserBalance {
   username: string;
   balance: number;
   updated_at: string;
+  is_delegated?: boolean;
+  delegated_to?: string | null;
+  delegated_to_name?: string | null;
+  group_name?: string;
 }
 
 /** 余额流水项 */
@@ -147,4 +154,38 @@ export interface BalanceRecharge {
   reject_reason?: string;
   created_at: string;
   processed_at?: string | null;
+}
+
+/** 下属用户 */
+export interface SubordinateUser {
+  relation_id: string;
+  uid: string;
+  username: string;
+  group_name: string;
+  created_at: string;
+  is_delegated: boolean;
+  delegated_to: string | null;
+  delegated_to_name: string | null;
+  delegated_app_uid?: string | null;
+  children?: SubordinateUser[];
+}
+
+/** 余额链接信息 */
+export interface BalanceDelegation {
+  uid: string;
+  user_uid: string;
+  parent_uid: string;
+  app_uid: string;
+  parent_name: string;
+  created_at: string;
+}
+
+/** 余额链接（用户视角） */
+export interface UserBalanceDelegation {
+  uid: string;
+  parent_uid: string;
+  parent_name: string;
+  app_uid: string;
+  app_name: string;
+  created_at: string;
 }

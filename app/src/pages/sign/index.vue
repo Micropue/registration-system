@@ -159,11 +159,17 @@
     </v-dialog>
 
     <!-- 跑量输入 Dialog -->
-    <v-dialog v-model="amountDialog.show" max-width="400" persistent>
+    <v-dialog v-model="amountDialog.show" max-width="420" persistent>
       <v-card class="pa-4">
         <v-card-title class="text-h5">输入{{ amountDialog.modeLabel }}</v-card-title>
         <v-card-subtitle>APP: {{ selectedApp }}</v-card-subtitle>
         <v-card-text>
+          <v-alert v-if="amountDialog.balanceInfo" variant="tonal" density="compact" class="mb-3" :type="amountDialog.balanceInfo.is_delegated ? 'warning' : 'info'">
+            当前余额: {{ amountDialog.balanceInfo.balance }}{{ amountDialog.modeLabel === '公里数' ? ' 公里' : amountDialog.modeLabel === '次数' ? ' 次' : '' }}
+            <template v-if="amountDialog.balanceInfo.is_delegated">
+              ，由 <strong>{{ amountDialog.balanceInfo.delegated_to_name }}</strong> 管理
+            </template>
+          </v-alert>
           <v-text-field v-model.number="amountDialog.value" :label="amountDialog.modeLabel" type="number"
             variant="outlined" density="comfortable"
             :rules="[v => !!v || '请输入', v => v > 0 || '必须大于0']"
@@ -491,11 +497,12 @@ const amountChecking = ref(false)
 const amountDialog = reactive({
   show: false,
   value: 0,
+  balanceInfo: null as any,
   get modeLabel() {
     const app = runningApps.value.find(a => a.name === selectedApp.value)
     const mode = app?.balance_mode
     return mode === 'mileage' ? '公里数' : mode === 'count' ? '次数' : '数量'
-  }
+  },
 })
 
 const formRef = ref<any>(null)
@@ -658,7 +665,15 @@ function initFormData() {
   })
 }
 
-function openNewDialog() {
+async function openNewDialog() {
+  try {
+    const res = await ajax<any[]>(ApiUrl.GET_USER_BALANCES, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200 && res.data?.length > 0 && res.data.every((b: any) => b.is_delegated)) {
+      showMsg('您的所有APP余额已由上级管理，请在上级账户中操作', 'warning')
+    }
+  } catch (e) { /* ignore */ }
   newDialog.app = ''
   newDialog.show = true
   nextTick(() => {
@@ -695,7 +710,7 @@ async function goSelectTemplate() {
   })
 }
 
-function startNewRegistration() {
+async function startNewRegistration() {
   if (!templateDialog.uid) return
   const tpl = appTemplates.value.find(t => t.uid === templateDialog.uid)
   if (!tpl) return
@@ -705,6 +720,24 @@ function startNewRegistration() {
   const app = runningApps.value.find(a => a.name === selectedApp.value)
   if (app?.balance_mode) {
     amountDialog.value = 0
+    amountDialog.balanceInfo = null
+    amountChecking.value = true
+    try {
+      const res = await ajax<any[]>(ApiUrl.GET_USER_BALANCES, {
+        headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+      })
+      if (res.code === 200) {
+        const bal = res.data.find((b: any) => b.app_uid === app.uid)
+        if (bal) {
+          amountDialog.balanceInfo = {
+            balance: bal.balance,
+            is_delegated: bal.is_delegated || false,
+            delegated_to_name: bal.delegated_to_name || null,
+          }
+        }
+      }
+    } catch (e) { /* ignore */ }
+    finally { amountChecking.value = false }
     amountDialog.show = true
   } else {
     registrationAmount.value = null
@@ -727,8 +760,11 @@ async function confirmAmount() {
         const currentBalance = bal?.balance ?? 0
         const mode = app.balance_mode
         const unit = mode === 'mileage' ? '公里' : mode === 'count' ? '次' : ''
+        const deductionOwner = bal?.is_delegated && bal?.delegated_to_name
+          ? `（扣除自 ${bal.delegated_to_name} 的余额）`
+          : ''
         if (currentBalance < amountDialog.value) {
-          showMsg(`${selectedApp.value} 余额不足（当前余额：${currentBalance}${unit}，需要：${amountDialog.value}${unit}）`, 'error')
+          showMsg(`${selectedApp.value} 余额不足（当前余额：${currentBalance}${unit}，需要：${amountDialog.value}${unit}）${deductionOwner}`, 'error')
           amountChecking.value = false
           return
         }

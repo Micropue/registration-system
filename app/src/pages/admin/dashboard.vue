@@ -157,8 +157,9 @@
                 <v-btn variant="tonal" rounded color="primary" prepend-icon="mdi-file-document-edit-outline" :to="'/admin/registers'">订单处理</v-btn>
                 <v-btn variant="tonal" rounded color="info" prepend-icon="mdi-ticket-confirmation-outline" :to="'/admin/feedbacks'">工单处理</v-btn>
                 <v-btn variant="tonal" rounded color="success" prepend-icon="mdi-account-group-outline" :to="'/admin/users'">账户管理</v-btn>
-                <v-btn variant="tonal" rounded color="secondary" prepend-icon="mdi-run-fast" :to="'/admin/settings/running-apps'">APP管理</v-btn>
-                <v-btn variant="tonal" rounded color="purple" prepend-icon="mdi-cog-outline" :to="'/admin/settings'">系统设置</v-btn>
+                <v-btn variant="tonal" rounded color="secondary" prepend-icon="mdi-run-fast" :to="'/admin/running-apps'">APP管理</v-btn>
+                <v-btn variant="tonal" rounded color="purple" prepend-icon="mdi-account-tree-outline" :to="'/admin/subordinates'">下属管理</v-btn>
+                <v-btn variant="tonal" rounded color="orange" prepend-icon="mdi-cog-outline" :to="'/admin'">系统设置</v-btn>
               </div>
             </v-card-text>
           </v-card>
