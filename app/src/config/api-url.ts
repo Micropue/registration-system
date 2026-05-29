@@ -112,4 +112,7 @@ export enum ApiUrl {
   PROCESS_RECHARGE = '/api/admin/balance-recharges',
   /** 图片上传 */
   UPLOAD_IMAGE = '/api/upload/image',
+  /** 更新日志 */
+  GET_UPDATE_LOGS = '/api/admin/update-logs',
+  SYNC_UPDATE_LOGS = '/api/admin/update-logs/sync',
 }

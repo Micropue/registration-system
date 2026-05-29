@@ -89,4 +89,16 @@ export const functions: NavFunction[] = [
     icon: 'mdi-history',
     role: 'default'
   },
+  {
+    title: '更新日志',
+    to: '/admin/update-logs',
+    icon: 'mdi-update',
+    role: 'admin'
+  },
+  {
+    title: '关于',
+    to: '/about',
+    icon: 'mdi-information-outline',
+    role: 'default'
+  },
 ];

@@ -108,6 +108,11 @@ const router = createRouter({
       meta: { title: '余额流水' }
     },
     {
+      path: '/about',
+      component: () => import("@/pages/about/index.vue"),
+      meta: { title: '关于' }
+    },
+    {
       path: '/admin',
       component: () => import("@/pages/admin/index.vue"),
       beforeEnter: requireAdmin,
@@ -125,6 +130,7 @@ const router = createRouter({
         { path: 'groups', component: () => import("@/pages/admin/groups/index.vue"), meta: { title: '账户组管理' } },
         { path: 'recharges', component: () => import("@/pages/admin/recharges/index.vue"), meta: { title: '充值审批' } },
         { path: 'running-apps/:appUid/balance', component: () => import("@/pages/admin/running-apps/balance/index.vue"), meta: { title: '用户余额管理' } },
+        { path: 'update-logs', component: () => import("@/pages/admin/update-logs/index.vue"), meta: { title: '更新日志' } },
       ]
     }
   ],
