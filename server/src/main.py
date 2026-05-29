@@ -476,27 +476,6 @@ async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
     stats = account_service.get_dashboard_stats()
     return api_response(200, "Success", stats)
 
-@app.get("/admin/update-logs")
-async def get_update_logs(
-    authorization: Optional[str] = Header(None),
-    page: int = 1,
-    page_size: int = 20
-):
-    session, err = require_perm(authorization, "APP配置", "查看")
-    if err: return err
-    data = account_service.get_update_logs(page=page, page_size=page_size)
-    return api_response(200, "Success", data)
-
-@app.post("/admin/update-logs/sync")
-async def sync_update_logs(
-    data: list[dict[str, str]],
-    authorization: Optional[str] = Header(None)
-):
-    session, err = require_perm(authorization, "APP配置", "修改")
-    if err: return err
-    inserted = account_service.sync_update_logs(data)
-    return api_response(200, f"Synced {inserted} new commits", {"inserted": inserted})
-
 @app.get("/admin/settings/running-apps/{app_uid}/templates")
 async def get_app_templates(app_uid: str, authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "APP配置", "查看")

@@ -13,8 +13,9 @@ export const updateLogs: UpdateLogItem[] = [
   {
     "version": "2.0.0",
     "date": "2026-05-30",
-    "title": "修复默认管理员密码错误",
+    "title": "添加下属管理和更新日志页面",
     "details": [
+      "添加下属管理和更新日志页面",
       "修复默认管理员密码错误",
       "本次项目变更总结 一、下属管理体系（核心新功能） 数据库新增 2 张表： 表\t用途 user_subordinates\t上级-下级层级关系（UNIQUE 约束防重复/循环） balance_delegations\t余额扣除链接（每用户每APP最多链接一个上级） 后端新增（account_service.py）： 方法\t功能 get_subordinates / add_subordinate /…"
     ]

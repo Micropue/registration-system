@@ -298,17 +298,6 @@ class AccountService:
                 cursor.execute("ALTER TABLE balance_transactions ADD COLUMN user_uid VARCHAR(64) DEFAULT ''")
             except:
                 pass
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS update_logs (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    uid VARCHAR(64) UNIQUE NOT NULL,
-                    commit_hash VARCHAR(40) NOT NULL,
-                    commit_message TEXT NOT NULL,
-                    commit_date DATETIME NOT NULL,
-                    created_at DATETIME NOT NULL,
-                    UNIQUE KEY uq_commit_hash (commit_hash)
-                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
-            """)
             self._init_default_groups(cursor)
             connection.commit()
             try:
@@ -1659,39 +1648,6 @@ class AccountService:
                 now = self._now()
                 cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)", (uid, admin_uid, type, reference_id, title, content, now))
             connection.commit()
-
-    def sync_update_logs(self, commits: list[dict[str, str]]) -> int:
-        inserted = 0
-        with self._connect() as connection:
-            cursor = connection.cursor()
-            for c in commits:
-                commit_hash = c.get('hash', '')[:40]
-                commit_message = c.get('message', '')
-                commit_date_str = c.get('date', '')
-                if not commit_hash or not commit_date_str:
-                    continue
-                try:
-                    cursor.execute("INSERT IGNORE INTO update_logs (uid, commit_hash, commit_message, commit_date, created_at) VALUES (%s, %s, %s, %s, NOW())", (self._new_uid(), commit_hash, commit_message, commit_date_str))
-                    if cursor.rowcount > 0:
-                        inserted += 1
-                except Exception:
-                    pass
-            connection.commit()
-        return inserted
-
-    def get_update_logs(self, page: int = 1, page_size: int = 20) -> dict[str, Any]:
-        offset = (page - 1) * page_size
-        with self._connect() as connection:
-            cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT COUNT(*) as total FROM update_logs")
-            total = cursor.fetchone()['total']
-            cursor.execute("SELECT uid, commit_hash, commit_message, commit_date, created_at FROM update_logs ORDER BY commit_date DESC LIMIT %s OFFSET %s", (page_size, offset))
-            items = cursor.fetchall()
-            for item in items:
-                for key in ('commit_date', 'created_at'):
-                    if item.get(key):
-                        item[key] = item[key].isoformat() if hasattr(item[key], 'isoformat') else str(item[key])
-            return {'items': items, 'total': total}
 
     # ---- Subordinate Management ----
 
