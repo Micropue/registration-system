@@ -5,11 +5,11 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/insert-update.mjs && node scripts/update-proxy-port.mjs && run-p type-check \"build-only {@}\" -- && node scripts/restore-proxy-port.mjs",
+    "build": "node scripts/gen-update-logs.mjs && node scripts/update-proxy-port.mjs && run-p type-check \"build-only {@}\" -- && node scripts/restore-proxy-port.mjs",
     "preview": "vite preview",
     "build-only": "vite build",
     "type-check": "vue-tsc --build --force",
-    "insert-update": "node scripts/insert-update.mjs"
+    "gen-update-logs": "node scripts/gen-update-logs.mjs"
   },
   "dependencies": {
     "@fontsource/roboto": "^5.2.10",

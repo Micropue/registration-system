@@ -45,8 +45,8 @@
         <v-col cols="12" md="7" lg="8">
           <template v-if="selectedUid && selectedNode">
             <v-card elevation="0" border rounded="md" class="mb-4">
-              <v-card-title class="d-flex align-center py-3 px-4">
-                <v-icon size="20" color="primary" class="mr-2">mdi-account-circle</v-icon>
+              <v-card-title class="d-flex align-center flex-wrap py-3 px-3 ga-2">
+                <v-icon size="20" color="primary" class="mr-1">mdi-account-circle</v-icon>
                 <span class="font-weight-bold">{{ selectedNode.username }}</span>
                 <v-chip v-if="selectedNode.group_name" size="x-small" class="ml-2"
                   :color="selectedNode.group_name === '超级管理员' ? '#DC2626' : selectedNode.group_name === '未分配' ? '#6B7280' : '#1677ff'"
@@ -77,7 +77,8 @@
                 <v-alert v-if="!runningApps.length" type="info" variant="tonal" class="ma-4 mb-0" density="compact">
                   暂无跑步APP配置，请先在APP管理中创建
                 </v-alert>
-                <v-table v-else density="compact" hover>
+                <div v-else class="balance-table-wrap">
+                <v-table density="compact" hover>
                   <thead>
                     <tr class="text-caption text-medium-emphasis">
                       <th class="pl-4">APP名称</th>
@@ -130,6 +131,7 @@
                     </tr>
                   </tbody>
                 </v-table>
+                </div>
                 <v-divider v-if="selectedNode.is_delegated" />
                 <v-alert v-if="selectedNode.is_delegated" type="warning" variant="tonal" density="compact"
                   class="ma-0" rounded="0">
@@ -160,7 +162,7 @@
       {{ snackbar.text }}
     </v-snackbar>
 
-    <v-dialog v-model="addDialog.show" max-width="440" persistent>
+    <v-dialog v-model="addDialog.show" max-width="440" width="90%" persistent>
       <v-card rounded="md">
         <v-card-title class="text-h6 pa-4 pb-2">添加下属</v-card-title>
         <v-divider />
@@ -212,8 +214,12 @@
 
 <style scoped>
 .table-wrapper { width: 90%; }
-
 .bg-warning-subtle { background-color: rgba(217, 119, 6, 0.04); }
+.balance-table-wrap { overflow-x: auto; }
+
+@media (max-width: 600px) {
+  .table-wrapper { width: 100%; }
+}
 </style>
 
 <script lang="ts" setup>

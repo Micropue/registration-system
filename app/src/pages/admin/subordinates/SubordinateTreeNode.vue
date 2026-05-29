@@ -5,10 +5,10 @@
       :active="selectedUid === node.uid"
       active-color="#1677ff"
       @click="$emit('select', node)"
-      class="tree-node py-2"
+      class="tree-node py-1"
       density="compact"
-      :style="{ paddingLeft: 8 + level * 20 + 'px' }"
-      min-height="40"
+      :style="{ paddingLeft: (level <= 1 ? 8 : 4) + level * 16 + 'px' }"
+      min-height="38"
     >
       <template v-slot:prepend>
         <div class="d-flex align-center" style="width: 28px; flex-shrink: 0">

@@ -1,0 +1,236 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e12]: R
+        - generic [ref=e13]:
+          - generic [ref=e14]: root
+          - generic [ref=e15]: 超级管理员
+      - list [ref=e16]:
+        - link "订单处理" [ref=e17] [cursor=pointer]:
+          - /url: /admin/registers
+          - generic [ref=e21]: 󰷉
+          - generic [ref=e23]: 订单处理
+        - link "工单处理" [ref=e24] [cursor=pointer]:
+          - /url: /admin/feedbacks
+          - generic [ref=e28]: 󰉕
+          - generic [ref=e30]: 工单处理
+        - link "充值审批" [ref=e31] [cursor=pointer]:
+          - /url: /admin/recharges
+          - generic [ref=e35]: 󱓮
+          - generic [ref=e37]: 充值审批
+        - link "数据登记" [ref=e38] [cursor=pointer]:
+          - /url: /sign
+          - generic [ref=e42]: 󰐙
+          - generic [ref=e44]: 数据登记
+        - link "工单反馈" [ref=e45] [cursor=pointer]:
+          - /url: /feedback
+          - generic [ref=e49]: 󰍪
+          - generic [ref=e51]: 工单反馈
+        - link "充值申请" [ref=e52] [cursor=pointer]:
+          - /url: /recharge
+          - generic [ref=e56]: 󱉡
+          - generic [ref=e58]: 充值申请
+        - link "仪表盘" [ref=e59] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e63]: 󰨝
+          - generic [ref=e65]: 仪表盘
+        - link "账户管理" [ref=e66] [cursor=pointer]:
+          - /url: /admin/users
+          - generic [ref=e70]: 󰭘
+          - generic [ref=e72]: 账户管理
+        - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+          - /url: /admin/running-apps
+          - generic [ref=e77]: 󰜎
+          - generic [ref=e79]: 跑步APP配置
+        - link "下属管理" [ref=e80] [cursor=pointer]:
+          - /url: /admin/subordinates
+          - generic [ref=e84]: 󱏒
+          - generic [ref=e86]: 下属管理
+        - link "账户组管理" [ref=e87] [cursor=pointer]:
+          - /url: /admin/groups
+          - generic [ref=e91]: 󰨒
+          - generic [ref=e93]: 账户组管理
+        - link "余额查看" [ref=e94] [cursor=pointer]:
+          - /url: /balance
+          - generic [ref=e98]: 󰯝
+          - generic [ref=e100]: 余额查看
+        - link "余额流水" [ref=e101] [cursor=pointer]:
+          - /url: /balance-transactions
+          - generic [ref=e105]: 󰋚
+          - generic [ref=e107]: 余额流水
+        - separator [ref=e108]
+        - link "更新日志" [ref=e109] [cursor=pointer]:
+          - /url: /admin/update-logs
+          - generic [ref=e111]: 󰚰
+          - generic [ref=e113]: 更新日志
+        - link "关于" [ref=e114] [cursor=pointer]:
+          - /url: /about
+          - generic [ref=e116]: 󰋽
+          - generic [ref=e118]: 关于
+  - banner [ref=e119]:
+    - generic [ref=e121]:
+      - button [ref=e122] [cursor=pointer]:
+        - generic [ref=e124]: 󰍜
+      - img [ref=e128] [cursor=pointer]
+      - generic [ref=e130]:
+        - generic [ref=e136]:
+          - button [ref=e137] [cursor=pointer]:
+            - generic [ref=e139]: 󰂜
+          - status "Badge" [ref=e144]: "3"
+        - button "退出登录" [ref=e140] [cursor=pointer]:
+          - generic [ref=e141]: 退出登录
+  - main [ref=e142]:
+    - generic [ref=e146]:
+      - heading "更新日志" [level=1] [ref=e147]
+      - generic [ref=e148]:
+        - generic [ref=e149]:
+          - generic [ref=e150]:
+            - generic [ref=e152]: 2.0.0
+            - generic [ref=e153]: 修复默认管理员密码错误
+          - separator [ref=e154]
+          - generic [ref=e155]: 2026-05-30
+          - list [ref=e157]:
+            - listitem [ref=e158]: 修复默认管理员密码错误
+            - listitem [ref=e159]: 本次项目变更总结 一、下属管理体系（核心新功能） 数据库新增 2 张表： 表 用途 user_subordinates 上级-下级层级关系（UNIQUE 约束防重复/循环） balance_delegations 余额扣除链接（每用户每APP最多链接一个上级） 后端新增（account_service.py）： 方法 功能 get_subordinates / add_subordinate /…
+        - generic [ref=e160]:
+          - generic [ref=e161]:
+            - generic [ref=e163]: 2.1.0
+            - generic [ref=e164]: 为编程加入了丰富的skill，加入了关于界面和更新日志界面
+          - separator [ref=e165]
+          - generic [ref=e166]: 2026-05-29
+          - list [ref=e168]:
+            - listitem [ref=e169]: 为编程加入了丰富的skill，加入了关于界面和更新日志界面
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - generic [ref=e173]: 2.2.0
+            - generic [ref=e174]: 更新模板字段复制按钮的逻辑
+          - separator [ref=e175]
+          - generic [ref=e176]: 2026-05-28
+          - list [ref=e178]:
+            - listitem [ref=e179]: 更新模板字段复制按钮的逻辑
+            - listitem [ref=e180]: 用户界面加入余额管理
+            - listitem [ref=e181]: 订单处理搜索支持搜索客户信息
+        - generic [ref=e182]:
+          - generic [ref=e183]:
+            - generic [ref=e185]: 2.3.0
+            - generic [ref=e186]: 添加注册详情的处理和驳回按钮
+          - separator [ref=e187]
+          - generic [ref=e188]: 2026-05-27
+          - list [ref=e190]:
+            - listitem [ref=e191]: 添加注册详情的处理和驳回按钮
+            - listitem [ref=e192]: Add drag-and-drop sorting for running apps and enhance notification handling
+        - generic [ref=e193]:
+          - generic [ref=e194]:
+            - generic [ref=e196]: 2.4.0
+            - generic [ref=e197]: Implement user balance management and notifications
+          - separator [ref=e198]
+          - generic [ref=e199]: 2026-05-23
+          - list [ref=e201]:
+            - listitem [ref=e202]: Implement user balance management and notifications
+            - listitem [ref=e203]: 添加订单处理、工单处理、充值审批的待处理计数功能
+        - generic [ref=e204]:
+          - generic [ref=e205]:
+            - generic [ref=e207]: 2.5.0
+            - generic [ref=e208]: 优化主题颜色变量使用
+          - separator [ref=e209]
+          - generic [ref=e210]: 2026-05-22
+          - list [ref=e212]:
+            - listitem [ref=e213]: 优化主题颜色变量使用
+            - listitem [ref=e214]: 修复首页文本对齐问题
+            - listitem [ref=e215]: add PWA support with service worker and icons
+            - listitem [ref=e216]: 新增数据登记表单对话框
+            - listitem [ref=e217]: 添加Prism组件并优化首页样式
+            - listitem [ref=e218]: 更新注册聊天界面样式和功能
+            - listitem [ref=e219]: 加了很多功能，聊天框的背景没改上
+        - generic [ref=e220]:
+          - generic [ref=e221]:
+            - generic [ref=e223]: 2.6.0
+            - generic [ref=e224]: 添加通知菜单打开状态控制与关联ID已读标记功能
+          - separator [ref=e225]
+          - generic [ref=e226]: 2026-05-21
+          - list [ref=e228]:
+            - listitem [ref=e229]: 添加通知菜单打开状态控制与关联ID已读标记功能
+        - generic [ref=e230]:
+          - generic [ref=e231]:
+            - generic [ref=e233]: 2.7.0
+            - generic [ref=e234]: 修正导航功能项及模板管理中的字段名称
+          - separator [ref=e235]
+          - generic [ref=e236]: 2026-05-19
+          - list [ref=e238]:
+            - listitem [ref=e239]: 修正导航功能项及模板管理中的字段名称
+            - listitem [ref=e240]: remove deleteOriginalAssets option from viteCompression configuration
+            - listitem [ref=e241]: add icon support for running apps and image upload functionality
+            - listitem [ref=e242]: 移除 ChatDrawer 及相关逻辑
+            - listitem [ref=e243]: Enhance admin dashboard and registration features
+        - generic [ref=e244]:
+          - generic [ref=e245]:
+            - generic [ref=e247]: 2.8.0
+            - generic [ref=e248]: add WebSocket chat functionality and enhance admin registra…
+          - separator [ref=e249]
+          - generic [ref=e250]: 2026-05-18
+          - list [ref=e252]:
+            - listitem [ref=e253]: add WebSocket chat functionality and enhance admin registration features
+        - generic [ref=e254]:
+          - generic [ref=e255]:
+            - generic [ref=e257]: 2.9.0
+            - generic [ref=e258]: add running apps management and feedback system
+          - separator [ref=e259]
+          - generic [ref=e260]: 2026-05-16
+          - list [ref=e262]:
+            - listitem [ref=e263]: add running apps management and feedback system
+            - listitem [ref=e264]: 添加构建前后的代理端口更新脚本及样式优化
+        - generic [ref=e265]:
+          - generic [ref=e266]:
+            - generic [ref=e268]: 2.10.0
+            - generic [ref=e269]: 添加删除登记记录的功能
+          - separator [ref=e270]
+          - generic [ref=e271]: 2026-05-15
+          - list [ref=e273]:
+            - listitem [ref=e274]: 添加删除登记记录的功能
+            - listitem [ref=e275]: 更新登记列表和状态处理逻辑
+            - listitem [ref=e276]: 添加开发启动指南
+        - generic [ref=e277]:
+          - generic [ref=e278]:
+            - generic [ref=e280]: 2.11.0
+            - generic [ref=e281]: 添加校园跑数据登记功能
+          - separator [ref=e282]
+          - generic [ref=e283]: 2026-05-14
+          - list [ref=e285]:
+            - listitem [ref=e286]: 添加校园跑数据登记功能
+            - listitem [ref=e287]: 添加表单字段配置功能
+        - generic [ref=e288]:
+          - generic [ref=e289]:
+            - generic [ref=e291]: 2.12.0
+            - generic [ref=e292]: 添加登记字段配置页面和欢迎页面
+          - separator [ref=e293]
+          - generic [ref=e294]: 2026-05-13
+          - list [ref=e296]:
+            - listitem [ref=e297]: 添加登记字段配置页面和欢迎页面
+        - generic [ref=e298]:
+          - generic [ref=e299]:
+            - generic [ref=e301]: 2.13.0
+            - generic [ref=e302]: 添加用户批量创建和管理功能
+          - separator [ref=e303]
+          - generic [ref=e304]: 2026-05-12
+          - list [ref=e306]:
+            - listitem [ref=e307]: 添加用户批量创建和管理功能
+            - listitem [ref=e308]: 更新登录检测和用户管理功能
+        - generic [ref=e309]:
+          - generic [ref=e310]:
+            - generic [ref=e312]: 2.14.0
+            - generic [ref=e313]: 新增API文档及登录相关接口说明
+          - separator [ref=e314]
+          - generic [ref=e315]: 2026-05-08
+          - list [ref=e317]:
+            - listitem [ref=e318]: 新增API文档及登录相关接口说明
+            - listitem [ref=e319]: 添加登录页面和导航栏
+        - generic [ref=e320]:
+          - generic [ref=e321]:
+            - generic [ref=e323]: 2.15.0
+            - generic [ref=e324]: init app
+          - separator [ref=e325]
+          - generic [ref=e326]: 2026-05-07
+          - list [ref=e328]:
+            - listitem [ref=e329]: init app
+            - listitem [ref=e330]: 添加账户系统和Docker配置

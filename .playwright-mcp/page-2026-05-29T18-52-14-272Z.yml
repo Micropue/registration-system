@@ -1,0 +1,83 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e12]: R
+        - generic [ref=e13]:
+          - generic [ref=e14]: root
+          - generic [ref=e15]: 超级管理员
+      - list [ref=e16]:
+        - link "订单处理" [ref=e17] [cursor=pointer]:
+          - /url: /admin/registers
+          - generic [ref=e21]: 󰷉
+          - generic [ref=e23]: 订单处理
+        - link "工单处理" [ref=e24] [cursor=pointer]:
+          - /url: /admin/feedbacks
+          - generic [ref=e28]: 󰉕
+          - generic [ref=e30]: 工单处理
+        - link "充值审批" [ref=e31] [cursor=pointer]:
+          - /url: /admin/recharges
+          - generic [ref=e35]: 󱓮
+          - generic [ref=e37]: 充值审批
+        - link "数据登记" [ref=e38] [cursor=pointer]:
+          - /url: /sign
+          - generic [ref=e42]: 󰐙
+          - generic [ref=e44]: 数据登记
+        - link "工单反馈" [ref=e45] [cursor=pointer]:
+          - /url: /feedback
+          - generic [ref=e49]: 󰍪
+          - generic [ref=e51]: 工单反馈
+        - link "充值申请" [ref=e52] [cursor=pointer]:
+          - /url: /recharge
+          - generic [ref=e56]: 󱉡
+          - generic [ref=e58]: 充值申请
+        - link "仪表盘" [ref=e59] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e63]: 󰨝
+          - generic [ref=e65]: 仪表盘
+        - link "账户管理" [ref=e66] [cursor=pointer]:
+          - /url: /admin/users
+          - generic [ref=e70]: 󰭘
+          - generic [ref=e72]: 账户管理
+        - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+          - /url: /admin/running-apps
+          - generic [ref=e77]: 󰜎
+          - generic [ref=e79]: 跑步APP配置
+        - link "下属管理" [ref=e80] [cursor=pointer]:
+          - /url: /admin/subordinates
+          - generic [ref=e84]: 󱏒
+          - generic [ref=e86]: 下属管理
+        - link "账户组管理" [ref=e87] [cursor=pointer]:
+          - /url: /admin/groups
+          - generic [ref=e91]: 󰨒
+          - generic [ref=e93]: 账户组管理
+        - link "余额查看" [ref=e94] [cursor=pointer]:
+          - /url: /balance
+          - generic [ref=e98]: 󰯝
+          - generic [ref=e100]: 余额查看
+        - link "余额流水" [ref=e101] [cursor=pointer]:
+          - /url: /balance-transactions
+          - generic [ref=e105]: 󰋚
+          - generic [ref=e107]: 余额流水
+        - separator [ref=e108]
+        - link "更新日志" [ref=e109] [cursor=pointer]:
+          - /url: /admin/update-logs
+          - generic [ref=e111]: 󰚰
+          - generic [ref=e113]: 更新日志
+        - link "关于" [ref=e114] [cursor=pointer]:
+          - /url: /about
+          - generic [ref=e116]: 󰋽
+          - generic [ref=e118]: 关于
+  - banner [ref=e119]:
+    - generic [ref=e121]:
+      - button [ref=e122] [cursor=pointer]:
+        - generic [ref=e124]: 󰍜
+      - img [ref=e128] [cursor=pointer]
+      - generic [ref=e129]:
+        - progressbar [ref=e130]:
+          - img [ref=e131]
+        - button [ref=e136] [cursor=pointer]:
+          - generic [ref=e138]: 󰂜
+        - button "退出登录" [ref=e139] [cursor=pointer]:
+          - generic [ref=e140]: 退出登录
+  - main [ref=e141]

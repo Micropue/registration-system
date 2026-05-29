@@ -1,0 +1,173 @@
+- generic [ref=e4]:
+  - navigation [ref=e5]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e12]: A
+        - generic [ref=e13]:
+          - generic [ref=e14]: admin
+          - generic [ref=e15]: 超级管理员
+      - list [ref=e16]:
+        - link "订单处理" [ref=e17] [cursor=pointer]:
+          - /url: /admin/registers
+          - generic [ref=e21]: 󰷉
+          - generic [ref=e23]: 订单处理
+        - link "工单处理" [ref=e24] [cursor=pointer]:
+          - /url: /admin/feedbacks
+          - generic [ref=e28]: 󰉕
+          - generic [ref=e30]: 工单处理
+        - link "充值审批" [ref=e31] [cursor=pointer]:
+          - /url: /admin/recharges
+          - generic [ref=e35]: 󱓮
+          - generic [ref=e37]: 充值审批
+        - link "数据登记" [ref=e38] [cursor=pointer]:
+          - /url: /sign
+          - generic [ref=e42]: 󰐙
+          - generic [ref=e44]: 数据登记
+        - link "Badge 工单反馈" [ref=e143] [cursor=pointer]:
+          - /url: /feedback
+          - generic [ref=e48]:
+            - generic [ref=e49]: 󰍪
+            - status "Badge" [ref=e144]: "2"
+          - generic [ref=e51]: 工单反馈
+        - link "Badge 充值申请" [ref=e145] [cursor=pointer]:
+          - /url: /recharge
+          - generic [ref=e55]:
+            - generic [ref=e56]: 󱉡
+            - status "Badge" [ref=e146]: "3"
+          - generic [ref=e58]: 充值申请
+        - link "仪表盘" [ref=e59] [cursor=pointer]:
+          - /url: /admin
+          - generic [ref=e63]: 󰨝
+          - generic [ref=e65]: 仪表盘
+        - link "账户管理" [ref=e66] [cursor=pointer]:
+          - /url: /admin/users
+          - generic [ref=e70]: 󰭘
+          - generic [ref=e72]: 账户管理
+        - link "跑步APP配置" [ref=e73] [cursor=pointer]:
+          - /url: /admin/running-apps
+          - generic [ref=e77]: 󰜎
+          - generic [ref=e79]: 跑步APP配置
+        - link "下属管理" [ref=e80] [cursor=pointer]:
+          - /url: /admin/subordinates
+          - generic [ref=e84]: 󱏒
+          - generic [ref=e86]: 下属管理
+        - link "账户组管理" [ref=e87] [cursor=pointer]:
+          - /url: /admin/groups
+          - generic [ref=e91]: 󰨒
+          - generic [ref=e93]: 账户组管理
+        - link "余额查看" [ref=e94] [cursor=pointer]:
+          - /url: /balance
+          - generic [ref=e98]: 󰯝
+          - generic [ref=e100]: 余额查看
+        - link "余额流水" [ref=e101] [cursor=pointer]:
+          - /url: /balance-transactions
+          - generic [ref=e105]: 󰋚
+          - generic [ref=e107]: 余额流水
+        - separator [ref=e108]
+        - link "更新日志" [ref=e109] [cursor=pointer]:
+          - /url: /admin/update-logs
+          - generic [ref=e111]: 󰚰
+          - generic [ref=e113]: 更新日志
+        - link "关于" [ref=e114] [cursor=pointer]:
+          - /url: /about
+          - generic [ref=e116]: 󰋽
+          - generic [ref=e118]: 关于
+  - banner [ref=e119]:
+    - generic [ref=e121]:
+      - button [ref=e122] [cursor=pointer]:
+        - generic [ref=e124]: 󰍜
+      - generic [ref=e125] [cursor=pointer]:
+        - img [ref=e128]
+        - generic [ref=e129]: 哆啦A梦（校园跑版）
+      - generic [ref=e130]:
+        - generic [ref=e136]:
+          - button [ref=e137] [cursor=pointer]:
+            - generic [ref=e139]: 󰂜
+          - status "Badge" [ref=e147]: "43"
+        - button "退出登录" [ref=e140] [cursor=pointer]:
+          - generic [ref=e141]: 退出登录
+  - main [ref=e142]:
+    - generic [ref=e149]:
+      - heading "更新日志" [level=1] [ref=e150]
+      - generic [ref=e151]:
+        - generic [ref=e154]:
+          - generic [ref=e155]:
+            - generic [ref=e157]: 2.1.0
+            - text: 下属管理体系 + 余额扣除链
+          - separator [ref=e158]
+          - list [ref=e160]:
+            - listitem [ref=e161]: 新增"下属管理"功能模块：超级管理员可为拥有权限的账户配置下属，支持层级账户树展示
+            - listitem [ref=e162]: 新增余额扣除链：上级可为下属APP余额建立链接，下属消费从上级余额逐级扣除
+            - listitem [ref=e163]: 新增"可配置下属"权限项，可在账户组中分配
+            - listitem [ref=e164]: 账户管理页每行增加"下属管理"按钮，跳转到对应下属树页面
+            - listitem [ref=e165]: 余额管理页显示用户组标签，已委托用户不禁用调整（经链操作）
+            - listitem [ref=e166]: 修复余额在 approved↔pending↔rejected 反复切换时异常累加的bug
+            - listitem [ref=e167]: 修复 update_registration_status 条件过宽导致重复退款的问题
+            - listitem [ref=e168]: 修复 resubmit_registration 在驳回状态下重复退款的问题
+            - listitem [ref=e169]: 修复 delete_registration 未退款且无返回值导致404的问题
+            - listitem [ref=e170]: 修复超级管理员组新增权限不自动同步的bug
+            - listitem [ref=e171]: 修复侧边栏"下属管理"图标不存在的问题
+            - listitem [ref=e172]: 修复 get_user_balances 多级委托链余额缺失的问题
+            - listitem [ref=e173]: 修复余额调整弹窗未设置余额类型时显示空chip的问题
+        - generic [ref=e182]:
+          - generic [ref=e183]:
+            - generic [ref=e185]: 2.0.0
+            - text: 界面升级 + 余额管理系统
+          - separator [ref=e186]
+          - list [ref=e188]:
+            - listitem [ref=e189]: 新增更新日志页面
+            - listitem [ref=e190]: 新增关于页面
+            - listitem [ref=e191]: 新增丰富的设计语言Skill系统（Ant Design等）
+            - listitem [ref=e192]: 下属管理页采用Ant Design企业级数据密集风格重构
+        - generic [ref=e201]:
+          - generic [ref=e202]:
+            - generic [ref=e204]: 1.7.0
+            - text: 余额管理 + 模板优化
+          - separator [ref=e205]
+          - list [ref=e207]:
+            - listitem [ref=e208]: 用户界面加入余额管理功能
+            - listitem [ref=e209]: 模板字段复制按钮逻辑优化
+        - generic [ref=e218]:
+          - generic [ref=e219]:
+            - generic [ref=e221]: 1.6.0
+            - text: 订单处理增强
+          - separator [ref=e222]
+          - list [ref=e224]:
+            - listitem [ref=e225]: 订单处理搜索支持搜索客户信息
+            - listitem [ref=e226]: 注册详情添加处理和驳回按钮
+            - listitem [ref=e227]: 跑步APP支持拖拽排序
+            - listitem [ref=e228]: 通知处理功能增强
+        - generic [ref=e237]:
+          - generic [ref=e238]:
+            - generic [ref=e240]: 1.5.0
+            - text: 余额系统 + 通知系统
+          - separator [ref=e241]
+          - list [ref=e243]:
+            - listitem [ref=e244]: 用户余额管理和通知系统上线
+            - listitem [ref=e245]: 订单处理、工单处理、充值审批增加待处理计数功能
+        - generic [ref=e254]:
+          - generic [ref=e255]:
+            - generic [ref=e257]: 1.4.0
+            - text: PWA + 聊天增强
+          - separator [ref=e258]
+          - list [ref=e260]:
+            - listitem [ref=e261]: 新增PWA支持（Service Worker + 图标）
+            - listitem [ref=e262]: 新增数据登记表单对话框
+            - listitem [ref=e263]: 首页样式优化，添加Prism组件
+            - listitem [ref=e264]: 聊天界面样式和功能更新
+        - generic [ref=e273]:
+          - generic [ref=e274]:
+            - generic [ref=e276]: 1.3.0
+            - text: 通知菜单优化
+          - separator [ref=e277]
+          - list [ref=e279]:
+            - listitem [ref=e280]: 添加通知菜单打开状态控制
+            - listitem [ref=e281]: 关联ID已读标记功能
+        - generic [ref=e290]:
+          - generic [ref=e291]:
+            - generic [ref=e293]: 1.2.0
+            - text: 导航与模板
+          - separator [ref=e294]
+          - list [ref=e296]:
+            - listitem [ref=e297]: 修正导航功能项及模板管理中的字段名称
+            - listitem [ref=e298]: 优化部署配置
