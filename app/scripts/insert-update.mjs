@@ -2,7 +2,7 @@ import { execSync } from 'child_process'
 
 const API_BASE = process.env.API_BASE || 'http://localhost:8001'
 const ADMIN_USER = process.env.ADMIN_USER || 'admin'
-const ADMIN_PASS = process.env.ADMIN_PASS || 'admin-123456'
+const ADMIN_PASS = process.env.ADMIN_PASS || '123456'
 
 async function login() {
   const form = new URLSearchParams({ username: ADMIN_USER, password: ADMIN_PASS })
