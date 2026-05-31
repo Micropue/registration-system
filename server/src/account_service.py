@@ -652,10 +652,14 @@ class AccountService:
             rows = cursor.fetchall()
             all_user_uids = [r["user_uid"] for r in rows]
             owner_map: dict[str, str] = {}
-            owner_balances: dict[str, float] = {}
+            visible_rows = {r["user_uid"]: r for r in rows}
+            owner_uids: set[str] = set()
             if all_user_uids:
                 placeholders = ",".join(["%s"] * len(all_user_uids))
-                cursor.execute(f"SELECT user_uid, parent_uid FROM balance_delegations WHERE user_uid IN ({placeholders}) AND app_uid = %s", (*all_user_uids, app_uid))
+                cursor.execute(
+                    f"SELECT user_uid, parent_uid FROM balance_delegations WHERE user_uid IN ({placeholders}) AND app_uid = %s",
+                    (*all_user_uids, app_uid),
+                )
                 deleg_rows = cursor.fetchall()
                 deleg_map = {dr["user_uid"]: dr["parent_uid"] for dr in deleg_rows}
                 for u_uid in all_user_uids:
@@ -670,25 +674,36 @@ class AccountService:
                         else:
                             break
                     owner_map[u_uid] = resolved
-                owner_uids = set(owner_map.values()) - set(all_user_uids)
-                if owner_uids:
-                    op = ",".join(["%s"] * len(owner_uids))
-                    cursor.execute(f"SELECT user_uid, balance FROM user_balances WHERE user_uid IN ({op}) AND app_uid = %s", (*owner_uids, app_uid))
-                    for ob in cursor.fetchall():
-                        owner_balances[ob["user_uid"]] = float(ob["balance"] or 0)
+                    if resolved != u_uid:
+                        owner_uids.add(resolved)
+            owner_balances: dict[str, dict[str, Any]] = {}
+            if owner_uids:
+                op = ",".join(["%s"] * len(owner_uids))
+                cursor.execute(
+                    f"SELECT ub.user_uid, ub.balance, ub.updated_at FROM user_balances ub WHERE ub.user_uid IN ({op}) AND ub.app_uid = %s",
+                    (*owner_uids, app_uid),
+                )
+                for ob in cursor.fetchall():
+                    owner_balances[ob["user_uid"]] = {
+                        "balance": float(ob["balance"] or 0),
+                        "updated_at": ob["updated_at"],
+                    }
         items = []
         for row in rows:
             user_uid = row["user_uid"]
             owner_uid = owner_map.get(user_uid, user_uid)
             is_delegated = bool(row.get("del_parent_uid"))
             display_balance = float(row["balance"] or 0)
+            display_updated_at = row["updated_at"]
             if owner_uid != user_uid:
-                if owner_uid in owner_balances:
-                    display_balance = owner_balances[owner_uid]
+                owner_info = owner_balances.get(owner_uid)
+                if owner_info:
+                    display_balance = owner_info["balance"]
+                    display_updated_at = owner_info["updated_at"]
             items.append({
                 "id": row["balance_uid"] or "", "user_uid": user_uid, "app_uid": app_uid,
                 "username": row["username"], "balance": display_balance,
-                "updated_at": row["updated_at"].isoformat(),
+                "updated_at": display_updated_at.isoformat(),
                 "is_delegated": is_delegated,
                 "delegated_to": row.get("del_parent_uid") or None,
                 "delegated_to_name": row.get("del_parent_name") or None,
@@ -799,7 +814,60 @@ class AccountService:
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def get_user_balance_transactions(self, user_uid: str, app_uid: str = "", page: int = 1, page_size: int = 20) -> dict[str, Any]:
-        return self.get_balance_transactions(app_uid=app_uid, user_uid=user_uid, page=page, page_size=page_size)
+        if app_uid:
+            owner_uid = self._resolve_balance_owner(user_uid, app_uid)
+            return self.get_balance_transactions(app_uid=app_uid, user_uid=owner_uid, page=page, page_size=page_size)
+
+        balances = self.get_user_balances(user_uid)
+        if not balances:
+            return {"total": 0, "page": page, "page_size": page_size, "items": []}
+
+        pairs: list[tuple[str, str]] = []
+        seen_pairs: set[tuple[str, str]] = set()
+        for bal in balances:
+            visible_app_uid = bal["app_uid"]
+            owner_uid = self._resolve_balance_owner(user_uid, visible_app_uid)
+            pair = (visible_app_uid, owner_uid)
+            if pair not in seen_pairs:
+                seen_pairs.add(pair)
+                pairs.append(pair)
+
+        offset = (page - 1) * page_size
+        with self._connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            if not pairs:
+                return {"total": 0, "page": page, "page_size": page_size, "items": []}
+            conditions = []
+            params: list[Any] = []
+            for app, owner in pairs:
+                conditions.append("(bt.app_uid = %s AND bt.user_uid = %s)")
+                params.extend([app, owner])
+            where_clause = "WHERE " + " OR ".join(conditions)
+            cursor.execute(f"SELECT COUNT(*) as total FROM balance_transactions bt {where_clause}", tuple(params))
+            total = cursor.fetchone()["total"]
+            sql = f"""
+                SELECT bt.uid, bt.app_uid, ra.name as app_name, ra.icon as app_icon, bt.type, bt.amount, bt.balance_after,
+                       bt.related_uid, bt.related_type, bt.note, bt.user_uid, u2.username, bt.created_at
+                FROM balance_transactions bt
+                JOIN running_apps ra ON ra.uid = bt.app_uid
+                LEFT JOIN users u2 ON bt.user_uid = u2.uid
+                {where_clause}
+                ORDER BY bt.created_at DESC
+                LIMIT %s OFFSET %s
+            """
+            cursor.execute(sql, tuple(params) + (page_size, offset))
+            rows = cursor.fetchall()
+        items = [{
+            "id": row["uid"], "app_uid": row["app_uid"], "app_name": row["app_name"],
+            "app_icon": row.get("app_icon") or "",
+            "type": row["type"], "amount": float(row["amount"]),
+            "balance_after": float(row["balance_after"]),
+            "related_uid": row["related_uid"] or "", "related_type": row["related_type"] or "",
+            "note": row["note"] or "", "user_uid": row.get("user_uid") or "",
+            "username": row.get("username") or "",
+            "created_at": row["created_at"].isoformat()
+        } for row in rows]
+        return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     # ---- Balance Recharges ----
 

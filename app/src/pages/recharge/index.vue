@@ -119,7 +119,7 @@ async function checkDelegation() {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200 && res.data) {
-      isFullyDelegated.value = res.data.every((b: any) => b.is_delegated)
+      isFullyDelegated.value = Array.isArray(res.data) && res.data.length > 0 && res.data.every((b: any) => b.is_delegated)
     }
   } catch (e) { /* ignore */ }
 }
