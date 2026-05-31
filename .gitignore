@@ -51,3 +51,5 @@ __pycache__
 *.db-journal-lock-shm-lock-wal-lock-shm-lock-wal-lock-shm-lock-wal-lock-shm-lock-wal-lock-shm
 dist/
 build/
+.playwright-mcp/
+.opencode/
