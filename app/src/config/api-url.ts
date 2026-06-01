@@ -55,9 +55,9 @@ export enum ApiUrl {
   GET_PUBLIC_APP_TEMPLATES = '/api/running-apps',
   /** 仪表盘统计数据 */
   DASHBOARD_STATS = '/api/admin/dashboard/stats',
-  /** 获取用户登记历史 */
+  /** 获取用户订单历史 */
   GET_USER_REGISTRATIONS = '/api/registrations',
-  /** 获取单条登记详情 */
+  /** 获取单条订单详情 */
   GET_REGISTRATION_DETAIL = '/api/registrations',
   /** 重新提交被驳回的登记 */
   RESUBMIT_REGISTRATION = '/api/registrations',

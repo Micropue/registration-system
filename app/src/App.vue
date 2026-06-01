@@ -281,7 +281,7 @@ async function fetchPendingCounts() {
       }
       pendingCounts.value = {
         ...pendingCounts.value,
-        '数据登记': signCount,
+        '订单': signCount,
         '工单反馈': feedbackCount,
         '充值申请': rechargeCount,
         ...(isAdmin ? {} : {}),

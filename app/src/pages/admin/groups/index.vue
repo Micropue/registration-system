@@ -36,16 +36,39 @@
         <v-card-text>
           <v-text-field v-model="dialog.name" label="组名" variant="outlined" density="comfortable" :disabled="dialog.uid ? groups.find(g => g.uid === dialog.uid)?.name === '超级管理员' : false"></v-text-field>
           <div class="text-subtitle-2 mt-4 mb-2">权限配置<template v-if="dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'"><span class="text-caption text-grey">（超级管理员组权限不可修改）</span></template></div>
-          <div v-for="(perms, category) in dialog.permissions" :key="category" class="mb-3">
+           <div v-for="(perms, category) in dialog.permissions" :key="category" class="mb-3">
             <div class="font-weight-bold text-body-2 mb-1">{{ category }}</div>
-            <div v-if="typeof perms === 'object'" class="d-flex flex-wrap ga-2 ml-4">
-              <v-checkbox v-for="(enabled, permKey) in perms" :key="permKey" v-model="(dialog.permissions[category] as Record<string,boolean>)[permKey]"
-                :label="String(permKey)" density="compact" hide-details color="primary"
-                :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'"></v-checkbox>
+            <div v-if="typeof perms === 'object'" class="ml-4">
+              <template v-for="(enabled, permKey) in perms" :key="permKey">
+                <template v-if="typeof enabled === 'object' && !Array.isArray(enabled)">
+                  <v-checkbox
+                    :label="String(permKey)"
+                    :model-value="areAllTrue(enabled)"
+                    :indeterminate="isPartialTrue(enabled)"
+                    @update:model-value="setAllSub((dialog.permissions[category] as Record<string,any>)[permKey] as Record<string,any>, $event)"
+                    density="compact" hide-details color="primary"
+                    :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
+                  <div class="ml-6">
+                    <v-checkbox
+                      v-for="(v, subKey) in enabled"
+                      :key="subKey"
+                      :model-value="v"
+                      @update:model-value="((dialog.permissions[category] as Record<string,any>)[permKey] as Record<string,any>)[subKey] = $event"
+                      :label="String(subKey)"
+                      density="compact" hide-details color="primary"
+                      :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
+                  </div>
+                </template>
+                <v-checkbox v-else
+                  :model-value="enabled"
+                  @update:model-value="(dialog.permissions[category] as Record<string,any>)[permKey] = $event"
+                  :label="String(permKey)" density="compact" hide-details color="primary"
+                  :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
+              </template>
             </div>
             <v-checkbox v-else v-model="dialog.permissions[category]"
               :label="category" density="compact" hide-details color="primary" class="ml-4"
-              :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'"></v-checkbox>
+              :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
           </div>
         </v-card-text>
         <v-card-actions>
@@ -109,7 +132,7 @@ function formatDate(iso: string) {
 
 function defaultPermissions(): Record<string, any> {
   return {
-    "账户管理": { "查看": false, "创建": false, "修改": false, "删除": false, "强制下线": false },
+    "账户管理": { "查看": { "下属用户": false, "其他用户": false }, "创建": false, "修改": false, "删除": false, "强制下线": false },
     "账户组管理": { "查看": false, "创建": false, "修改": false, "删除": false },
     "订单处理": { "查看": false, "处理": false, "驳回": false, "删除": false },
     "工单处理": { "查看": false, "回复": false, "解决": false, "删除": false },
@@ -121,6 +144,19 @@ function defaultPermissions(): Record<string, any> {
     "充值申请": false,
     "余额查看": false,
   }
+}
+
+function areAllTrue(obj: Record<string, any>): boolean {
+  return Object.values(obj).every(v => v === true)
+}
+
+function isPartialTrue(obj: Record<string, any>): boolean {
+  const values = Object.values(obj)
+  return values.some(v => v === true) && !values.every(v => v === true)
+}
+
+function setAllSub(obj: Record<string, any>, value: boolean | null) {
+  Object.keys(obj).forEach(k => { obj[k] = !!value })
 }
 
 async function loadGroups() {
@@ -146,8 +182,29 @@ function openEditDialog(group: UserGroup) {
   dialog.isNew = false
   dialog.uid = group.uid
   dialog.name = group.name
-  dialog.permissions = { ...defaultPermissions(), ...JSON.parse(JSON.stringify(group.permissions)) }
+  const raw = JSON.parse(JSON.stringify(group.permissions))
+  dialog.permissions = normalizePermissions({ ...defaultPermissions(), ...raw }, defaultPermissions())
   dialog.show = true
+}
+
+function normalizePermissions(perms: Record<string, any>, defaults: Record<string, any>): Record<string, any> {
+  const result: Record<string, any> = {}
+  for (const [key, defaultValue] of Object.entries(defaults)) {
+    const current = perms[key]
+    if (typeof defaultValue === 'object' && !Array.isArray(defaultValue) && typeof current !== 'object') {
+      const oldVal = !!current
+      const newDict: Record<string, boolean> = {}
+      for (const subKey of Object.keys(defaultValue as Record<string, any>)) {
+        newDict[subKey] = oldVal
+      }
+      result[key] = newDict
+    } else if (typeof defaultValue === 'object' && !Array.isArray(defaultValue) && typeof current === 'object' && !Array.isArray(current)) {
+      result[key] = normalizePermissions(current, defaultValue)
+    } else {
+      result[key] = current !== undefined ? current : defaultValue
+    }
+  }
+  return result
 }
 
 async function saveGroup() {

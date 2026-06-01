@@ -81,7 +81,7 @@ const router = createRouter({
       path: '/sign',
       component: () => import("@/pages/sign/index.vue"),
       beforeEnter: requireDefault,
-      meta: { title: '数据登记' }
+      meta: { title: '订单' }
     },
     {
       path: '/feedback',

@@ -192,7 +192,7 @@ async def get_users(
     session, err = require_perm(authorization, "账户管理", "查看")
     if err: return err
 
-    users_data = account_service.get_all_users(page=page, page_size=page_size, sort_by=sort_by, order=order)
+    users_data = account_service.get_all_users(page=page, page_size=page_size, sort_by=sort_by, order=order, current_user_uid=session.user_uid)
     # 计算总页数
     import math
     total_pages = math.ceil(users_data["total"] / page_size) if users_data["total"] > 0 else 1
@@ -287,12 +287,12 @@ async def update_registration_status(
                 cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
                 reg = cur.fetchone()
                 if reg:
-                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '登记被驳回', reject_reason or '您的登记已被驳回', uid)
+                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '订单被驳回', reject_reason or '您的订单已被驳回', uid)
                 cur = conn.cursor(dictionary=True)
                 cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
                 reg = cur.fetchone()
                 if reg:
-                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '登记被驳回', reject_reason or '您的登记已被驳回', uid)
+                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '订单被驳回', reject_reason or '您的订单已被驳回', uid)
         return api_response(200, "Status updated successfully")
     except Exception as e:
         return api_response(500, f"Error updating status: {str(e)}")
@@ -569,7 +569,7 @@ async def get_user_registrations(
 
 @app.get("/registrations/{uid}")
 async def get_registration_detail(uid: str, authorization: Optional[str] = Header(None)):
-    """获取单条登记详情"""
+    """获取单条订单详情"""
     session, err = require_perm(authorization, "新建登记")
     if err: return err
     detail = account_service.get_registration_detail(uid, session.user_uid)
@@ -646,7 +646,7 @@ async def submit_registration(
                 if app and not account_service.check_user_balance(session.user_uid, app['uid'], amount):
                     return api_response(400, f"'{app_name}' 余额不足，无法创建登记")
         account_service.submit_registration(session.user_uid, data, priority, template_uid, amount)
-        account_service.create_notification_for_admins("new_registration", f"新登记", f"用户 {session.username} 提交了新登记")
+        account_service.create_notification_for_admins("new_registration", f"新订单", f"用户 {session.username} 提交了新订单")
         return api_response(200, "Registration submitted successfully")
     except AccountError as e:
         return api_response(400, str(e))
@@ -1061,7 +1061,7 @@ async def get_user_delegations(uid: str, authorization: Optional[str] = Header(N
     data = account_service.get_user_balance_delegations(uid)
     return api_response(200, "Success", data)
 
-# --- 登记聊天 WebSocket ---
+# --- 订单聊天 WebSocket ---
 
 class ConnectionManager:
     def __init__(self):
@@ -1120,9 +1120,9 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
                 detail = account_service.get_registration_detail(registration_uid)
                 if detail:
                     if is_staff:
-                        account_service.create_notification(detail['user_uid'], 'chat_message', '登记聊天新消息', f'管理员回复了您的登记', registration_uid)
+                        account_service.create_notification(detail['user_uid'], 'chat_message', '订单聊天新消息', f'管理员回复了您的订单', registration_uid)
                     else:
-                        account_service.create_notification_for_admins('chat_message', '登记聊天新消息', f'用户 {session.username} 发送了新消息', registration_uid)
+                        account_service.create_notification_for_admins('chat_message', '订单聊天新消息', f'用户 {session.username} 发送了新消息', registration_uid)
             except Exception:
                 pass
             await manager.broadcast(registration_uid, msg)

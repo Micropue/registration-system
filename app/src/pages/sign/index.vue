@@ -3,17 +3,17 @@
     <div class="table-wrapper" style="width: 90%;">
     <!-- 顶部操作区 -->
     <div class="d-flex justify-space-between align-center mb-4">
-      <h1 class="text-h5 text-sm-h4">数据登记</h1>
+      <h1 class="text-h5 text-sm-h4">订单管理</h1>
       <v-btn color="primary" size="default" prepend-icon="mdi-plus" @click="openNewDialog" class="text-none">
-        新建登记
+        新建订单
       </v-btn>
     </div>
 
-    <!-- 新建登记表单 Dialog -->
+    <!-- 新建订单表单 Dialog -->
     <v-dialog v-model="formDialog.show" max-width="700" persistent scrollable>
       <v-card class="pa-4">
         <v-card-title class="d-flex align-center">
-          <span class="text-h5">新建登记</span>
+          <span class="text-h5">新建订单</span>
           <v-spacer></v-spacer>
           <v-avatar v-if="selectedAppIcon" size="22" rounded class="me-1">
             <v-img :src="selectedAppIcon" cover></v-img>
@@ -97,7 +97,7 @@
           <v-btn variant="tonal" @click="cancelForm">取消</v-btn>
           <v-btn color="primary" size="large" rounded="pill" class="font-weight-bold"
             :loading="isSubmitting" :disabled="!isFormValid || isLoading" @click="openConfirm">
-            提交登记
+提交订单
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -106,7 +106,7 @@
     <!-- 选择APP的Dialog -->
     <v-dialog v-model="newDialog.show" max-width="500" persistent>
       <v-card class="pa-4">
-        <v-card-title class="text-h5">新建登记</v-card-title>
+        <v-card-title class="text-h5">新建订单</v-card-title>
         <v-card-text>
           <v-form ref="selectFormRef" v-model="selectFormValid" @submit.prevent="goSelectTemplate">
             <v-autocomplete v-model="newDialog.app" :items="runningApps" item-title="name" item-value="name"
@@ -199,7 +199,7 @@
     <!-- 重新提交对话框 -->
     <v-dialog v-model="resubmitDialog.show" max-width="500" persistent>
       <v-card class="pa-4">
-        <v-card-title class="text-h5">重新提交登记</v-card-title>
+        <v-card-title class="text-h5">重新提交订单</v-card-title>
         <v-card-text>
           <v-form ref="resubmitSelectFormRef" v-model="resubmitSelectValid">
             <v-autocomplete v-model="resubmitDialog.app" :items="runningApps" item-title="name" item-value="name"
@@ -222,7 +222,7 @@
     <v-dialog v-model="resubmitFormDialog.show" max-width="700" persistent scrollable>
       <v-card class="pa-4">
         <v-card-title class="d-flex align-center">
-          <span class="text-h5">重新提交登记</span>
+          <span class="text-h5">重新提交订单</span>
           <v-spacer></v-spacer>
           <v-avatar v-if="resubmitFormAppIcon" size="22" rounded class="me-1">
             <v-img :src="resubmitFormAppIcon" cover></v-img>
@@ -280,7 +280,7 @@
     <v-dialog v-model="infoDialog.show" max-width="700">
       <v-card class="pa-4">
         <v-card-title class="d-flex align-center pa-4 pb-0">
-          登记信息
+          订单信息
           <v-spacer></v-spacer>
           <v-chip v-if="infoDialogItem" :color="getStatusColor(infoDialogItem.status)" size="small" variant="tonal" class="me-2">
             {{ getStatusText(infoDialogItem.status) }}
@@ -312,9 +312,9 @@
         </v-card-text>
       </v-card>
     </v-dialog>
+    <!-- 订单历史 -->
 
-    <!-- 登记历史 -->
-    <h2 class="text-h6 font-weight-bold mb-3">登记历史</h2>
+    <h2 class="text-h6 font-weight-bold mb-3">订单历史</h2>
 
     <app-data-table
       :headers="historyHeaders"
@@ -377,7 +377,7 @@
     <v-dialog v-model="detailDialog.show" max-width="1100">
       <v-card class="detail-card">
         <v-card-title class="d-flex align-center pa-4 pb-0">
-          登记详情
+          订单详情
           <v-spacer></v-spacer>
           <v-chip :color="getStatusColor(detailDialog.status)" size="small" variant="tonal" class="me-2">
             {{ getStatusText(detailDialog.status) }}
@@ -818,7 +818,7 @@ async function submitForm() {
       confirmDialog.value = false
       formDialog.show = false
       selectedApp.value = ''
-      showMsg('登记提交成功')
+      showMsg('订单提交成功')
       currentPage.value = 1
       loadHistory({ page: 1, itemsPerPage: itemsPerPage.value })
     } else {

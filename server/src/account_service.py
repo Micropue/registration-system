@@ -376,7 +376,7 @@ class AccountService:
         """)
 
     PERMISSION_TREE = {
-        "账户管理": {"查看": True, "创建": True, "修改": True, "删除": True, "强制下线": True},
+        "账户管理": {"查看": {"下属用户": True, "其他用户": True}, "创建": True, "修改": True, "删除": True, "强制下线": True},
         "账户组管理": {"查看": True, "创建": True, "修改": True, "删除": True},
         "订单处理": {"查看": True, "处理": True, "驳回": True, "删除": True},
         "工单处理": {"查看": True, "回复": True, "解决": True, "删除": True},
@@ -1035,7 +1035,7 @@ class AccountService:
 
     # ---- Users ----
 
-    def get_all_users(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc", filters: dict[str, Any] | None = None) -> dict[str, Any]:
+    def get_all_users(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc", filters: dict[str, Any] | None = None, current_user_uid: str | None = None) -> dict[str, Any]:
         offset = (page - 1) * page_size
         allowed_sort = {"register_time", "last_login_time", "session_count"}
         sort_clause = ""
@@ -1048,6 +1048,31 @@ class AccountService:
                 sort_clause = f"ORDER BY {sort_by} {sort_dir}"
         where_clauses = []
         params = []
+        if current_user_uid:
+            perms = self._get_user_permissions(current_user_uid)
+            view_perm = perms.get("账户管理", {}).get("查看", False)
+            if isinstance(view_perm, dict):
+                can_see_subordinates = view_perm.get("下属用户", False)
+                can_see_others = view_perm.get("其他用户", False)
+            else:
+                can_see_subordinates = bool(view_perm)
+                can_see_others = bool(view_perm)
+            if not (can_see_subordinates and can_see_others):
+                descendant_uids = self._get_all_descendant_uids(current_user_uid) if can_see_subordinates else []
+                if can_see_subordinates and not can_see_others:
+                    allowed_uids = [current_user_uid] + descendant_uids
+                    placeholders = ",".join(["%s"] * len(allowed_uids))
+                    where_clauses.append(f"u.uid IN ({placeholders})")
+                    params.extend(allowed_uids)
+                elif can_see_others and not can_see_subordinates:
+                    exclude_uids = [d for d in descendant_uids if d != current_user_uid]
+                    if exclude_uids:
+                        placeholders = ",".join(["%s"] * len(exclude_uids))
+                        where_clauses.append(f"u.uid NOT IN ({placeholders})")
+                        params.extend(exclude_uids)
+                else:
+                    where_clauses.append("u.uid = %s")
+                    params.append(current_user_uid)
         if filters:
             for key, value in filters.items():
                 if value:
@@ -1066,7 +1091,7 @@ class AccountService:
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute(f"SELECT COUNT(*) as total FROM users {where_sql}", tuple(params))
+            cursor.execute(f"SELECT COUNT(*) as total FROM users u LEFT JOIN user_groups ug ON ug.uid = u.group_uid {where_sql}", tuple(params))
             total = cursor.fetchone()["total"]
             limit_clause = f"LIMIT {page_size} OFFSET {offset}" if page_size != -1 else ""
             sql = f"SELECT u.uid, u.username, u.login_sessions, u.register_time, u.last_login_time, u.login_ip, u.login_device, u.group_uid, ug.name as group_name FROM users u LEFT JOIN user_groups ug ON ug.uid = u.group_uid {where_sql} {sort_clause} {limit_clause}"

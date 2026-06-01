@@ -37,7 +37,7 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
-    title: '数据登记',
+    title: '订单',
     to: '/sign',
     icon: 'mdi-plus-circle-outline',
     role: 'default'
