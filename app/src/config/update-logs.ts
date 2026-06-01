@@ -12,6 +12,14 @@ export interface UpdateLogItem {
 export const updateLogs: UpdateLogItem[] = [
   {
     "version": "2.0.0",
+    "date": "2026-06-01",
+    "title": "将“数据登记”相关术语更改为“订单”，并更新相关权限配置",
+    "details": [
+      "将“数据登记”相关术语更改为“订单”，并更新相关权限配置"
+    ]
+  },
+  {
+    "version": "2.1.0",
     "date": "2026-05-31",
     "title": "server/src/account_service.py 里把委托余额的“实际持有人”统一纳入查询，修正了两处核心偏…",
     "details": [
@@ -21,7 +29,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.1.0",
+    "version": "2.2.0",
     "date": "2026-05-30",
     "title": "移除更新日志同步功能",
     "details": [
@@ -32,7 +40,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.2.0",
+    "version": "2.3.0",
     "date": "2026-05-29",
     "title": "为编程加入了丰富的skill，加入了关于界面和更新日志界面",
     "details": [
@@ -40,7 +48,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.3.0",
+    "version": "2.4.0",
     "date": "2026-05-28",
     "title": "更新模板字段复制按钮的逻辑",
     "details": [
@@ -50,7 +58,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.4.0",
+    "version": "2.5.0",
     "date": "2026-05-27",
     "title": "添加注册详情的处理和驳回按钮",
     "details": [
@@ -59,7 +67,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.5.0",
+    "version": "2.6.0",
     "date": "2026-05-23",
     "title": "Implement user balance management and notifications",
     "details": [
@@ -68,7 +76,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.6.0",
+    "version": "2.7.0",
     "date": "2026-05-22",
     "title": "优化主题颜色变量使用",
     "details": [
@@ -82,7 +90,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.7.0",
+    "version": "2.8.0",
     "date": "2026-05-21",
     "title": "添加通知菜单打开状态控制与关联ID已读标记功能",
     "details": [
@@ -90,7 +98,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.8.0",
+    "version": "2.9.0",
     "date": "2026-05-19",
     "title": "修正导航功能项及模板管理中的字段名称",
     "details": [
@@ -102,7 +110,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.9.0",
+    "version": "2.10.0",
     "date": "2026-05-18",
     "title": "add WebSocket chat functionality and enhance admin registra…",
     "details": [
@@ -110,7 +118,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.10.0",
+    "version": "2.11.0",
     "date": "2026-05-16",
     "title": "add running apps management and feedback system",
     "details": [
@@ -119,7 +127,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.11.0",
+    "version": "2.12.0",
     "date": "2026-05-15",
     "title": "添加删除登记记录的功能",
     "details": [
@@ -129,7 +137,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.12.0",
+    "version": "2.13.0",
     "date": "2026-05-14",
     "title": "添加校园跑数据登记功能",
     "details": [
@@ -138,7 +146,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.13.0",
+    "version": "2.14.0",
     "date": "2026-05-13",
     "title": "添加登记字段配置页面和欢迎页面",
     "details": [
@@ -146,7 +154,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.14.0",
+    "version": "2.15.0",
     "date": "2026-05-12",
     "title": "添加用户批量创建和管理功能",
     "details": [
@@ -155,7 +163,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.15.0",
+    "version": "2.16.0",
     "date": "2026-05-08",
     "title": "新增API文档及登录相关接口说明",
     "details": [
@@ -164,7 +172,7 @@ export const updateLogs: UpdateLogItem[] = [
     ]
   },
   {
-    "version": "2.16.0",
+    "version": "2.17.0",
     "date": "2026-05-07",
     "title": "init app",
     "details": [

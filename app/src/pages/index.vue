@@ -101,12 +101,15 @@ async function handleClick(n: any) {
   }
   const userInfo = appStore.userInfo
   const isAdmin = userInfo?.type !== 'default'
-  if (n.type === 'new_registration' || n.type === 'new_recharge') {
+  if (n.type === 'new_registration') {
     if (isAdmin) {
       router.push({ path: '/admin/registers', query: n.reference_id ? { chat: n.reference_id } : {} })
     }
   }
   else if (n.type === 'registration_rejected') {
+    router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
+  }
+  else if (n.type === 'registration_approved') {
     router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
   }
   else if (n.type === 'chat_message') {
@@ -116,6 +119,9 @@ async function handleClick(n: any) {
   else if (n.type === 'feedback_replied' || n.type === 'new_feedback' || n.type === 'feedback_status') {
     const targetPath = isAdmin ? '/admin/feedbacks' : '/feedback'
     router.push({ path: targetPath, query: n.reference_id ? { id: n.reference_id } : {} })
+  }
+  else if (n.type === 'recharge_processed') {
+    router.push('/recharge')
   }
 }
 

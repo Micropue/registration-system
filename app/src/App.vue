@@ -77,8 +77,8 @@
                   <v-btn v-if="unreadCount > 0" variant="text" size="x-small" @click="markAllRead">全部已读</v-btn>
                 </div>
                 <v-divider></v-divider>
-                <div v-if="notifications.length === 0" class="pa-4 text-center text-grey">暂无消息</div>
-                <v-list-item v-for="n in notifications" :key="n.id" :class="!n.is_read ? 'bg-primary-lighten-5' : ''"
+                <div v-if="notifList.length === 0" class="pa-4 text-center text-grey">暂无消息</div>
+                <v-list-item v-for="n in notifList" :key="n.id" :class="!n.is_read ? 'bg-primary-lighten-5' : ''"
                   @click="handleNotificationClick(n)" density="compact" class="mb-1">
                   <template v-slot:prepend>
                     <v-icon size="18" :color="n.is_read ? 'grey' : 'primary'">mdi-circle</v-icon>
@@ -201,9 +201,13 @@ const bottomFunctions = computed(() => displayFunctions.value.filter(f => f.grou
 
 async function fetchUser() {
   isAuthChecking.value = true
+  const prevUser = user.value
   user.value = await checkLoginStatus()
   appStore.setUserInfo(user.value)
-  if (user.value) {
+  if (user.value && !prevUser) {
+    fetchNotifications()
+    fetchPendingCounts()
+    setTimeout(connectNotifWs, 1000)
   }
   isAuthChecking.value = false
 }
@@ -216,78 +220,138 @@ function handleLogout() {
   cookie.remove('token')
   user.value = null
   appStore.setUserInfo(null)
+  notifList.value = []
+  businessBadges.value = {}
+  if (notifWs) { notifWs.close(); notifWs = null }
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
   router.push('/login')
 }
 
-const unreadCount = ref(0)
-const notifications = ref<any[]>([])
+const notifList = ref<any[]>([])
 const notifMenuOpen = ref(false)
-const pendingCounts = ref<Record<string, number>>({})
+const businessBadges = ref<Record<string, number>>({})
 let notifTimer: any = null
+let notifWs: WebSocket | null = null
+let reconnectTimer: any = null
+
+const unreadCount = computed(() => notifList.value.filter((n: any) => !n.is_read).length)
+
+function classifyNotif(n: any, isAdmin: boolean): string {
+  if (n.type === 'registration_rejected' || n.type === 'registration_approved' || n.type === 'chat_message') return '订单'
+  if (n.type === 'new_registration') {
+    if (isAdmin && n.title?.includes('充值')) return '充值申请'
+    return '订单'
+  }
+  if (n.type === 'new_feedback' || n.type === 'feedback_replied' || n.type === 'feedback_status') return '工单反馈'
+  if (n.type === 'recharge_processed') return '充值申请'
+  return '订单'
+}
+
+function computeNotifBadges() {
+  const unread = notifList.value.filter((n: any) => !n.is_read)
+  const isAdmin = user.value?.role !== 'default'
+  const result: Record<string, number> = { '订单': 0, '工单反馈': 0, '充值申请': 0 }
+  const chatCounts: Record<string, number> = {}
+  for (const n of unread) {
+    const cat = classifyNotif(n, isAdmin)
+    result[cat] = (result[cat] || 0) + 1
+    if (n.type === 'chat_message' && isAdmin && n.reference_id) {
+      chatCounts[n.reference_id] = (chatCounts[n.reference_id] || 0) + 1
+    }
+  }
+  if (isAdmin) chatStore.setUnreadCounts(chatCounts)
+  return result
+}
+
+const pendingCounts = computed(() => {
+  const isAdmin = user.value?.role !== 'default'
+  if (!isAdmin) return computeNotifBadges()
+  return businessBadges.value
+})
+
+function connectNotifWs() {
+  const token = cookie.get('token')
+  if (!token || !user.value) return
+  if (notifWs && notifWs.readyState === WebSocket.OPEN) return
+  const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const host = location.host
+  notifWs = new WebSocket(`${protocol}//${host}/ws/notifications?token=${token}`)
+  notifWs.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data)
+      if (data.type === 'notification_update') {
+        if (data.status === 'to_unread') {
+          const exists = notifList.value.find((n: any) => n.id === data.id)
+          if (!exists) {
+            notifList.value.unshift({
+              id: data.id, type: data.notif_type, title: data.title || '',
+              content: data.content || '', reference_id: data.reference_id || '',
+              is_read: false, created_at: data.created_at
+            })
+            const isAdmin = user.value?.role !== 'default'
+            if (isAdmin) {
+              const nt = data.notif_type
+              const title = data.title || ''
+              if (nt === 'new_registration') {
+                if (title.includes('充值')) {
+                  businessBadges.value['充值审批'] = (businessBadges.value['充值审批'] || 0) + 1
+                } else {
+                  businessBadges.value['订单处理'] = (businessBadges.value['订单处理'] || 0) + 1
+                }
+              } else if (nt === 'new_feedback') {
+                businessBadges.value['工单处理'] = (businessBadges.value['工单处理'] || 0) + 1
+              }
+            }
+          }
+        } else if (data.status === 'to_read') {
+          const item = notifList.value.find((n: any) => n.id === data.id)
+          if (item) item.is_read = true
+        } else if (data.status === 'all_read') {
+          notifList.value.forEach((n: any) => { n.is_read = true })
+        }
+      } else if (data.type === 'business_update') {
+        const isAdmin = user.value?.role !== 'default'
+        if (isAdmin) {
+          businessBadges.value[data.key] = Math.max(0, (businessBadges.value[data.key] || 0) + (data.delta || 0))
+        }
+      }
+    } catch (e) { /* ignore */ }
+  }
+  notifWs.onclose = () => {
+    reconnectTimer = setTimeout(() => { fetchNotifications(); fetchPendingCounts(); connectNotifWs() }, 5000)
+  }
+  notifWs.onerror = () => {
+    notifWs?.close()
+  }
+}
 
 async function fetchNotifications() {
   if (!user.value) return
   try {
-    const [countRes, listRes] = await Promise.all([
-      ajax<any>('/api/notifications/unread-count', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } }),
-      ajax<any[]>('/api/notifications?read_within_days=3', { headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` } })
-    ])
-    if (countRes.code === 200) unreadCount.value = countRes.data.count
-    if (listRes.code === 200) notifications.value = listRes.data
+    const res = await ajax<any[]>('/api/notifications?read_within_days=3', {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      for (const item of (res.data || [])) {
+        const exists = notifList.value.find((n: any) => n.id === item.id)
+        if (exists) exists.is_read = item.is_read
+        else notifList.value.push(item)
+      }
+    }
   } catch (e) { /* ignore */ }
 }
 
 async function fetchPendingCounts() {
   if (!user.value) return
-  const isAdmin = user.value.role !== 'default'
   try {
-    if (isAdmin) {
-      const res = await ajax<any>('/api/admin/dashboard/stats', {
-        headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
-      })
-      if (res.code === 200 && res.data) {
-        pendingCounts.value = {
-          ...pendingCounts.value,
-          '订单处理': res.data.pending_registrations || 0,
-          '工单处理': res.data.pending_feedbacks || 0,
-          '充值审批': res.data.pending_recharges || 0,
-        }
-      }
-    }
-
-    const notifRes = await ajax<any[]>('/api/notifications?read_within_days=7', {
+    const res = await ajax<any>('/api/admin/dashboard/stats', {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
-    if (notifRes.code === 200) {
-      const unread = (notifRes.data || []).filter((n: any) => !n.is_read)
-      const userCounts: Record<string, number> = {}
-      let signCount = 0
-      let feedbackCount = 0
-      let rechargeCount = 0
-      for (const n of unread) {
-        if (n.type === 'registration_rejected') {
-          signCount++
-        } else if (n.type === 'feedback_replied' || n.type === 'feedback_status') {
-          feedbackCount++
-        } else if (n.type === 'recharge_processed' || n.title?.includes('充值')) {
-          rechargeCount++
-        } else if (n.type === 'chat_message') {
-          if (isAdmin) {
-            userCounts[n.reference_id] = (userCounts[n.reference_id] || 0) + 1
-          } else {
-            signCount++
-          }
-        }
-      }
-      pendingCounts.value = {
-        ...pendingCounts.value,
-        '订单': signCount,
-        '工单反馈': feedbackCount,
-        '充值申请': rechargeCount,
-        ...(isAdmin ? {} : {}),
-      }
-      if (isAdmin) {
-        chatStore.setUnreadCounts(userCounts)
+    if (res.code === 200 && res.data) {
+      businessBadges.value = {
+        '订单处理': res.data.pending_registrations || 0,
+        '工单处理': res.data.pending_feedbacks || 0,
+        '充值审批': res.data.pending_recharges || 0,
       }
     }
   } catch (e) { /* ignore */ }
@@ -302,19 +366,18 @@ async function markAllRead() {
     await ajax('/api/notifications/read-all', {
       method: 'POST', headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
-    unreadCount.value = 0
-    notifications.value = notifications.value.map((n: any) => ({ ...n, is_read: true }))
+    notifList.value.forEach((n: any) => { n.is_read = true })
   } catch (e) { /* ignore */ }
 }
 
 async function handleNotificationClick(n: any) {
   if (!n.is_read) {
+    const item = notifList.value.find((x: any) => x.id === n.id)
+    if (item) item.is_read = true
     try {
       await ajax(`/api/notifications/${n.id}/read`, {
         method: 'POST', headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
-      n.is_read = true
-      unreadCount.value = Math.max(0, unreadCount.value - 1)
     } catch (e) { /* ignore */ }
   }
   const isAdmin = user.value?.role !== 'default'
@@ -322,6 +385,9 @@ async function handleNotificationClick(n: any) {
     router.push({ path: '/admin/registers', query: n.reference_id ? { chat: n.reference_id } : {} })
   }
   else if (n.type === 'registration_rejected') {
+    router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
+  }
+  else if (n.type === 'registration_approved') {
     router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
   }
   else if (n.type === 'chat_message') {
@@ -356,19 +422,17 @@ function formatNotifDate(iso: string) {
   return d.toLocaleDateString('zh-CN')
 }
 
-onMounted(() => {
-  fetchUser()
+onMounted(async () => {
+  await fetchUser()
   if (mdAndUp.value) {
     sideOpen.value = true
   }
-  notifTimer = setInterval(fetchNotifications, 30000)
-  setInterval(fetchPendingCounts, 30000)
-  setTimeout(fetchNotifications, 2000)
-  setTimeout(fetchPendingCounts, 2000)
 })
 
 onUnmounted(() => {
   if (notifTimer) clearInterval(notifTimer)
+  if (reconnectTimer) clearTimeout(reconnectTimer)
+  if (notifWs) notifWs.close()
 })
 watch(() => route.path, fetchUser)
 

@@ -288,6 +288,8 @@
           <v-btn variant="text" size="small" @click="infoDialog.show = false">关闭</v-btn>
         </v-card-title>
         <v-card-text class="pa-4">
+          <v-progress-linear v-if="detailTemplateLoading" indeterminate color="primary"></v-progress-linear>
+          <template v-else>
           <v-table v-if="infoDialogItem" density="compact" border>
             <thead>
               <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
@@ -309,6 +311,7 @@
           <div class="text-caption text-medium-emphasis mt-2" v-if="infoDialogItem">
             提交时间：{{ formatDate(infoDialogItem.created_at) }}
           </div>
+          </template>
         </v-card-text>
       </v-card>
     </v-dialog>
@@ -387,7 +390,8 @@
 
         <div class="detail-body">
           <div class="detail-info-panel">
-            <v-card-text class="pa-4 pt-2">
+            <v-progress-linear v-if="detailTemplateLoading" indeterminate color="primary"></v-progress-linear>
+            <v-card-text v-else class="pa-4 pt-2">
               <v-table density="compact" border>
                 <thead>
                   <tr><th class="text-left">字段</th><th class="text-left">内容</th></tr>
@@ -551,6 +555,7 @@ const detailDialog = reactive({
 })
 
 const detailTemplateFieldOrder = ref<string[]>([])
+const detailTemplateLoading = ref(false)
 
 const sortedDetailKeys = computed(() => {
   const data = detailDialog.data
@@ -867,6 +872,7 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.templateUid = item.template_uid || ''
   detailDialog.show = true
   chatStore.clearUnreadCount(item.id)
+  detailTemplateLoading.value = true
   loadDetailTemplateOrder(item.data['跑步APP'], item.template_uid || '')
 }
 
@@ -890,15 +896,16 @@ const infoSortedKeys = computed(() => {
 
 function openInfoDialog(item: RegistrationItem) {
   infoDialogItem.value = item
+  detailTemplateLoading.value = true
   loadDetailTemplateOrder(item.data['跑步APP'], item.template_uid || '')
   infoDialog.show = true
 }
 
 async function loadDetailTemplateOrder(appName: string, templateUid: string) {
   detailTemplateFieldOrder.value = []
-  if (!appName || !templateUid) return
+  if (!appName || !templateUid) { detailTemplateLoading.value = false; return }
   const app = runningApps.value.find(a => a.name === appName)
-  if (!app) return
+  if (!app) { detailTemplateLoading.value = false; return }
   try {
     const res = await ajax<any[]>(`/api/running-apps/${app.uid}/templates`)
     if (res.code === 200) {
@@ -908,10 +915,12 @@ async function loadDetailTemplateOrder(appName: string, templateUid: string) {
       }
     }
   } catch { /* ignore */ }
+  detailTemplateLoading.value = false
 }
 
 function handleDetailClose() {
   detailDialog.show = false
+  detailTemplateLoading.value = false
   if (route.query.chat) {
     router.replace({ query: { ...route.query, chat: undefined } })
   }

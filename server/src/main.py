@@ -1,6 +1,7 @@
 import uvicorn
 import uuid
 import os
+import asyncio
 import mimetypes
 from pathlib import Path
 from fastapi import FastAPI, Form, Request, Header, HTTPException, WebSocket, WebSocketDisconnect, Query, UploadFile, File
@@ -280,6 +281,11 @@ async def update_registration_status(
     if err: return err
         
     try:
+        with account_service._connect() as conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT status FROM registrations WHERE uid = %s", (uid,))
+            old = cur.fetchone()
+            old_status = old['status'] if old else ''
         account_service.update_registration_status(uid, status, reject_reason)
         if status == 'rejected':
             with account_service._connect() as conn:
@@ -288,11 +294,20 @@ async def update_registration_status(
                 reg = cur.fetchone()
                 if reg:
                     account_service.create_notification(reg['user_uid'], 'registration_rejected', '订单被驳回', reject_reason or '您的订单已被驳回', uid)
+        elif status == 'approved':
+            with account_service._connect() as conn:
                 cur = conn.cursor(dictionary=True)
                 cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
                 reg = cur.fetchone()
                 if reg:
-                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '订单被驳回', reject_reason or '您的订单已被驳回', uid)
+                    account_service.create_notification(reg['user_uid'], 'registration_approved', '订单已通过', '您的订单已通过审核', uid)
+        delta = 0
+        if old_status == 'pending' and status in ('approved', 'rejected'):
+            delta = -1
+        elif old_status in ('approved', 'rejected') and status == 'pending':
+            delta = 1
+        if delta:
+            asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "订单处理", "delta": delta}))
         return api_response(200, "Status updated successfully")
     except Exception as e:
         return api_response(500, f"Error updating status: {str(e)}")
@@ -307,8 +322,14 @@ async def delete_registration(
     if err: return err
         
     try:
+        with account_service._connect() as conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT status FROM registrations WHERE uid = %s", (uid,))
+            old = cur.fetchone()
         success = account_service.delete_registration(uid)
         if success:
+            if old and old.get('status') == 'pending':
+                asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "订单处理", "delta": -1}))
             return api_response(200, "Registration deleted successfully")
         else:
             return api_response(404, "Registration not found")
@@ -647,6 +668,7 @@ async def submit_registration(
                     return api_response(400, f"'{app_name}' 余额不足，无法创建登记")
         account_service.submit_registration(session.user_uid, data, priority, template_uid, amount)
         account_service.create_notification_for_admins("new_registration", f"新订单", f"用户 {session.username} 提交了新订单")
+        asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "订单处理", "delta": 1}))
         return api_response(200, "Registration submitted successfully")
     except AccountError as e:
         return api_response(400, str(e))
@@ -666,6 +688,7 @@ async def create_feedback(
     try:
         uid = account_service.create_feedback(session.user_uid, title, content)
         account_service.create_notification_for_admins("new_feedback", "新工单", f"用户 {session.username} 提交了工单: {title}")
+        asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "工单处理", "delta": 1}))
         return api_response(200, "Feedback created", {'id': uid})
     except Exception as e:
         return api_response(500, f"Error: {str(e)}")
@@ -735,11 +758,23 @@ async def admin_update_feedback_status(
     session, err = require_perm(authorization, "工单处理", "解决")
     if err: return err
     try:
+        with account_service._connect() as conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT status FROM feedbacks WHERE uid = %s", (uid,))
+            old = cur.fetchone()
+            old_status = old['status'] if old else ''
         account_service.update_feedback_status(uid, status)
         detail = account_service.get_feedback_detail(uid)
         if detail:
             st = {'resolved': '已处理', 'rejected': '已驳回', 'pending': '待处理'}.get(status, status)
             account_service.create_notification(detail['user_uid'], 'feedback_status', f'工单状态更新', f'您的工单 "{detail["title"]}" 状态已更新为: {st}', uid)
+        delta = 0
+        if old_status == 'pending' and status in ('resolved', 'rejected'):
+            delta = -1
+        elif old_status in ('resolved', 'rejected') and status == 'pending':
+            delta = 1
+        if delta:
+            asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "工单处理", "delta": delta}))
         return api_response(200, "Status updated")
     except Exception as e:
         return api_response(500, f"Error: {str(e)}")
@@ -749,7 +784,13 @@ async def admin_delete_feedback(uid: str, authorization: Optional[str] = Header(
     session, err = require_perm(authorization, "工单处理", "删除")
     if err: return err
     try:
+        with account_service._connect() as conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT status FROM feedbacks WHERE uid = %s", (uid,))
+            old = cur.fetchone()
         account_service.delete_feedback(uid)
+        if old and old.get('status') == 'pending':
+            asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "工单处理", "delta": -1}))
         return api_response(200, "Deleted")
     except Exception as e:
         return api_response(500, f"Error: {str(e)}")
@@ -907,6 +948,7 @@ async def create_recharge(data: dict[str, Any], authorization: Optional[str] = H
             data.get('reason', '')
         )
         account_service.create_notification_for_admins("new_registration", "新充值申请", f"用户 {session.username} 申请充值")
+        asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "充值审批", "delta": 1}))
         return api_response(200, "Recharge request submitted", {'uid': uid})
     except AccountError as e:
         return api_response(400, str(e))
@@ -933,6 +975,7 @@ async def process_recharge(uid: str, data: dict[str, Any], authorization: Option
         recharge = account_service.get_balance_recharge(uid)
         if not recharge:
             return api_response(404, "Recharge not found")
+        was_pending = recharge.get('status') == 'pending'
         status = data.get('status', 'approved')
         reject_reason = data.get('reject_reason', '')
         account_service.process_balance_recharge(
@@ -943,10 +986,12 @@ async def process_recharge(uid: str, data: dict[str, Any], authorization: Option
         )
         if status == 'approved':
             account_service.create_notification(recharge['user_uid'], 'recharge_processed',
-                '充值申请已通过', f'您在 {recharge["app_name"]} 的充值申请（{recharge["amount"]}）已通过')
+                '充值申请已通过', f'您在 {recharge["app_name"]} 的充值申请（{recharge["amount"]}）已通过', uid)
         else:
             account_service.create_notification(recharge['user_uid'], 'recharge_processed',
-                '充值申请已驳回', f'您在 {recharge["app_name"]} 的充值申请已被驳回：{reject_reason}')
+                '充值申请已驳回', f'您在 {recharge["app_name"]} 的充值申请已被驳回：{reject_reason}', uid)
+        if was_pending:
+            asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "充值审批", "delta": -1}))
         return api_response(200, "Recharge processed")
     except AccountError as e:
         return api_response(400, str(e))
@@ -1089,6 +1134,62 @@ class ConnectionManager:
                     self.disconnect(registration_uid, connection)
 
 manager = ConnectionManager()
+
+class NotifConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, list[WebSocket]] = {}
+
+    async def connect(self, user_uid: str, websocket: WebSocket):
+        await websocket.accept()
+        if user_uid not in self.active_connections:
+            self.active_connections[user_uid] = []
+        self.active_connections[user_uid].append(websocket)
+
+    def disconnect(self, user_uid: str, websocket: WebSocket):
+        if user_uid in self.active_connections:
+            try:
+                self.active_connections[user_uid].remove(websocket)
+            except ValueError:
+                pass
+
+    async def send_to_user(self, user_uid: str, message: dict):
+        if user_uid in self.active_connections:
+            for connection in self.active_connections[user_uid][:]:
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    self.disconnect(user_uid, connection)
+
+    async def broadcast_to_all(self, message: dict):
+        for uid in list(self.active_connections.keys()):
+            await self.send_to_user(uid, message)
+
+notif_manager = NotifConnectionManager()
+
+def _ws_push_notification(user_uid: str, data: dict):
+    try:
+        loop = asyncio.get_running_loop()
+        asyncio.run_coroutine_threadsafe(
+            notif_manager.send_to_user(user_uid, data),
+            loop
+        )
+    except RuntimeError:
+        pass
+
+AccountService.ws_push = _ws_push_notification
+
+@app.websocket("/ws/notifications")
+async def websocket_notifications(websocket: WebSocket, token: str = Query(...)):
+    session = account_service.get_login_session(token)
+    if not session:
+        await websocket.close(code=4001)
+        return
+    await notif_manager.connect(session.user_uid, websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        notif_manager.disconnect(session.user_uid, websocket)
 
 @app.websocket("/ws/chat/{registration_uid}")
 async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str = Query(...)):

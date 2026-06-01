@@ -51,6 +51,7 @@ class LoginSession:
 class AccountService:
     _PASSWORD_PATTERN = re.compile(r"^[A-Za-z0-9-]+$")
     _ACCOUNT_TYPES: set[str] = {"admin", "default", "super_admin"}
+    ws_push: Any = None
 
     def __init__(self, host: str | None = None, port: int | None = None, database: str | None = None, user: str | None = None, password: str | None = None) -> None:
         env_host, env_port = self._parse_db_url(os.getenv("DB_URL", ""))
@@ -163,7 +164,12 @@ class AccountService:
                 cursor.execute("ALTER TABLE registrations ADD COLUMN template_uid VARCHAR(64)")
             cursor.execute("SHOW COLUMNS FROM registrations LIKE 'amount'")
             if not cursor.fetchone():
-                cursor.execute("ALTER TABLE registrations ADD COLUMN amount DECIMAL(10,2) DEFAULT NULL")
+                cursor.execute("ALTER TABLE registrations ADD COLUMN amount DECIMAL(12,2) DEFAULT NULL")
+            else:
+                try:
+                    cursor.execute("ALTER TABLE registrations MODIFY COLUMN amount DECIMAL(12,2) DEFAULT NULL")
+                except Exception:
+                    pass
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS feedbacks (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1683,6 +1689,8 @@ class AccountService:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)", (uid, user_uid, type, reference_id, title, content, now))
             connection.commit()
+        if AccountService.ws_push:
+            AccountService.ws_push(user_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_unread', 'notif_type': type, 'title': title, 'content': content, 'reference_id': reference_id, 'created_at': now.isoformat()})
         return uid
 
     def get_user_notifications(self, user_uid: str, read_within_days: int = 0, page: int = 0, page_size: int = 0) -> list[dict[str, Any]] | dict[str, Any]:
@@ -1712,16 +1720,25 @@ class AccountService:
             return row[0] if row else 0
 
     def mark_notification_read(self, uid: str) -> None:
+        user_uid = ''
         with self._connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE notifications SET is_read = TRUE WHERE uid = %s", (uid,))
+            cursor.execute("SELECT user_uid FROM notifications WHERE uid = %s", (uid,))
+            row = cursor.fetchone()
+            if row:
+                user_uid = row[0]
             connection.commit()
+        if AccountService.ws_push and user_uid:
+            AccountService.ws_push(user_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_read'})
 
     def mark_all_notifications_read(self, user_uid: str) -> None:
         with self._connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s", (user_uid,))
             connection.commit()
+        if AccountService.ws_push:
+            AccountService.ws_push(user_uid, {'type': 'notification_update', 'status': 'all_read'})
 
     def mark_notifications_read_by_reference(self, user_uid: str, reference_id: str) -> int:
         with self._connect() as connection:
@@ -1732,6 +1749,7 @@ class AccountService:
             return count
 
     def create_notification_for_admins(self, type: str, title: str, content: str = "", reference_id: str = "") -> None:
+        ws_pushes: list[tuple[str, dict]] = []
         with self._connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT u.uid FROM users u INNER JOIN user_groups ug ON ug.uid = u.group_uid WHERE ug.name IN ('管理员','超级管理员')")
@@ -1740,7 +1758,11 @@ class AccountService:
                 uid = self._new_uid()
                 now = self._now()
                 cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)", (uid, admin_uid, type, reference_id, title, content, now))
+                ws_pushes.append((admin_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_unread', 'notif_type': type, 'title': title, 'content': content, 'reference_id': reference_id, 'created_at': now.isoformat()}))
             connection.commit()
+        if AccountService.ws_push:
+            for admin_uid, data in ws_pushes:
+                AccountService.ws_push(admin_uid, data)
 
     # ---- Subordinate Management ----
 

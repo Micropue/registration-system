@@ -97,7 +97,7 @@
 
         <!-- 自定义槽位：客户信息 -->
         <template v-slot:item.details="{ item }">
-          <v-btn variant="text" size="small" color="primary" @click="openDetailsDialog(item)">查看信息</v-btn>
+          <v-btn variant="tonal" size="small" color="primary" class="font-weight-bold" @click="openDetailsDialog(item)">查看信息</v-btn>
         </template>
 
         <!-- 自定义槽位：操作 -->
@@ -129,6 +129,8 @@
 
         <div class="detail-body">
           <div class="detail-info-panel">
+            <v-progress-linear v-if="detailTemplateLoading" indeterminate color="primary"></v-progress-linear>
+            <template v-else>
             <v-card-text class="pa-4 pt-2">
               <v-table density="compact" border>
                 <thead>
@@ -158,6 +160,7 @@
               <v-btn v-if="detailsDialog.item?.status !== 'approved'" variant="elevated" rounded size="small" color="success" prepend-icon="mdi-check" class="px-4 font-weight-bold" @click="doDetailsApprove">已处理</v-btn>
               <v-btn v-if="detailsDialog.item?.status !== 'rejected'" variant="elevated" rounded size="small" color="error" prepend-icon="mdi-close" class="px-4 font-weight-bold" @click="doDetailsReject">驳回</v-btn>
             </v-card-actions>
+            </template>
           </div>
 
           <div class="detail-chat-panel">
@@ -312,6 +315,7 @@ const rejectDialog = reactive({ show: false, item: null as RegistrationItem | nu
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 const templateFieldOrder = ref<string[]>([])
 const templateFieldCopyable = ref<Record<string, boolean>>({})
+const detailTemplateLoading = ref(false)
 
 const detailFields = computed(() => {
   const info = detailsDialog.item?.registration_info
@@ -368,7 +372,7 @@ async function loadStats() {
 
 async function loadTemplateFieldOrder(appName: string, templateUid: string) {
   const app = runningApps.value.find(a => a.name === appName)
-  if (!app || !templateUid) { templateFieldOrder.value = []; templateFieldCopyable.value = {}; return }
+  if (!app || !templateUid) { templateFieldOrder.value = []; templateFieldCopyable.value = {}; detailTemplateLoading.value = false; return }
   try {
     const res = await ajax<any[]>(`/api/admin/settings/running-apps/${app.uid}/templates`, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
@@ -380,12 +384,14 @@ async function loadTemplateFieldOrder(appName: string, templateUid: string) {
         const copyableMap: Record<string, boolean> = {}
         tpl.fields.forEach((f: any) => { if (f.copyable) copyableMap[f.label] = true })
         templateFieldCopyable.value = copyableMap
+        detailTemplateLoading.value = false
         return
       }
     }
   } catch (err) { /* ignore */ }
   templateFieldOrder.value = []
   templateFieldCopyable.value = {}
+  detailTemplateLoading.value = false
 }
 
 onMounted(async () => {
@@ -411,12 +417,14 @@ function openDetailsDialog(item: RegistrationItem) {
   detailsDialog.show = true
   chatStore.clearUnreadCount(item.id)
   if (item.app && item.template_uid) {
+    detailTemplateLoading.value = true
     loadTemplateFieldOrder(item.app, item.template_uid)
   }
 }
 
 function handleDetailsClose() {
   detailsDialog.show = false
+  detailTemplateLoading.value = false
   if (route.query.chat) {
     router.replace({ query: { ...route.query, chat: undefined } })
   }
