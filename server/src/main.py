@@ -281,7 +281,7 @@ async def update_registration_status(
     if err: return err
         
     try:
-        with account_service._connect() as conn:
+        with account_service.db.connect() as conn:
             cur = conn.cursor(dictionary=True)
             cur.execute("SELECT status FROM registrations WHERE uid = %s", (uid,))
             old = cur.fetchone()
@@ -308,7 +308,7 @@ async def delete_registration(
     if err: return err
         
     try:
-        with account_service._connect() as conn:
+        with account_service.db.connect() as conn:
             cur = conn.cursor(dictionary=True)
             cur.execute("SELECT status FROM registrations WHERE uid = %s", (uid,))
             old = cur.fetchone()
@@ -505,6 +505,19 @@ async def create_app_template(app_uid: str, data: dict[str, Any], authorization:
         app_id = _get_app_id(app_uid)
         uid = account_service.create_app_template(app_id, data.get('version_name', ''), data.get('fields', []))
         return api_response(200, "Template created", {'uid': uid})
+    except Exception as e:
+        return api_response(500, str(e))
+
+@app.post("/admin/settings/running-apps/{app_uid}/templates/clone")
+async def clone_app_template(app_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "APP配置", "修改")
+    if err: return err
+    try:
+        app_id = _get_app_id(app_uid)
+        uid = account_service.clone_app_template(app_id, data.get('source_uid', ''), data.get('version_name', ''))
+        return api_response(200, "Template cloned", {'uid': uid})
+    except AccountError as e:
+        return api_response(400, str(e))
     except Exception as e:
         return api_response(500, str(e))
 
@@ -738,7 +751,7 @@ async def admin_update_feedback_status(
     session, err = require_perm(authorization, "工单处理", "解决")
     if err: return err
     try:
-        with account_service._connect() as conn:
+        with account_service.db.connect() as conn:
             cur = conn.cursor(dictionary=True)
             cur.execute("SELECT status FROM feedbacks WHERE uid = %s", (uid,))
             old = cur.fetchone()
@@ -760,7 +773,7 @@ async def admin_delete_feedback(uid: str, authorization: Optional[str] = Header(
     session, err = require_perm(authorization, "工单处理", "删除")
     if err: return err
     try:
-        with account_service._connect() as conn:
+        with account_service.db.connect() as conn:
             cur = conn.cursor(dictionary=True)
             cur.execute("SELECT status FROM feedbacks WHERE uid = %s", (uid,))
             old = cur.fetchone()

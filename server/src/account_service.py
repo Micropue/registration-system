@@ -5,14 +5,14 @@ import json
 import os
 import re
 import secrets
-import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, TypedDict, cast
-from urllib.parse import urlparse
 
-import mysql.connector
-from mysql.connector.connection import MySQLConnection
+try:
+    from .database import Database
+except (ImportError, ModuleNotFoundError):
+    from database import Database
 
 AccountType = Literal["admin", "default", "super_admin"]
 
@@ -54,34 +54,7 @@ class AccountService:
     ws_push: Any = None
 
     def __init__(self, host: str | None = None, port: int | None = None, database: str | None = None, user: str | None = None, password: str | None = None) -> None:
-        env_host, env_port = self._parse_db_url(os.getenv("DB_URL", ""))
-        self.host = host or os.getenv("DB_HOST") or env_host or "localhost"
-        self.port = port or int(os.getenv("DB_PORT") or env_port or "3308")
-        self.database = database or os.getenv("DB_NAME", "huhurun")
-        self.user = user or os.getenv("DB_USERNAME", "root")
-        self.password = password or os.getenv("DB_PASSWORD", "root")
-
-    @staticmethod
-    def _parse_db_url(url: str) -> tuple[str, str]:
-        if not url:
-            return "", ""
-        try:
-            if "://" in url:
-                parsed = urlparse(url)
-                return parsed.hostname or "", str(parsed.port or "")
-            else:
-                host, _, port_str = url.partition(":")
-                return host, port_str
-        except Exception:
-            return "", ""
-
-    @staticmethod
-    def _new_uid() -> str:
-        return uuid.uuid4().hex
-
-    @staticmethod
-    def _now() -> datetime:
-        return datetime.now()
+        self.db = Database(host=host, port=port, database=database, user=user, password=password)
 
     @staticmethod
     def _hash_password(password: str) -> str:
@@ -95,16 +68,6 @@ class AccountService:
             return cast(list[str], json.loads(raw))
         except Exception:
             return []
-
-    def _connect(self, include_db: bool = True) -> MySQLConnection:
-        config: dict[str, Any] = {
-            "host": self.host, "port": self.port, "user": self.user,
-            "password": self.password, "charset": "utf8mb4", "autocommit": False,
-            "time_zone": "+08:00"
-        }
-        if include_db:
-            config["database"] = self.database
-        return cast(MySQLConnection, mysql.connector.connect(**config))
 
     def _validate_username(self, username: str) -> None:
         if not username or len(username) < 1 or len(username) > 20:
@@ -122,11 +85,11 @@ class AccountService:
             raise AccountValidationError("账户类型不正确")
 
     def init_db(self) -> None:
-        with self._connect(include_db=False) as connection:
+        with self.db.connect(include_db=False) as connection:
             cursor = connection.cursor()
-            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.database}")
+            cursor.execute(f"CREATE DATABASE IF NOT EXISTS {self.db.database}")
             connection.commit()
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("""CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(64) UNIQUE NOT NULL, username VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL, login_sessions JSON, register_time DATETIME NOT NULL, last_login_time DATETIME, login_ip VARCHAR(64), login_device VARCHAR(255)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
             cursor.execute("SHOW COLUMNS FROM users LIKE 'login_device'")
@@ -367,7 +330,7 @@ class AccountService:
             cursor.execute("ALTER TABLE running_apps ADD COLUMN uid VARCHAR(64) UNIQUE")
             cursor.execute("SELECT id FROM running_apps WHERE uid IS NULL")
             for (rid,) in cursor.fetchall():
-                cursor.execute("UPDATE running_apps SET uid = %s WHERE id = %s", (self._new_uid(), rid))
+                cursor.execute("UPDATE running_apps SET uid = %s WHERE id = %s", (self.db.new_uid(), rid))
             cursor.execute("ALTER TABLE running_apps MODIFY COLUMN uid VARCHAR(64) UNIQUE NOT NULL")
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS app_templates (
@@ -396,11 +359,11 @@ class AccountService:
     }
 
     def _init_default_groups(self, cursor: Any) -> None:
-        now = self._now()
+        now = self.db.now()
         cursor.execute("SELECT uid FROM user_groups WHERE name = '超级管理员'")
         row = cursor.fetchone()
         if not row:
-            super_uid = self._new_uid()
+            super_uid = self.db.new_uid()
             cursor.execute("INSERT INTO user_groups (uid, name, permissions, created_at) VALUES (%s, %s, %s, %s)",
                 (super_uid, '超级管理员', json.dumps(self.PERMISSION_TREE, ensure_ascii=False), now))
         else:
@@ -415,14 +378,14 @@ class AccountService:
                 cursor.execute("UPDATE users SET group_uid = %s WHERE username = 'admin'", (grp[0],))
 
     def _get_default_super_admin_group_uid(self) -> str | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT uid FROM user_groups WHERE name = '超级管理员'")
             row = cursor.fetchone()
             return row[0] if row else None
 
     def _get_user_role(self, user_uid: str) -> str:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT group_uid FROM users WHERE uid = %s", (user_uid,))
             user = cursor.fetchone()
@@ -438,7 +401,7 @@ class AccountService:
             return "default"
 
     def _get_user_group_name(self, user_uid: str) -> str:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT group_uid FROM users WHERE uid = %s", (user_uid,))
             user = cursor.fetchone()
@@ -449,7 +412,7 @@ class AccountService:
             return grp["name"] if grp else "未分配"
 
     def _get_user_permissions(self, user_uid: str) -> dict:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT group_uid FROM users WHERE uid = %s", (user_uid,))
             user = cursor.fetchone()
@@ -478,7 +441,7 @@ class AccountService:
     # ---- User Groups ----
 
     def get_user_groups(self) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid, name, permissions, created_at FROM user_groups ORDER BY created_at ASC")
             rows = cursor.fetchall()
@@ -489,9 +452,9 @@ class AccountService:
         } for row in rows]
 
     def create_user_group(self, name: str, permissions: dict) -> str:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT uid FROM user_groups WHERE name = %s", (name,))
             if cursor.fetchone():
@@ -502,7 +465,7 @@ class AccountService:
         return uid
 
     def update_user_group(self, group_uid: str, name: str | None = None, permissions: dict | None = None) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT name FROM user_groups WHERE uid = %s", (group_uid,))
             grp = cursor.fetchone()
@@ -520,7 +483,7 @@ class AccountService:
             connection.commit()
 
     def delete_user_group(self, group_uid: str) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT name FROM user_groups WHERE uid = %s", (group_uid,))
             grp = cursor.fetchone()
@@ -533,7 +496,7 @@ class AccountService:
             connection.commit()
 
     def assign_user_group(self, user_uid: str, group_uid: str) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT uid FROM user_groups WHERE uid = %s", (group_uid,))
             if not cursor.fetchone():
@@ -542,7 +505,7 @@ class AccountService:
             connection.commit()
 
     def remove_user_group(self, user_uid: str) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE users SET group_uid = NULL WHERE uid = %s", (user_uid,))
             connection.commit()
@@ -550,7 +513,7 @@ class AccountService:
     # ---- Running Apps ----
 
     def get_running_apps(self) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             try:
                 cursor.execute("SELECT id, uid, name, note, accent_color, icon, balance_mode, sort_order FROM running_apps ORDER BY sort_order ASC, id ASC")
@@ -569,12 +532,12 @@ class AccountService:
     # ---- User Balances ----
 
     def _ensure_user_balance(self, user_uid: str, app_uid: str) -> None:
-        now = self._now()
-        with self._connect() as connection:
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT uid FROM user_balances WHERE user_uid = %s AND app_uid = %s", (user_uid, app_uid))
             if not cursor.fetchone():
-                uid = self._new_uid()
+                uid = self.db.new_uid()
                 cursor.execute("INSERT INTO user_balances (uid, user_uid, app_uid, balance, created_at, updated_at) VALUES (%s, %s, %s, 0, %s, %s)",
                     (uid, user_uid, app_uid, now, now))
                 connection.commit()
@@ -582,7 +545,7 @@ class AccountService:
     def get_user_balance(self, user_uid: str, app_uid: str) -> dict[str, Any] | None:
         owner_uid = self._resolve_balance_owner(user_uid, app_uid)
         self._ensure_user_balance(owner_uid, app_uid)
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT ub.balance, ra.balance_mode FROM user_balances ub JOIN running_apps ra ON ra.uid = ub.app_uid WHERE ub.user_uid = %s AND ub.app_uid = %s", (owner_uid, app_uid))
             row = cursor.fetchone()
@@ -591,7 +554,7 @@ class AccountService:
             return {"balance": float(row["balance"] or 0), "balance_mode": row.get("balance_mode") or "", "owner_uid": owner_uid}
 
     def get_user_balances(self, user_uid: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT ub.uid, ub.app_uid, ub.balance, ra.name as app_name, ra.balance_mode, ra.icon
@@ -632,7 +595,7 @@ class AccountService:
 
     def get_app_user_balances(self, app_uid: str, page: int = 1, page_size: int = 20) -> dict[str, Any]:
         offset = (page - 1) * page_size
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT COUNT(*) as total FROM users u
@@ -720,8 +683,8 @@ class AccountService:
     def adjust_user_balance(self, user_uid: str, app_uid: str, amount: float, note: str = "") -> dict:
         owner_uid = self._resolve_balance_owner(user_uid, app_uid)
         self._ensure_user_balance(owner_uid, app_uid)
-        now = self._now()
-        with self._connect() as connection:
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT balance FROM user_balances WHERE user_uid = %s AND app_uid = %s", (owner_uid, app_uid))
             row = cursor.fetchone()
@@ -743,7 +706,7 @@ class AccountService:
         return {"balance": new_balance, "owner_uid": owner_uid}
 
     def set_app_balance_mode(self, app_uid: str, balance_mode: str) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE running_apps SET balance_mode = %s WHERE uid = %s", (balance_mode, app_uid))
             connection.commit()
@@ -755,9 +718,9 @@ class AccountService:
         return bal["balance"] >= amount
 
     def _record_balance_transaction(self, app_uid: str, type: str, amount: float, user_uid: str = "", related_uid: str = "", related_type: str = "", note: str = "") -> str:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             if user_uid:
                 cursor.execute("SELECT balance FROM user_balances WHERE user_uid = %s AND app_uid = %s", (user_uid, app_uid))
@@ -780,7 +743,7 @@ class AccountService:
 
     def get_balance_transactions(self, app_uid: str = "", user_uid: str = "", page: int = 1, page_size: int = 20) -> dict[str, Any]:
         offset = (page - 1) * page_size
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             conditions = []
             params = []
@@ -839,7 +802,7 @@ class AccountService:
                 pairs.append(pair)
 
         offset = (page - 1) * page_size
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             if not pairs:
                 return {"total": 0, "page": page, "page_size": page_size, "items": []}
@@ -880,9 +843,9 @@ class AccountService:
     def create_balance_recharge(self, user_uid: str, app_uid: str, amount: float, reason: str) -> str:
         if self.is_balance_delegated(user_uid, app_uid):
             raise AccountValidationError("您的余额已由上级管理，无法自行申请充值")
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT uid, balance_mode FROM running_apps WHERE uid = %s", (app_uid,))
             app = cursor.fetchone()
@@ -896,7 +859,7 @@ class AccountService:
         return uid
 
     def get_user_balance_recharges(self, user_uid: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT br.uid, br.amount, br.reason, br.status, br.reject_reason, br.created_at, br.processed_at,
@@ -914,7 +877,7 @@ class AccountService:
         } for row in rows]
 
     def get_all_balance_recharges(self) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT br.uid, br.amount, br.reason, br.status, br.reject_reason, br.created_at, br.processed_at,
@@ -935,8 +898,8 @@ class AccountService:
         } for row in rows]
 
     def process_balance_recharge(self, recharge_uid: str, status: str, reject_reason: str = "", processed_by: str = "") -> None:
-        now = self._now()
-        with self._connect() as connection:
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid, app_uid, amount, status, user_uid FROM balance_recharges WHERE uid = %s", (recharge_uid,))
             recharge = cursor.fetchone()
@@ -952,7 +915,7 @@ class AccountService:
                 note=f"充值审批通过")
 
     def get_balance_recharge(self, recharge_uid: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT br.uid, br.amount, br.status, br.user_uid, br.app_uid, ra.name as app_name FROM balance_recharges br JOIN running_apps ra ON ra.uid = br.app_uid WHERE br.uid = %s", (recharge_uid,))
             row = cursor.fetchone()
@@ -972,10 +935,10 @@ class AccountService:
     def create_account(self, username: str, password: str, group_uid: str | None = None) -> str:
         self._validate_username(username)
         self._validate_password(password)
-        user_uid = self._new_uid()
+        user_uid = self.db.new_uid()
         password_hash = self._hash_password(password)
-        now = self._now()
-        with self._connect() as connection:
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT uid FROM users WHERE username = %s LIMIT 1", (username,))
             if cursor.fetchone():
@@ -990,8 +953,8 @@ class AccountService:
 
     def login(self, username: str, password: str, login_ip: str = "unknown", login_device: str = "unknown") -> str:
         password_hash = self._hash_password(password)
-        now = self._now()
-        with self._connect() as connection:
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid, password, login_sessions FROM users WHERE username = %s LIMIT 1", (username,))
             user = cursor.fetchone()
@@ -1002,14 +965,14 @@ class AccountService:
             sessions.append(token)
             if len(sessions) > 5:
                 sessions = sessions[-5:]
-            session_uid = self._new_uid()
+            session_uid = self.db.new_uid()
             cursor.execute("UPDATE users SET login_sessions = %s, last_login_time = %s, login_ip = %s, login_device = %s WHERE uid = %s", (json.dumps(sessions, ensure_ascii=False), now, login_ip, login_device, user["uid"]))
             cursor.execute("INSERT INTO login_sessions (uid, token, user_uid, create_time) VALUES (%s, %s, %s, %s)", (session_uid, token, user["uid"], now))
             connection.commit()
         return session_uid
 
     def get_login_session(self, session_uid: str) -> LoginSession | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT ls.uid AS session_uid, ls.token, ls.user_uid, u.username, u.login_sessions FROM login_sessions ls INNER JOIN users u ON u.uid = ls.user_uid WHERE ls.uid = %s LIMIT 1", (session_uid,))
             row = cast(Any, cursor.fetchone())
@@ -1033,7 +996,7 @@ class AccountService:
         return allow_admin and session.account_type in ("admin", "super_admin")
 
     def force_logout(self, uid: str) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE users SET login_sessions = %s WHERE uid = %s", (json.dumps([], ensure_ascii=False), uid))
             cursor.execute("DELETE FROM login_sessions WHERE user_uid = %s", (uid,))
@@ -1095,7 +1058,7 @@ class AccountService:
                             where_clauses.append("ug.name = %s")
                             params.append(value)
         where_sql = "WHERE " + " AND ".join(where_clauses) if where_clauses else ""
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute(f"SELECT COUNT(*) as total FROM users u LEFT JOIN user_groups ug ON ug.uid = u.group_uid {where_sql}", tuple(params))
             total = cursor.fetchone()["total"]
@@ -1114,7 +1077,7 @@ class AccountService:
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def delete_account(self, uid: str) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT u.username, ug.name as group_name FROM users u LEFT JOIN user_groups ug ON ug.uid = u.group_uid WHERE u.uid = %s LIMIT 1", (uid,))
             user = cursor.fetchone()
@@ -1133,7 +1096,7 @@ class AccountService:
         params = []
         if username:
             self._validate_username(username)
-            with self._connect() as connection:
+            with self.db.connect() as connection:
                 cursor = connection.cursor()
                 cursor.execute("SELECT uid FROM users WHERE username = %s AND uid != %s", (username, uid))
                 if cursor.fetchone():
@@ -1145,7 +1108,7 @@ class AccountService:
             updates.append("password = %s")
             params.append(self._hash_password(password))
         params.append(uid)
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute(f"UPDATE users SET {', '.join(updates)} WHERE uid = %s", tuple(params))
             connection.commit()
@@ -1154,7 +1117,7 @@ class AccountService:
     # ---- Registration Fields ----
 
     def get_registration_fields(self) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT id, label, type, required, default_val, options, sort_order FROM registration_fields ORDER BY sort_order ASC")
             rows = cursor.fetchall()
@@ -1167,7 +1130,7 @@ class AccountService:
         } for row in rows]
 
     def save_registration_fields(self, fields: list[dict[str, Any]]) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("DELETE FROM registration_fields")
             for i, f in enumerate(fields):
@@ -1180,9 +1143,9 @@ class AccountService:
     # ---- Registrations ----
 
     def submit_registration(self, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '', amount: float | None = None) -> str:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO registrations (uid, user_uid, data, create_time, status, priority, template_uid, amount) VALUES (%s, %s, %s, %s, 'pending', %s, %s, %s)", (uid, user_uid, json.dumps(data, ensure_ascii=False), now, priority, template_uid, amount))
             connection.commit()
@@ -1190,7 +1153,7 @@ class AccountService:
             app_name = data.get('跑步APP', '')
             if app_name:
                 app_uid = None
-                with self._connect() as conn2:
+                with self.db.connect() as conn2:
                     cur = conn2.cursor(dictionary=True)
                     cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
                     app = cur.fetchone()
@@ -1203,7 +1166,7 @@ class AccountService:
 
     def get_user_registrations(self, user_uid: str, page: int = 1, page_size: int = 20) -> dict[str, Any]:
         offset = (page - 1) * page_size
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM registrations WHERE user_uid = %s", (user_uid,))
             total = cursor.fetchone()["total"]
@@ -1221,7 +1184,7 @@ class AccountService:
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
     def get_registration_detail(self, uid: str, user_uid: str | None = None) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, u.username, r.user_uid FROM registrations r JOIN users u ON r.user_uid = u.uid WHERE r.uid = %s", (uid,))
             row = cursor.fetchone()
@@ -1240,13 +1203,13 @@ class AccountService:
         }
 
     def check_registration_exists(self, user_uid: str) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT COUNT(*) as cnt FROM registrations WHERE user_uid = %s", (user_uid,))
             return cursor.fetchone()[0] > 0
 
     def get_latest_registration(self, user_uid: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid, data, create_time, status, reject_reason, priority, template_uid FROM registrations WHERE user_uid = %s ORDER BY create_time DESC LIMIT 1", (user_uid,))
             row = cursor.fetchone()
@@ -1261,11 +1224,11 @@ class AccountService:
         }
 
     def resubmit_registration(self, uid: str, user_uid: str, data: dict[str, Any], priority: str = 'low', template_uid: str = '', amount: float | None = None) -> None:
-        now = self._now()
+        now = self.db.now()
         old_amount = None
         old_app_name = None
         old_status = None
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT amount, status, JSON_UNQUOTE(JSON_EXTRACT(data, '$.跑步APP')) as app_name FROM registrations WHERE uid = %s", (uid,))
             reg = cursor.fetchone()
@@ -1282,7 +1245,7 @@ class AccountService:
             connection.commit()
         if old_amount and old_app_name and old_status == 'approved':
             app_uid = None
-            with self._connect() as conn2:
+            with self.db.connect() as conn2:
                 cur = conn2.cursor(dictionary=True)
                 cur.execute("SELECT uid FROM running_apps WHERE name = %s", (old_app_name,))
                 app = cur.fetchone()
@@ -1294,7 +1257,7 @@ class AccountService:
             app_name = data.get('跑步APP', '')
             if app_name:
                 app_uid2 = None
-                with self._connect() as conn3:
+                with self.db.connect() as conn3:
                     cur = conn3.cursor(dictionary=True)
                     cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
                     app = cur.fetchone()
@@ -1321,7 +1284,7 @@ class AccountService:
             order_clause = "FIELD(r.priority, 'high', 'medium', 'low') ASC, r.create_time DESC"
         else:
             order_clause = "CASE r.status WHEN 'pending' THEN 0 ELSE 1 END ASC, r.create_time DESC"
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             count_sql = "SELECT COUNT(*) as total FROM registrations r" + where_clause
             cursor.execute(count_sql, tuple(params))
@@ -1351,7 +1314,7 @@ class AccountService:
 
     def update_registration_status(self, registration_uid: str, status: str, reject_reason: str | None = None) -> None:
         reg_info = None
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT r.status as old_status, r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app_name, r.user_uid FROM registrations r WHERE r.uid = %s", (registration_uid,))
             reg = cursor.fetchone()
@@ -1365,7 +1328,7 @@ class AccountService:
         if reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("user_uid") and status == 'rejected' and reg_info.get("old_status") != 'rejected':
             app_name = reg_info["app_name"]
             app_uid = None
-            with self._connect() as conn2:
+            with self.db.connect() as conn2:
                 cur = conn2.cursor(dictionary=True)
                 cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
                 app = cur.fetchone()
@@ -1376,7 +1339,7 @@ class AccountService:
 
     def delete_registration(self, registration_uid: str) -> bool:
         reg_info = None
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app_name, r.user_uid, r.status FROM registrations r WHERE r.uid = %s", (registration_uid,))
             reg = cursor.fetchone()
@@ -1387,7 +1350,7 @@ class AccountService:
             deleted = cursor.rowcount > 0
             connection.commit()
         if deleted and reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("user_uid") and reg_info.get("status") == 'approved':
-            with self._connect() as conn2:
+            with self.db.connect() as conn2:
                 cur = conn2.cursor(dictionary=True)
                 cur.execute("SELECT uid FROM running_apps WHERE name = %s", (reg_info["app_name"],))
                 app = cur.fetchone()
@@ -1398,7 +1361,7 @@ class AccountService:
         return deleted
 
     def get_registration_stats(self) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app, r.status, COUNT(*) as cnt
@@ -1416,16 +1379,16 @@ class AccountService:
     # ---- Registration Chat ----
 
     def save_chat_message(self, registration_uid: str, sender_uid: str, message: str, msg_type: str = 'text') -> dict[str, Any]:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO registration_chats (uid, registration_uid, sender_uid, message, created_at, msg_type) VALUES (%s, %s, %s, %s, %s, %s)", (uid, registration_uid, sender_uid, message, now, msg_type))
             connection.commit()
         return {"id": uid, "registration_uid": registration_uid, "sender_uid": sender_uid, "message": message, "created_at": now.isoformat(), "msg_type": msg_type}
 
     def get_chat_history(self, registration_uid: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT c.uid, c.registration_uid, c.sender_uid, c.message, c.msg_type, c.created_at, u.username,
@@ -1448,7 +1411,7 @@ class AccountService:
     # ---- Running Apps ----
 
     def get_running_app_by_uid(self, uid: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT id, uid, name FROM running_apps WHERE uid = %s", (uid,))
             row = cursor.fetchone()
@@ -1457,7 +1420,7 @@ class AccountService:
         return {'id': row['id'], 'uid': row['uid'], 'name': row['name']}
 
     def get_running_app_by_name(self, name: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT id, uid, name FROM running_apps WHERE name = %s", (name,))
             row = cursor.fetchone()
@@ -1466,39 +1429,39 @@ class AccountService:
         return {'id': row['id'], 'uid': row['uid'], 'name': row['name']}
 
     def create_running_app(self, name: str, note: str, accent_color: str = '#1976D2', icon: str = '', balance_mode: str = '') -> int:
-        uid = self._new_uid()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO running_apps (name, note, accent_color, icon, uid, balance_mode) VALUES (%s, %s, %s, %s, %s, %s)", (name, note, accent_color, icon, uid, balance_mode))
             connection.commit()
             return cursor.lastrowid or 0
 
     def update_running_app(self, app_id: int, name: str, note: str, accent_color: str, icon: str = '', balance_mode: str = '') -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE running_apps SET name = %s, note = %s, accent_color = %s, icon = %s, balance_mode = %s WHERE id = %s", (name, note, accent_color, icon, balance_mode, app_id))
             connection.commit()
             return cursor.rowcount > 0
 
     def delete_running_app(self, app_id: int) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("DELETE FROM running_apps WHERE id = %s", (app_id,))
             connection.commit()
             return cursor.rowcount > 0
 
     def bulk_create_running_apps(self, apps: list[dict[str, Any]]) -> int:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             count = 0
             for app in apps:
-                cursor.execute("INSERT INTO running_apps (name, note, accent_color, uid) VALUES (%s, %s, %s, %s)", (app['name'], app.get('note', ''), app.get('accent_color', '#1976D2'), self._new_uid()))
+                cursor.execute("INSERT INTO running_apps (name, note, accent_color, uid) VALUES (%s, %s, %s, %s)", (app['name'], app.get('note', ''), app.get('accent_color', '#1976D2'), self.db.new_uid()))
                 count += 1
             connection.commit()
             return count
 
     def sort_running_apps(self, ordered_ids: list[int]) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             for idx, app_id in enumerate(ordered_ids):
                 cursor.execute("UPDATE running_apps SET sort_order = %s WHERE id = %s", (idx, app_id))
@@ -1508,16 +1471,16 @@ class AccountService:
     # ---- App Templates ----
 
     def create_app_template(self, app_id: int, version_name: str, fields: list[dict[str, Any]]) -> str:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO app_templates (uid, app_id, version_name, fields, create_time) VALUES (%s, %s, %s, %s, %s)", (uid, app_id, version_name, json.dumps(fields, ensure_ascii=False), now))
             connection.commit()
         return uid
 
     def get_app_templates(self, app_id: int) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid, app_id, version_name, fields, create_time FROM app_templates WHERE app_id = %s ORDER BY create_time DESC", (app_id,))
             rows = cursor.fetchall()
@@ -1529,7 +1492,7 @@ class AccountService:
         } for row in rows]
 
     def get_app_template(self, uid: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid, app_id, version_name, fields, create_time FROM app_templates WHERE uid = %s", (uid,))
             row = cursor.fetchone()
@@ -1543,29 +1506,35 @@ class AccountService:
         }
 
     def update_app_template(self, uid: str, version_name: str, fields: list[dict[str, Any]]) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE app_templates SET version_name = %s, fields = %s WHERE uid = %s", (version_name, json.dumps(fields, ensure_ascii=False), uid))
             connection.commit()
             return cursor.rowcount > 0
 
     def delete_app_template(self, uid: str) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("DELETE FROM app_templates WHERE uid = %s", (uid,))
             connection.commit()
             return cursor.rowcount > 0
 
+    def clone_app_template(self, target_app_id: int, source_uid: str, version_name: str) -> str:
+        source = self.get_app_template(source_uid)
+        if not source:
+            raise AccountError("源模板不存在")
+        return self.create_app_template(target_app_id, version_name, source['fields'])
+
     def get_app_template_count(self, app_id: int) -> int:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT COUNT(*) FROM app_templates WHERE app_id = %s", (app_id,))
             return cursor.fetchone()[0]
 
     def get_dashboard_stats(self) -> dict[str, Any]:
-        now = self._now()
+        now = self.db.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT COUNT(*) FROM users")
             total_users = cursor.fetchone()[0]
@@ -1606,9 +1575,9 @@ class AccountService:
     # ---- Feedbacks ----
 
     def create_feedback(self, user_uid: str, title: str, content: str) -> str:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO feedbacks (uid, user_uid, title, content, status, create_time) VALUES (%s, %s, %s, %s, 'pending', %s)", (uid, user_uid, title, content, now))
             connection.commit()
@@ -1616,7 +1585,7 @@ class AccountService:
 
     def get_user_feedbacks(self, user_uid: str, page: int = 1, page_size: int = 20) -> dict[str, Any]:
         offset = (page - 1) * page_size
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM feedbacks WHERE user_uid = %s", (user_uid,))
             total = cursor.fetchone()["total"]
@@ -1635,7 +1604,7 @@ class AccountService:
         if username:
             where_clause = " WHERE u.username = %s"
             params.append(username)
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM feedbacks f JOIN users u ON f.user_uid = u.uid" + where_clause, tuple(params))
             total = cursor.fetchone()["total"]
@@ -1648,7 +1617,7 @@ class AccountService:
         } for row in rows]}
 
     def get_feedback_detail(self, uid: str) -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT f.uid, f.title, f.content, f.status, f.create_time, f.user_uid, u.username FROM feedbacks f JOIN users u ON f.user_uid = u.uid WHERE f.uid = %s", (uid,))
             row = cursor.fetchone()
@@ -1659,22 +1628,22 @@ class AccountService:
         return {'id': row['uid'], 'username': row['username'], 'user_uid': row['user_uid'], 'title': row['title'], 'content': row['content'], 'status': row['status'], 'created_at': row['create_time'].isoformat(), 'replies': replies}
 
     def add_feedback_reply(self, feedback_uid: str, user_uid: str, content: str, is_admin: bool = False) -> str:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO feedback_replies (uid, feedback_uid, user_uid, is_admin, content, create_time) VALUES (%s, %s, %s, %s, %s, %s)", (uid, feedback_uid, user_uid, is_admin, content, now))
             connection.commit()
         return uid
 
     def update_feedback_status(self, uid: str, status: str) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("UPDATE feedbacks SET status = %s WHERE uid = %s", (status, uid))
             connection.commit()
 
     def delete_feedback(self, uid: str) -> None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("DELETE FROM feedback_replies WHERE feedback_uid = %s", (uid,))
             cursor.execute("DELETE FROM feedbacks WHERE uid = %s", (uid,))
@@ -1683,7 +1652,7 @@ class AccountService:
     # ---- Notification: Aggregated pending items from business tables ----
 
     def get_pending_items_for_admin(self, page: int = 1, page_size: int = 20) -> dict[str, Any]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
 
             q_reg = "SELECT uid as id, 'pending_registration' as type, uid as reference_id, '新订单申请' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = r.user_uid), ' 提交了新订单') as content, create_time as created_at FROM registrations r WHERE status = 'pending'"
@@ -1722,7 +1691,7 @@ class AccountService:
             }
 
     def get_pending_notification_count_for_admin(self) -> int:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT COUNT(*) FROM registrations WHERE status = 'pending'")
             r = cursor.fetchone()[0]
@@ -1735,7 +1704,7 @@ class AccountService:
     # ---- Subordinate Management ----
 
     def is_balance_delegated(self, user_uid: str, app_uid: str = "") -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             if app_uid:
                 cursor.execute("SELECT uid FROM balance_delegations WHERE user_uid = %s AND app_uid = %s LIMIT 1", (user_uid, app_uid))
@@ -1744,7 +1713,7 @@ class AccountService:
             return cursor.fetchone() is not None
 
     def is_balance_delegated_for_any_app(self, user_uid: str) -> list[str]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT app_uid FROM balance_delegations WHERE user_uid = %s", (user_uid,))
             return [row[0] for row in cursor.fetchall()]
@@ -1752,7 +1721,7 @@ class AccountService:
     def _resolve_balance_owner(self, user_uid: str, app_uid: str) -> str:
         visited: set[str] = set()
         current = user_uid
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             while current not in visited:
                 visited.add(current)
                 cursor = connection.cursor()
@@ -1764,7 +1733,7 @@ class AccountService:
         return current
 
     def get_balance_delegation(self, user_uid: str, app_uid: str = "") -> dict[str, Any] | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             if app_uid:
                 cursor.execute("SELECT bd.uid, bd.user_uid, bd.parent_uid, bd.app_uid, bd.created_at, u.username as parent_name FROM balance_delegations bd JOIN users u ON u.uid = bd.parent_uid WHERE bd.user_uid = %s AND bd.app_uid = %s LIMIT 1", (user_uid, app_uid))
@@ -1776,7 +1745,7 @@ class AccountService:
             return {"uid": row["uid"], "user_uid": row["user_uid"], "parent_uid": row["parent_uid"], "app_uid": row["app_uid"], "parent_name": row["parent_name"], "created_at": row["created_at"].isoformat()}
 
     def get_subordinates(self, parent_uid: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT us.uid as relation_id, us.subordinate_uid, us.created_at,
@@ -1814,7 +1783,7 @@ class AccountService:
     def add_subordinate(self, parent_uid: str, subordinate_uid: str) -> str:
         if parent_uid == subordinate_uid:
             raise AccountValidationError("不能将自己添加为自己的下属")
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid FROM user_subordinates WHERE parent_uid = %s AND subordinate_uid = %s LIMIT 1", (parent_uid, subordinate_uid))
             if cursor.fetchone():
@@ -1828,14 +1797,14 @@ class AccountService:
             cursor.execute("SELECT uid FROM users WHERE uid = %s", (subordinate_uid,))
             if not cursor.fetchone():
                 raise AccountValidationError("目标用户不存在")
-            uid = self._new_uid()
-            now = self._now()
+            uid = self.db.new_uid()
+            now = self.db.now()
             cursor.execute("INSERT INTO user_subordinates (uid, parent_uid, subordinate_uid, created_at) VALUES (%s, %s, %s, %s)", (uid, parent_uid, subordinate_uid, now))
             connection.commit()
         return uid
 
     def remove_subordinate(self, parent_uid: str, subordinate_uid: str) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("DELETE FROM balance_delegations WHERE user_uid = %s AND parent_uid = %s", (subordinate_uid, parent_uid))
             cursor.execute("DELETE FROM user_subordinates WHERE parent_uid = %s AND subordinate_uid = %s", (parent_uid, subordinate_uid))
@@ -1846,7 +1815,7 @@ class AccountService:
         result: list[str] = []
         queue: list[str] = [parent_uid]
         visited: set[str] = set()
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             while queue:
                 current = queue.pop(0)
                 if current in visited:
@@ -1862,7 +1831,7 @@ class AccountService:
         return result
 
     def get_subordinate_tree(self, parent_uid: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             all_sub_uids: list[str] = []
             queue: list[str] = [parent_uid]
@@ -1916,7 +1885,7 @@ class AccountService:
         return result
 
     def get_parent_of_subordinate(self, subordinate_uid: str) -> str | None:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT parent_uid FROM user_subordinates WHERE subordinate_uid = %s LIMIT 1", (subordinate_uid,))
             row = cursor.fetchone()
@@ -1924,7 +1893,7 @@ class AccountService:
 
     def get_sibling_subordinates(self, parent_uid: str) -> list[dict[str, Any]]:
         all_desc = self._get_all_descendant_uids(parent_uid)
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             result = []
             for uid in all_desc:
@@ -1937,7 +1906,7 @@ class AccountService:
     # ---- Balance Delegation ----
 
     def create_balance_delegation(self, user_uid: str, parent_uid: str, app_uid: str) -> str:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT uid FROM user_subordinates WHERE parent_uid = %s AND subordinate_uid = %s LIMIT 1", (parent_uid, user_uid))
             if not cursor.fetchone():
@@ -1954,21 +1923,21 @@ class AccountService:
                 ancestor = row["parent_uid"] if row else None
             if ancestor and ancestor in visited:
                 raise AccountValidationError("不能建立循环余额链接")
-            uid = self._new_uid()
-            now = self._now()
+            uid = self.db.new_uid()
+            now = self.db.now()
             cursor.execute("INSERT INTO balance_delegations (uid, user_uid, parent_uid, app_uid, created_at) VALUES (%s, %s, %s, %s, %s)", (uid, user_uid, parent_uid, app_uid, now))
             connection.commit()
         return uid
 
     def remove_balance_delegation(self, user_uid: str, app_uid: str) -> bool:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("DELETE FROM balance_delegations WHERE user_uid = %s AND app_uid = %s", (user_uid, app_uid))
             connection.commit()
             return cursor.rowcount > 0
 
     def get_delegated_users(self, parent_uid: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT bd.uid, bd.user_uid, bd.app_uid, bd.created_at,
@@ -1983,7 +1952,7 @@ class AccountService:
         return [{"uid": row["uid"], "user_uid": row["user_uid"], "username": row["username"], "app_uid": row["app_uid"], "app_name": row["app_name"], "created_at": row["created_at"].isoformat()} for row in rows]
 
     def get_user_balance_delegations(self, user_uid: str) -> list[dict[str, Any]]:
-        with self._connect() as connection:
+        with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
                 SELECT bd.uid, bd.parent_uid, bd.app_uid, bd.created_at,

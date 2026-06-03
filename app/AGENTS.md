@@ -12,3 +12,4 @@
 - Framework: Vue 3 + Vite
 - UI Library: Vuetify
 - Enabled Features: Pinia, Vue Router
+

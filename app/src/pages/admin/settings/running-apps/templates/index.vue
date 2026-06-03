@@ -14,7 +14,8 @@
     </div>
 
     <div class="d-flex justify-end mb-3">
-      <v-btn color="primary" elevation="2" prepend-icon="mdi-plus" @click="openCreateDialog">新建模板</v-btn>
+      <v-btn color="secondary" elevation="2" prepend-icon="mdi-content-copy" @click="openCloneDrawer">模板复刻</v-btn>
+      <v-btn color="primary" elevation="2" prepend-icon="mdi-plus" class="ml-2" @click="openCreateDialog">新建模板</v-btn>
     </div>
 
     <app-data-table
@@ -349,9 +350,104 @@
       </v-card>
     </v-dialog>
 
+    <!-- 模板复刻确认 Dialog -->
+    <v-dialog v-model="cloneDialog.show" max-width="400">
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center">
+          <v-icon color="primary" class="mr-2">mdi-content-copy</v-icon>
+          模板复刻
+        </v-card-title>
+        <v-card-text>
+          <div class="text-body-2 text-medium-emphasis mb-3">
+            将从 <b>{{ cloneDialog.sourceApp }}</b> 复刻模板 <br><b>{{ cloneDialog.sourceName }}</b> 到当前 APP
+          </div>
+          <v-text-field
+            v-model="cloneDialog.versionName"
+            label="新版本名称"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+            @keyup.enter="doClone"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions class="pa-4 pt-0">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="cloneDialog.show = false">取消</v-btn>
+          <v-btn color="primary" variant="flat" :loading="saving" @click="doClone">确认复刻</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
+
+    <!-- 模板复刻 选择源模板 Dialog -->
+    <v-dialog v-model="pickerDialog" max-width="500" scrollable>
+      <v-card rounded="lg" max-height="75vh">
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon color="primary" class="mr-2">mdi-content-copy</v-icon>
+          <span class="text-h6">模板复刻</span>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="pickerDialog = false"></v-btn>
+        </v-card-title>
+        <v-divider></v-divider>
+        <v-card-text class="pa-0">
+          <v-expansion-panels v-model="expandedApp" variant="accordion" v-if="cloneApps.length > 0">
+            <v-expansion-panel
+              v-for="app in cloneApps"
+              :key="app.uid"
+              :value="app.uid"
+            >
+              <v-expansion-panel-title>
+                <div class="d-flex align-center w-100">
+                  <v-icon size="20" class="me-2" :color="app.accent_color || 'primary'">
+                    {{ app.icon || 'mdi-run' }}
+                  </v-icon>
+                  <span class="font-weight-medium">{{ app.name }}</span>
+                  <v-chip size="x-small" variant="tonal" class="ml-2" color="grey">
+                    {{ app.template_count || 0 }}
+                  </v-chip>
+                </div>
+              </v-expansion-panel-title>
+              <v-expansion-panel-text>
+                <div v-if="loadingApps[app.uid]" class="d-flex justify-center py-6">
+                  <v-progress-circular indeterminate size="24" color="primary"></v-progress-circular>
+                </div>
+                <div v-else-if="!loadedTemplates[app.uid] || loadedTemplates[app.uid].length === 0"
+                  class="text-center py-6 text-body-2 text-grey">
+                  暂无模板
+                </div>
+                <v-list v-else density="compact" nav>
+                  <v-list-item
+                    v-for="tpl in loadedTemplates[app.uid]"
+                    :key="tpl.uid"
+                    @click="selectTemplate(tpl, app)"
+                    rounded="lg"
+                    class="mb-1"
+                  >
+                    <template v-slot:prepend>
+                      <v-icon size="18" color="grey">mdi-file-document-outline</v-icon>
+                    </template>
+                    <v-list-item-title class="text-body-2">{{ tpl.version_name }}</v-list-item-title>
+                    <v-list-item-subtitle class="text-caption">
+                      {{ tpl.fields?.length || 0 }} 个字段
+                    </v-list-item-subtitle>
+                    <template v-slot:append>
+                      <v-icon size="16" color="primary">mdi-content-copy</v-icon>
+                    </template>
+                  </v-list-item>
+                </v-list>
+              </v-expansion-panel-text>
+            </v-expansion-panel>
+          </v-expansion-panels>
+          <div v-else class="pa-6 text-center text-grey text-body-2">
+            <v-progress-circular indeterminate size="24" color="primary" class="mb-2"></v-progress-circular>
+            <div>加载 APP 列表中...</div>
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -708,5 +804,94 @@ async function loadAppName() {
       if (app) appName.value = app.name
     }
   } catch { /* ignore */ }
+}
+
+// ===== 模板复刻 =====
+
+interface RunningApp {
+  uid: string
+  name: string
+  icon: string
+  accent_color: string
+  template_count: number
+}
+
+const pickerDialog = ref(false)
+const expandedApp = ref('')
+watch(expandedApp, (uid) => {
+  if (uid) loadTemplatesForApp(uid)
+})
+const cloneApps = ref<RunningApp[]>([])
+const loadedTemplates = ref<Record<string, Template[]>>({})
+const loadingApps = ref<Record<string, boolean>>({})
+const cloneDialog = reactive({
+  show: false,
+  versionName: '',
+  sourceUid: '',
+  sourceName: '',
+  sourceApp: '',
+})
+
+async function openCloneDrawer() {
+  pickerDialog.value = true
+  expandedApp.value = ''
+  if (cloneApps.value.length > 0) return
+  try {
+    const res = await ajax<RunningApp[]>('/api/admin/settings/running-apps', { headers: authHeaders() })
+    if (res.code === 200) {
+      cloneApps.value = res.data || []
+    }
+  } catch { /* ignore */ }
+}
+
+async function loadTemplatesForApp(uid: string) {
+  if (loadedTemplates.value[uid] || loadingApps.value[uid]) return
+  loadingApps.value[uid] = true
+  try {
+    const res = await ajax<Template[]>(`/api/admin/settings/running-apps/${uid}/templates`, {
+      headers: authHeaders()
+    })
+    if (res.code === 200) {
+      loadedTemplates.value[uid] = res.data || []
+    }
+  } catch { /* ignore */ }
+  finally {
+    loadingApps.value[uid] = false
+  }
+}
+
+function selectTemplate(tpl: Template, app: RunningApp) {
+  cloneDialog.sourceUid = tpl.uid
+  cloneDialog.sourceName = tpl.version_name
+  cloneDialog.sourceApp = app.name
+  cloneDialog.versionName = `复刻 - ${tpl.version_name}`
+  cloneDialog.show = true
+}
+
+async function doClone() {
+  if (!cloneDialog.versionName.trim()) {
+    showMsg('请输入版本名称', 'error')
+    return
+  }
+  saving.value = true
+  try {
+    const res = await ajax(`/api/admin/settings/running-apps/${appUid}/templates/clone`, {
+      method: 'POST',
+      body: { source_uid: cloneDialog.sourceUid, version_name: cloneDialog.versionName.trim() },
+      headers: authHeaders()
+    })
+    if (res.code === 200) {
+      cloneDialog.show = false
+      pickerDialog.value = false
+      showMsg('模板复刻成功')
+      await loadTemplates()
+    } else {
+      showMsg(res.msg || '复刻失败', 'error')
+    }
+  } catch {
+    showMsg('请求失败，请稍后再试', 'error')
+  } finally {
+    saving.value = false
+  }
 }
 </script>
