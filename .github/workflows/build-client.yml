@@ -36,3 +36,4 @@ jobs:
             key: ${{ secrets.SERVER_KEY }}
             source: "app/dist/*"
             target: "/www/huhurun-www/client"
+            strip_components: 2
