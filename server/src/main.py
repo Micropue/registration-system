@@ -10,7 +10,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from typing import Any, Optional
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 
+load_dotenv()
 # 尝试导入业务逻辑类
 try:
     from .account_service import AccountService, AccountError, AccountAuthError

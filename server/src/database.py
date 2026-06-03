@@ -5,9 +5,11 @@ import uuid
 from datetime import datetime
 from typing import Any, cast
 from urllib.parse import urlparse
+from dotenv import load_dotenv
 
 import mysql.connector
 from mysql.connector.connection import MySQLConnection
+load_dotenv()
 
 # ---------------------------------------------------------------
 # 禁止修改 — 以下为备选数据库配置，仅当环境变量未设置时使用
