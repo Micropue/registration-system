@@ -1680,89 +1680,57 @@ class AccountService:
             cursor.execute("DELETE FROM feedbacks WHERE uid = %s", (uid,))
             connection.commit()
 
-    # ---- Notifications ----
+    # ---- Notification: Aggregated pending items from business tables ----
 
-    def create_notification(self, user_uid: str, type: str, title: str, content: str = "", reference_id: str = "") -> str:
-        uid = self._new_uid()
-        now = self._now()
-        with self._connect() as connection:
-            cursor = connection.cursor()
-            cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)", (uid, user_uid, type, reference_id, title, content, now))
-            connection.commit()
-        if AccountService.ws_push:
-            AccountService.ws_push(user_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_unread', 'notif_type': type, 'title': title, 'content': content, 'reference_id': reference_id, 'created_at': now.isoformat()})
-        return uid
-
-    def get_user_notifications(self, user_uid: str, read_within_days: int = 0, page: int = 0, page_size: int = 0) -> list[dict[str, Any]] | dict[str, Any]:
+    def get_pending_items_for_admin(self, page: int = 1, page_size: int = 20) -> dict[str, Any]:
         with self._connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            where = "WHERE user_uid = %s"
-            params: list[Any] = [user_uid]
-            if read_within_days > 0:
-                where += " AND (is_read = FALSE OR (is_read = TRUE AND create_time >= DATE_SUB(NOW(), INTERVAL %s DAY)))"
-                params.append(read_within_days)
-            if page > 0 and page_size > 0:
-                offset = (page - 1) * page_size
-                cursor.execute(f"SELECT COUNT(*) as total FROM notifications {where}", tuple(params))
-                total = cursor.fetchone()["total"]
-                cursor.execute(f"SELECT uid, type, reference_id, title, content, is_read, create_time FROM notifications {where} ORDER BY is_read ASC, create_time DESC LIMIT %s OFFSET %s", tuple(params) + (page_size, offset))
-                rows = cursor.fetchall()
-                items = [{'id': row['uid'], 'type': row['type'], 'reference_id': row['reference_id'], 'title': row['title'], 'content': row['content'] or '', 'is_read': bool(row['is_read']), 'created_at': row['create_time'].isoformat()} for row in rows]
-                return {"total": total, "page": page, "page_size": page_size, "items": items}
-            cursor.execute(f"SELECT uid, type, reference_id, title, content, is_read, create_time FROM notifications {where} ORDER BY is_read ASC, create_time DESC LIMIT 50", tuple(params))
-            return [{'id': row['uid'], 'type': row['type'], 'reference_id': row['reference_id'], 'title': row['title'], 'content': row['content'] or '', 'is_read': bool(row['is_read']), 'created_at': row['create_time'].isoformat()} for row in cursor.fetchall()]
 
-    def get_unread_notification_count(self, user_uid: str) -> int:
+            q_reg = "SELECT uid as id, 'pending_registration' as type, uid as reference_id, '新订单申请' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = r.user_uid), ' 提交了新订单') as content, create_time as created_at FROM registrations r WHERE status = 'pending'"
+            q_fb = "SELECT uid as id, 'pending_feedback' as type, uid as reference_id, '新工单' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = f.user_uid), ' 提交了工单: ', f.title) as content, create_time as created_at FROM feedbacks f WHERE status = 'pending'"
+            q_recharge = "SELECT br.uid as id, 'pending_recharge' as type, br.uid as reference_id, '新充值申请' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = br.user_uid), ' 申请充值 ', br.amount, ' 元') as content, br.created_at FROM balance_recharges br WHERE status = 'pending'"
+
+            union = f"({q_reg}) UNION ALL ({q_fb}) UNION ALL ({q_recharge}) ORDER BY created_at DESC"
+
+            cursor.execute(f"SELECT COUNT(*) as total FROM ({union}) t")
+            total = cursor.fetchone()["total"]
+
+            offset = (page - 1) * page_size
+            cursor.execute(f"SELECT * FROM ({union}) t LIMIT %s OFFSET %s", (page_size, offset))
+            items = list(cursor.fetchall())
+            for item in items:
+                if item.get('created_at'):
+                    item['created_at'] = item['created_at'].isoformat()
+
+            cursor.execute("SELECT COUNT(*) FROM registrations WHERE status = 'pending'")
+            pending_regs = cursor.fetchone()["COUNT(*)"]
+            cursor.execute("SELECT COUNT(*) FROM feedbacks WHERE status = 'pending'")
+            pending_fbs = cursor.fetchone()["COUNT(*)"]
+            cursor.execute("SELECT COUNT(*) FROM balance_recharges WHERE status = 'pending'")
+            pending_recs = cursor.fetchone()["COUNT(*)"]
+
+            return {
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "items": items,
+                "counts": {
+                    "订单处理": pending_regs,
+                    "工单处理": pending_fbs,
+                    "充值审批": pending_recs,
+                }
+            }
+
+    def get_pending_notification_count_for_admin(self) -> int:
         with self._connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("SELECT COUNT(*) as cnt FROM notifications WHERE user_uid = %s AND is_read = FALSE", (user_uid,))
-            row = cursor.fetchone()
-            return row[0] if row else 0
-
-    def mark_notification_read(self, uid: str) -> None:
-        user_uid = ''
-        with self._connect() as connection:
-            cursor = connection.cursor()
-            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE uid = %s", (uid,))
-            cursor.execute("SELECT user_uid FROM notifications WHERE uid = %s", (uid,))
-            row = cursor.fetchone()
-            if row:
-                user_uid = row[0]
-            connection.commit()
-        if AccountService.ws_push and user_uid:
-            AccountService.ws_push(user_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_read'})
-
-    def mark_all_notifications_read(self, user_uid: str) -> None:
-        with self._connect() as connection:
-            cursor = connection.cursor()
-            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s", (user_uid,))
-            connection.commit()
-        if AccountService.ws_push:
-            AccountService.ws_push(user_uid, {'type': 'notification_update', 'status': 'all_read'})
-
-    def mark_notifications_read_by_reference(self, user_uid: str, reference_id: str) -> int:
-        with self._connect() as connection:
-            cursor = connection.cursor()
-            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s AND reference_id = %s AND is_read = FALSE", (user_uid, reference_id))
-            count = cursor.rowcount
-            connection.commit()
-            return count
-
-    def create_notification_for_admins(self, type: str, title: str, content: str = "", reference_id: str = "") -> None:
-        ws_pushes: list[tuple[str, dict]] = []
-        with self._connect() as connection:
-            cursor = connection.cursor()
-            cursor.execute("SELECT u.uid FROM users u INNER JOIN user_groups ug ON ug.uid = u.group_uid WHERE ug.name IN ('管理员','超级管理员')")
-            admins = cursor.fetchall()
-            for (admin_uid,) in admins:
-                uid = self._new_uid()
-                now = self._now()
-                cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)", (uid, admin_uid, type, reference_id, title, content, now))
-                ws_pushes.append((admin_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_unread', 'notif_type': type, 'title': title, 'content': content, 'reference_id': reference_id, 'created_at': now.isoformat()}))
-            connection.commit()
-        if AccountService.ws_push:
-            for admin_uid, data in ws_pushes:
-                AccountService.ws_push(admin_uid, data)
+            cursor.execute("SELECT COUNT(*) FROM registrations WHERE status = 'pending'")
+            r = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM feedbacks WHERE status = 'pending'")
+            f = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM balance_recharges WHERE status = 'pending'")
+            b = cursor.fetchone()[0]
+            return r + f + b
 
     # ---- Subordinate Management ----
 

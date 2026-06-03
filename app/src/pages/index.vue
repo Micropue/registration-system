@@ -1,7 +1,7 @@
 <template>
   <v-container fluid class="pa-0 d-flex flex-column align-center">
     <div class="table-wrapper mt-4">
-      <h1 class="text-h4 mb-4">通知中心</h1>
+      <h1 class="text-h4 mb-4">待处理</h1>
       <app-data-table
         :headers="headers"
         :items="notifications"
@@ -13,15 +13,8 @@
         v-model:items-per-page="pageSize"
         @update:options="loadNotifications"
       >
-        <template v-slot:item.is_read="{ item }">
-          <v-icon size="18" :color="item.is_read ? 'grey' : 'primary'">
-            {{ item.is_read ? 'mdi-check-circle-outline' : 'mdi-circle' }}
-          </v-icon>
-        </template>
-        <template v-slot:item.title="{ item }">
-          <div class="d-flex align-center ga-2">
-            <span :class="!item.is_read ? 'font-weight-bold' : ''">{{ item.title }}</span>
-          </div>
+        <template v-slot:item.type="{ item }">
+          <v-icon size="20" :color="typeColor(item.type)">{{ typeIcon(item.type) }}</v-icon>
         </template>
         <template v-slot:item.created_at="{ item }">
           {{ formatDate(item.created_at) }}
@@ -44,10 +37,8 @@ import { useRouter } from 'vue-router'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import AppDataTable from '@/components/AppDataTable.vue'
-import { useAppStore } from '@/stores/app'
 
 const router = useRouter()
-const appStore = useAppStore()
 
 const notifications = ref<any[]>([])
 const loading = ref(false)
@@ -56,12 +47,26 @@ const page = ref(1)
 const pageSize = ref(20)
 
 const headers = [
-  { title: '状态', key: 'is_read', width: 60 },
+  { title: '类型', key: 'type', width: 60 },
   { title: '标题', key: 'title', searchable: true },
   { title: '内容', key: 'content', searchable: true },
   { title: '时间', key: 'created_at' },
   { title: '操作', key: 'actions', width: 80 }
 ]
+
+function typeIcon(type: string) {
+  if (type === 'pending_registration') return 'mdi-file-document-outline'
+  if (type === 'pending_feedback') return 'mdi-message-text-outline'
+  if (type === 'pending_recharge') return 'mdi-cash-plus'
+  return 'mdi-circle'
+}
+
+function typeColor(type: string) {
+  if (type === 'pending_registration') return 'primary'
+  if (type === 'pending_feedback') return 'warning'
+  if (type === 'pending_recharge') return 'success'
+  return 'grey'
+}
 
 function formatDate(iso: string) {
   if (!iso) return ''
@@ -89,39 +94,15 @@ async function loadNotifications() {
   finally { loading.value = false }
 }
 
-async function handleClick(n: any) {
-  if (!n.is_read) {
-    try {
-      await ajax(`/api/notifications/${n.id}/read`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
-      })
-      n.is_read = true
-    } catch (e) { /* ignore */ }
+function handleClick(n: any) {
+  if (n.type === 'pending_registration') {
+    router.push({ path: '/admin/registers', query: n.reference_id ? { chat: n.reference_id } : {} })
   }
-  const userInfo = appStore.userInfo
-  const isAdmin = userInfo?.type !== 'default'
-  if (n.type === 'new_registration') {
-    if (isAdmin) {
-      router.push({ path: '/admin/registers', query: n.reference_id ? { chat: n.reference_id } : {} })
-    }
+  else if (n.type === 'pending_feedback') {
+    router.push({ path: '/admin/feedbacks', query: n.reference_id ? { id: n.reference_id } : {} })
   }
-  else if (n.type === 'registration_rejected') {
-    router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
-  }
-  else if (n.type === 'registration_approved') {
-    router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
-  }
-  else if (n.type === 'chat_message') {
-    const targetPath = isAdmin ? '/admin/registers' : '/sign'
-    router.push({ path: targetPath, query: n.reference_id ? { chat: n.reference_id } : {} })
-  }
-  else if (n.type === 'feedback_replied' || n.type === 'new_feedback' || n.type === 'feedback_status') {
-    const targetPath = isAdmin ? '/admin/feedbacks' : '/feedback'
-    router.push({ path: targetPath, query: n.reference_id ? { id: n.reference_id } : {} })
-  }
-  else if (n.type === 'recharge_processed') {
-    router.push('/recharge')
+  else if (n.type === 'pending_recharge') {
+    router.push('/admin/recharges')
   }
 }
 

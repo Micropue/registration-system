@@ -77,14 +77,6 @@ export enum ApiUrl {
   ADMIN_UPDATE_FEEDBACK_STATUS = '/api/admin/feedbacks',
   /** 获取通知 */
   GET_NOTIFICATIONS = '/api/notifications',
-  /** 未读通知数 */
-  UNREAD_NOTIFICATION_COUNT = '/api/notifications/unread-count',
-  /** 标记已读 */
-  MARK_NOTIFICATION_READ = '/api/notifications',
-  /** 全部已读 */
-  MARK_ALL_NOTIFICATIONS_READ = '/api/notifications/read-all',
-  /** 按关联ID标记已读 */
-  READ_NOTIFICATIONS_BY_REF = '/api/notifications/read-by-reference',
   /** 账户组管理 */
   GET_GROUPS = '/api/admin/groups',
   CREATE_GROUP = '/api/admin/groups',

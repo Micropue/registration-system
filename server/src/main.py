@@ -287,20 +287,6 @@ async def update_registration_status(
             old = cur.fetchone()
             old_status = old['status'] if old else ''
         account_service.update_registration_status(uid, status, reject_reason)
-        if status == 'rejected':
-            with account_service._connect() as conn:
-                cur = conn.cursor(dictionary=True)
-                cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
-                reg = cur.fetchone()
-                if reg:
-                    account_service.create_notification(reg['user_uid'], 'registration_rejected', '订单被驳回', reject_reason or '您的订单已被驳回', uid)
-        elif status == 'approved':
-            with account_service._connect() as conn:
-                cur = conn.cursor(dictionary=True)
-                cur.execute("SELECT user_uid FROM registrations WHERE uid = %s", (uid,))
-                reg = cur.fetchone()
-                if reg:
-                    account_service.create_notification(reg['user_uid'], 'registration_approved', '订单已通过', '您的订单已通过审核', uid)
         delta = 0
         if old_status == 'pending' and status in ('approved', 'rejected'):
             delta = -1
@@ -667,7 +653,6 @@ async def submit_registration(
                 if app and not account_service.check_user_balance(session.user_uid, app['uid'], amount):
                     return api_response(400, f"'{app_name}' 余额不足，无法创建登记")
         account_service.submit_registration(session.user_uid, data, priority, template_uid, amount)
-        account_service.create_notification_for_admins("new_registration", f"新订单", f"用户 {session.username} 提交了新订单")
         asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "订单处理", "delta": 1}))
         return api_response(200, "Registration submitted successfully")
     except AccountError as e:
@@ -687,7 +672,6 @@ async def create_feedback(
     if err: return err
     try:
         uid = account_service.create_feedback(session.user_uid, title, content)
-        account_service.create_notification_for_admins("new_feedback", "新工单", f"用户 {session.username} 提交了工单: {title}")
         asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "工单处理", "delta": 1}))
         return api_response(200, "Feedback created", {'id': uid})
     except Exception as e:
@@ -728,10 +712,6 @@ async def reply_feedback(
         if not is_admin and detail['user_uid'] != session.user_uid:
             return api_response(403, 您没有此操作权限)
         account_service.add_feedback_reply(uid, session.user_uid, content, is_admin)
-        if is_admin:
-            account_service.create_notification(detail['user_uid'], 'feedback_replied', '工单有新回复', f'管理员回复了您的工单: {detail["title"]}', uid)
-        else:
-            account_service.create_notification_for_admins('feedback_replied', '工单有新回复', f'用户 {session.username} 回复了工单: {detail["title"]}')
         return api_response(200, "Reply added")
     except Exception as e:
         return api_response(500, f"Error: {str(e)}")
@@ -764,10 +744,6 @@ async def admin_update_feedback_status(
             old = cur.fetchone()
             old_status = old['status'] if old else ''
         account_service.update_feedback_status(uid, status)
-        detail = account_service.get_feedback_detail(uid)
-        if detail:
-            st = {'resolved': '已处理', 'rejected': '已驳回', 'pending': '待处理'}.get(status, status)
-            account_service.create_notification(detail['user_uid'], 'feedback_status', f'工单状态更新', f'您的工单 "{detail["title"]}" 状态已更新为: {st}', uid)
         delta = 0
         if old_status == 'pending' and status in ('resolved', 'rejected'):
             delta = -1
@@ -947,7 +923,6 @@ async def create_recharge(data: dict[str, Any], authorization: Optional[str] = H
             float(data.get('amount', 0)),
             data.get('reason', '')
         )
-        account_service.create_notification_for_admins("new_registration", "新充值申请", f"用户 {session.username} 申请充值")
         asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "充值审批", "delta": 1}))
         return api_response(200, "Recharge request submitted", {'uid': uid})
     except AccountError as e:
@@ -984,12 +959,6 @@ async def process_recharge(uid: str, data: dict[str, Any], authorization: Option
             reject_reason,
             session.username
         )
-        if status == 'approved':
-            account_service.create_notification(recharge['user_uid'], 'recharge_processed',
-                '充值申请已通过', f'您在 {recharge["app_name"]} 的充值申请（{recharge["amount"]}）已通过', uid)
-        else:
-            account_service.create_notification(recharge['user_uid'], 'recharge_processed',
-                '充值申请已驳回', f'您在 {recharge["app_name"]} 的充值申请已被驳回：{reject_reason}', uid)
         if was_pending:
             asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "充值审批", "delta": -1}))
         return api_response(200, "Recharge processed")
@@ -999,13 +968,16 @@ async def process_recharge(uid: str, data: dict[str, Any], authorization: Option
 # --- 通知接口 ---
 
 @app.get("/notifications")
-async def get_notifications(authorization: Optional[str] = Header(None), read_within_days: int = 0, page: int = 0, page_size: int = 0):
+async def get_notifications(authorization: Optional[str] = Header(None), read_within_days: int = 0, page: int = 1, page_size: int = 20):
     if not authorization: return api_response(401, "Missing Authorization Header")
     token = get_token(authorization)
     session = account_service.get_login_session(token)
     if not session: return api_response(401, "Unauthorized")
-    notifications = account_service.get_user_notifications(session.user_uid, read_within_days=read_within_days, page=page, page_size=page_size)
-    return api_response(200, "Success", notifications)
+    is_admin = account_service._check_permission(session.user_uid, "订单处理", "查看") or account_service._check_permission(session.user_uid, "工单处理", "查看") or account_service._check_permission(session.user_uid, "充值审批", "查看")
+    if not is_admin:
+        return api_response(200, "Success", {"total": 0, "page": page, "page_size": page_size, "items": [], "counts": {}})
+    data = account_service.get_pending_items_for_admin(page=page, page_size=page_size)
+    return api_response(200, "Success", data)
 
 @app.get("/notifications/unread-count")
 async def unread_count(authorization: Optional[str] = Header(None)):
@@ -1013,35 +985,23 @@ async def unread_count(authorization: Optional[str] = Header(None)):
     token = get_token(authorization)
     session = account_service.get_login_session(token)
     if not session: return api_response(401, "Unauthorized")
-    count = account_service.get_unread_notification_count(session.user_uid)
+    is_admin = account_service._check_permission(session.user_uid, "订单处理", "查看") or account_service._check_permission(session.user_uid, "工单处理", "查看") or account_service._check_permission(session.user_uid, "充值审批", "查看")
+    if not is_admin:
+        return api_response(200, "Success", {'count': 0})
+    count = account_service.get_pending_notification_count_for_admin()
     return api_response(200, "Success", {'count': count})
 
 @app.post("/notifications/{uid}/read")
 async def mark_read(uid: str, authorization: Optional[str] = Header(None)):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
-    account_service.mark_notification_read(uid)
-    return api_response(200, "Marked read")
+    return api_response(200, "OK")
 
 @app.post("/notifications/read-all")
 async def mark_all_read(authorization: Optional[str] = Header(None)):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
-    account_service.mark_all_notifications_read(session.user_uid)
-    return api_response(200, "All marked read")
+    return api_response(200, "OK")
 
 @app.post("/notifications/read-by-reference/{reference_id}")
 async def mark_read_by_reference(reference_id: str, authorization: Optional[str] = Header(None)):
-    if not authorization: return api_response(401, "Missing Authorization Header")
-    token = get_token(authorization)
-    session = account_service.get_login_session(token)
-    if not session: return api_response(401, "Unauthorized")
-    count = account_service.mark_notifications_read_by_reference(session.user_uid, reference_id)
-    return api_response(200, "Marked read", { "count": count })
+    return api_response(200, "OK")
 
 # --- 下属管理 ---
 
@@ -1217,15 +1177,6 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
             msg['is_admin'] = is_staff
             msg['msg_type'] = msg_type
             account_service.update_registration_status(registration_uid, 'pending')
-            try:
-                detail = account_service.get_registration_detail(registration_uid)
-                if detail:
-                    if is_staff:
-                        account_service.create_notification(detail['user_uid'], 'chat_message', '订单聊天新消息', f'管理员回复了您的订单', registration_uid)
-                    else:
-                        account_service.create_notification_for_admins('chat_message', '订单聊天新消息', f'用户 {session.username} 发送了新消息', registration_uid)
-            except Exception:
-                pass
             await manager.broadcast(registration_uid, msg)
     except WebSocketDisconnect:
         manager.disconnect(registration_uid, websocket)

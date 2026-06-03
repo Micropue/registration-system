@@ -110,10 +110,6 @@ async function loadHistory() {
       messages.value = res.data
       scrollBottom()
       chatStore.clearUnreadCount(props.registrationUid)
-      ajax(`${ApiUrl.READ_NOTIFICATIONS_BY_REF}/${props.registrationUid}`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` }
-      }).catch(() => { })
     }
   } catch (err) { /* ignore */ }
 }
