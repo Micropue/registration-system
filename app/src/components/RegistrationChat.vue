@@ -17,7 +17,7 @@
           <!-- 头部信息：名字与时间 -->
           <div class="chat-meta">
             <span class="user-name">{{ msg.username }}</span>
-            <span v-if="msg.username !== currentUsername" class="msg-time">{{ formatTime(msg.created_at) }}</span>
+            <span class="msg-time">{{ formatTime(msg.created_at) }}</span>
           </div>
 
           <!-- 登记卡片 -->

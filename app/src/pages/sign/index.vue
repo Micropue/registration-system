@@ -300,8 +300,8 @@
                 <td class="font-weight-bold text-primary">{{ infoDialogItem.amount }}{{ getAmountUnit(infoDialogItem.data['跑步APP']) }}</td>
               </tr>
               <tr v-for="key in infoSortedKeys" :key="key">
-                <td class="font-weight-bold">{{ key }}</td>
-                <td>{{ formatValue(infoDialogItem.data[key]) }}</td>
+                <td :style="fieldStyle(key)">{{ key }}</td>
+                <td :style="fieldStyle(key)">{{ formatValue(infoDialogItem.data[key]) }}</td>
               </tr>
             </tbody>
           </v-table>
@@ -371,7 +371,7 @@
           <v-badge :model-value="chatStore.chatUnreadCounts[item.id] > 0" :content="chatStore.chatUnreadCounts[item.id]" color="error" offset-x="-4" offset-y="-4">
             <v-btn variant="tonal" rounded size="small" color="secondary" @click="openDetailDialog(item)">联系管理员</v-btn>
           </v-badge>
-          <v-btn v-if="item.status === 'rejected'" variant="tonal" rounded size="small" color="warning" @click="openResubmitDialog(item)">重新提交</v-btn>
+          <v-btn variant="tonal" rounded size="small" color="warning" @click="openModifyDialog(item)">修改</v-btn>
         </div>
       </template>
     </app-data-table>
@@ -402,9 +402,9 @@
                     <td class="font-weight-bold text-primary">{{ detailDialog.amount }}{{ getAmountUnit(detailDialog.data['跑步APP']) }}</td>
                   </tr>
                   <tr v-for="key in sortedDetailKeys" :key="key">
-                    <td class="font-weight-bold">{{ key }}</td>
-                    <td>{{ formatValue(detailDialog.data[key]) }}</td>
-                  </tr>
+                <td :style="fieldStyle(key)">{{ key }}</td>
+                <td :style="fieldStyle(key)">{{ formatValue(detailDialog.data[key]) }}</td>
+              </tr>
                 </tbody>
               </v-table>
               <v-alert v-if="detailDialog.rejectReason" type="error" variant="tonal" class="mt-3" density="compact">
@@ -489,6 +489,7 @@ const resubmitPriority = ref('low')
 const resubmitTemplateUid = ref('')
 const selectedTemplate = ref('')
 const isResubmitMode = ref(false)
+const skipOldData = ref(false)
 const appTemplates = ref<any[]>([])
 const loadingTemplates = ref(false)
 const templateDialog = reactive({ show: false, uid: '' })
@@ -555,6 +556,7 @@ const detailDialog = reactive({
 })
 
 const detailTemplateFieldOrder = ref<string[]>([])
+const detailTemplateFieldStyles = ref<Record<string, { bold: boolean; color: string; size: string }>>({})
 const detailTemplateLoading = ref(false)
 
 const sortedDetailKeys = computed(() => {
@@ -627,9 +629,20 @@ function formatDate(iso: string) {
 }
 
 function formatValue(val: any): string {
-  if (Array.isArray(val)) return val.join(', ')
+  if (Array.isArray(val)) return val.join(' - ')
   if (val === null || val === undefined) return '-'
   return String(val)
+}
+
+function fieldStyle(key: string): Record<string, string> {
+  const style: Record<string, string> = {}
+  const s = detailTemplateFieldStyles.value[key]
+  if (s) {
+    if (s.bold) style['font-weight'] = '900'
+    if (s.color) style['color'] = s.color
+    if (s.size) style['font-size'] = s.size
+  }
+  return style
 }
 
 function getAppIcon(appName: string): string {
@@ -903,6 +916,7 @@ function openInfoDialog(item: RegistrationItem) {
 
 async function loadDetailTemplateOrder(appName: string, templateUid: string) {
   detailTemplateFieldOrder.value = []
+  detailTemplateFieldStyles.value = {}
   if (!appName || !templateUid) { detailTemplateLoading.value = false; return }
   const app = runningApps.value.find(a => a.name === appName)
   if (!app) { detailTemplateLoading.value = false; return }
@@ -912,6 +926,13 @@ async function loadDetailTemplateOrder(appName: string, templateUid: string) {
       const tpl = (res.data || []).find((t: any) => t.uid === templateUid)
       if (tpl?.fields) {
         detailTemplateFieldOrder.value = tpl.fields.map((f: any) => f.label)
+        const stylesMap: Record<string, { bold: boolean; color: string; size: string }> = {}
+        tpl.fields.forEach((f: any) => {
+          if (f.bold || f.color || f.size) {
+            stylesMap[f.label] = { bold: f.bold || false, color: f.color || '', size: f.size || '' }
+          }
+        })
+        detailTemplateFieldStyles.value = stylesMap
       }
     }
   } catch { /* ignore */ }
@@ -937,6 +958,72 @@ function openChatFromQuery() {
 watch(() => route.query.chat, () => {
   openChatFromQuery()
 })
+
+async function openModifyDialog(item: RegistrationItem) {
+  const appName = item.data['跑步APP'] || ''
+  const templateUid = item.template_uid || ''
+  if (!appName || !templateUid) {
+    showMsg('无法修改：订单缺少APP或模板信息', 'error')
+    return
+  }
+  if (runningApps.value.length === 0) {
+    await fetchConfig()
+  }
+  const app = runningApps.value.find(a => a.name === appName)
+  if (!app) {
+    showMsg('无法修改：APP不存在', 'error')
+    return
+  }
+  await loadAppTemplates(appName)
+  const tpl = appTemplates.value.find(t => t.uid === templateUid)
+  if (!tpl) {
+    showMsg('无法修改：模板不存在', 'error')
+    return
+  }
+  formFields.value = tpl.fields || []
+  resubmitTemplateUid.value = templateUid
+  resubmitPriority.value = item.priority || 'low'
+  selectedApp.value = appName
+
+  const templateLabels = (tpl.fields || []).map((f: any) => f.label)
+  const oldKeys = Object.keys(item.data).filter(k => k !== '跑步APP')
+  const mismatch = oldKeys.length !== templateLabels.length ||
+    !oldKeys.every(k => templateLabels.includes(k)) ||
+    !templateLabels.every((l: string) => oldKeys.includes(l))
+
+  const data: Record<string, any> = {}
+  formFields.value.forEach(field => {
+    if (field.type === 'checkbox') {
+      data[field.label] = Array.isArray(field.default) ? [...field.default] : []
+    } else {
+      data[field.label] = field.default || ''
+    }
+  })
+  if (!mismatch) {
+    for (const key of Object.keys(item.data)) {
+      if (key !== '跑步APP' && key in data) {
+        data[key] = item.data[key]
+      }
+    }
+  } else {
+    showMsg('无法恢复原状态，模板与原模板不一致', 'warning')
+  }
+
+  const balanceApp = runningApps.value.find(a => a.name === appName)
+  if (balanceApp?.balance_mode && item.amount != null) {
+    registrationAmount.value = item.amount
+  } else {
+    registrationAmount.value = null
+  }
+
+  resubmitFormDialog.uid = item.id
+  resubmitFormDialog.app = appName
+  resubmitFormDialog.data = data
+  resubmitFormDialog.show = true
+  nextTick(() => {
+    resubmitFormRef.value?.resetValidation()
+  })
+}
 
 function openResubmitDialog(item: RegistrationItem) {
   resubmitDialog.uid = item.id
@@ -975,6 +1062,17 @@ function startResubmitRegistration() {
   formFields.value = tpl.fields || []
   templateDialog.show = false
   isResubmitMode.value = false
+  const templateLabels = (tpl.fields || []).map((f: any) => f.label)
+  const oldKeys = Object.keys(resubmitDialog.oldData).filter(k => k !== '跑步APP')
+  const mismatch = oldKeys.length !== templateLabels.length ||
+    !oldKeys.every(k => templateLabels.includes(k)) ||
+    !templateLabels.every((l: string) => oldKeys.includes(l))
+  if (mismatch) {
+    showMsg('无法恢复原状态，模板与原模板不一致', 'warning')
+    skipOldData.value = true
+  } else {
+    skipOldData.value = false
+  }
   const app = runningApps.value.find(a => a.name === selectedApp.value)
   if (app?.balance_mode) {
     amountDialog.value = 0
@@ -994,9 +1092,11 @@ function fillResubmitForm() {
       data[field.label] = field.default || ''
     }
   })
-  for (const key of Object.keys(resubmitDialog.oldData)) {
-    if (key !== '跑步APP' && key in data) {
-      data[key] = resubmitDialog.oldData[key]
+  if (!skipOldData.value) {
+    for (const key of Object.keys(resubmitDialog.oldData)) {
+      if (key !== '跑步APP' && key in data) {
+        data[key] = resubmitDialog.oldData[key]
+      }
     }
   }
   resubmitFormDialog.uid = resubmitDialog.uid

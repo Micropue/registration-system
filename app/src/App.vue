@@ -118,17 +118,43 @@
       <RouterView />
     </v-main>
 
-    <v-snackbar v-model="needRefresh" :timeout="-1" location="bottom" color="primary">
-      发现新版本
-      <template v-slot:actions>
-        <v-btn variant="text" @click="refreshApp">立即更新</v-btn>
-      </template>
-    </v-snackbar>
+    <v-overlay v-model="needRefresh" class="align-center justify-center" persistent scroll-strategy="block">
+      <v-card rounded="xl" max-width="420" elevation="12" class="pa-8 text-center">
+        <v-icon size="64" color="primary" class="mb-4">mdi-update</v-icon>
+        <h2 class="text-h5 font-weight-bold mb-2">发现新版本</h2>
+        <p class="text-body-1 text-medium-emphasis mb-6">检测到新版本可用，请更新后继续使用。</p>
+        <v-btn color="primary" variant="flat" size="large" rounded="lg" block
+          @click="refreshApp" class="font-weight-bold">
+          立即更新
+        </v-btn>
+      </v-card>
+    </v-overlay>
+
+    <v-dialog v-model="announceDialog.show" max-width="520">
+      <v-card rounded="xl" v-if="announceDialog.data">
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon color="primary" class="mr-2" size="28">mdi-bullhorn</v-icon>
+          <span class="text-h6 font-weight-bold">{{ announceDialog.data.title }}</span>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" @click="announceDialog.show = false"></v-btn>
+        </v-card-title>
+        <v-divider></v-divider>
+        <v-card-text class="pa-4" style="white-space: pre-wrap; line-height: 1.8;">
+          {{ announceDialog.data.content }}
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4">
+          <span class="text-caption text-medium-emphasis">{{ announceDialog.data.publisher_name }} · {{ formatDate(announceDialog.data.create_time) }}</span>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" variant="flat" rounded="lg" @click="announceDialog.show = false">我知道了</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, computed, onUnmounted } from 'vue'
+import { ref, onMounted, watch, computed, onUnmounted, reactive } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useDisplay } from 'vuetify'
 import { checkLoginStatus } from '@/api/auth'
@@ -151,7 +177,7 @@ const isAuthChecking = ref(true)
 
 const isPageLoading = computed(() => appStore.isPageLoading)
 
-const ADMIN_PERM_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批', '下属管理']
+const ADMIN_PERM_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批', '下属管理', '公告管理']
 
 function hasAnyAdminPerm(permissions: Record<string, any> | undefined): boolean {
   if (!permissions) return false
@@ -177,6 +203,7 @@ const PERM_MAP: Record<string, string> = {
   '/admin/feedbacks': '工单处理',
   '/admin/running-apps': 'APP配置',
   '/admin/update-logs': 'APP配置',
+  '/admin/announcements': '公告管理',
   '/admin/subordinates': '下属管理',
   '/sign': '新建登记',
   '/feedback': '新建工单',
@@ -212,6 +239,7 @@ async function fetchUser() {
     fetchPendingCounts()
     setTimeout(connectNotifWs, 1000)
   }
+  fetchLatestAnnouncement()
   isAuthChecking.value = false
 }
 
@@ -337,6 +365,35 @@ function formatNotifDate(iso: string) {
   if (diff < 60000) return '刚刚'
   if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
   return d.toLocaleDateString('zh-CN')
+}
+
+function formatDate(iso: string) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleString('zh-CN')
+}
+
+const announceDialog = reactive({ show: false, data: null as any })
+
+const announcedIds = ref<Set<string>>(new Set())
+if (typeof localStorage !== 'undefined') {
+  try {
+    announcedIds.value = new Set(JSON.parse(localStorage.getItem('announced_ids') || '[]'))
+  } catch { /* ignore */ }
+}
+
+async function fetchLatestAnnouncement() {
+  try {
+    const token = cookie.get('token') || ''
+    const res = await ajax<any>('/api/announcements/latest')
+    if (res.code === 200 && res.data) {
+      if (!announcedIds.value.has(res.data.uid)) {
+        announceDialog.data = res.data
+        announceDialog.show = true
+        announcedIds.value.add(res.data.uid)
+        localStorage.setItem('announced_ids', JSON.stringify([...announcedIds.value]))
+      }
+    }
+  } catch { /* ignore */ }
 }
 
 onMounted(async () => {

@@ -183,12 +183,33 @@
             </v-col>
 
             <v-col cols="12" class="pt-2 pb-2">
-              <v-sheet class="pa-3 bg-surface rounded-lg d-flex align-center">
-                <span class="text-subtitle-2 mr-4">必填项</span>
-                <v-switch v-model="editFieldData.required" color="error" hide-details density="compact"></v-switch>
-                <v-divider vertical class="mx-4" length="24"></v-divider>
-                <span class="text-subtitle-2 mr-4">自定义复制按钮</span>
-                <v-switch v-model="editFieldData.copyable" color="primary" hide-details density="compact"></v-switch>
+              <v-sheet class="pa-3 bg-surface rounded-lg">
+                <div class="d-flex align-center flex-wrap ga-3">
+                  <div class="d-flex align-center">
+                    <span class="text-subtitle-2 mr-4">必填项</span>
+                    <v-switch v-model="editFieldData.required" color="error" hide-details density="compact"></v-switch>
+                  </div>
+                  <v-divider vertical class="mx-2" length="24"></v-divider>
+                  <div class="d-flex align-center">
+                    <span class="text-subtitle-2 mr-4">自定义复制按钮</span>
+                    <v-switch v-model="editFieldData.copyable" color="primary" hide-details density="compact"></v-switch>
+                  </div>
+                  <v-divider vertical class="mx-2" length="24"></v-divider>
+                  <div class="d-flex align-center">
+                    <span class="text-subtitle-2 mr-4">加粗</span>
+                    <v-switch v-model="editFieldData.bold" color="primary" hide-details density="compact"></v-switch>
+                  </div>
+                  <div class="d-flex align-center ga-2">
+                    <span class="text-subtitle-2">颜色</span>
+                    <v-text-field v-model="editFieldData.color" type="color" density="compact"
+                      variant="outlined" hide-details style="width:48px;height:32px"></v-text-field>
+                  </div>
+                  <div class="d-flex align-center ga-2">
+                    <span class="text-subtitle-2">字号</span>
+                    <v-select v-model="editFieldData.size" :items="fontSizes" density="compact"
+                      variant="outlined" hide-details style="width:80px"></v-select>
+                  </div>
+                </div>
               </v-sheet>
             </v-col>
 
@@ -480,6 +501,9 @@ interface Field {
   type: string
   required: boolean
   copyable: boolean
+  bold: boolean
+  color: string
+  size: string
   default: string | string[]
   options: FieldOption[]
 }
@@ -520,9 +544,24 @@ const editFieldData = reactive<Field>({
   type: 'text',
   required: false,
   copyable: false,
+  bold: false,
+  color: '#000000',
+  size: '',
   default: '',
   options: []
 })
+
+const fontSizes = [
+  { title: '默认', value: '' },
+  { title: '12px', value: '12px' },
+  { title: '14px', value: '14px' },
+  { title: '16px', value: '16px' },
+  { title: '18px', value: '18px' },
+  { title: '20px', value: '20px' },
+  { title: '24px', value: '24px' },
+  { title: '28px', value: '28px' },
+  { title: '32px', value: '32px' },
+]
 
 function showMsg(text: string, color: string = 'success') {
   snackbar.text = text
@@ -726,6 +765,9 @@ function addField() {
     type: 'text',
     required: false,
     copyable: false,
+    bold: false,
+    color: '#000000',
+    size: '',
     default: '',
     options: []
   })

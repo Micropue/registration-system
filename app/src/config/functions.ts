@@ -74,6 +74,12 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
+    title: '公告',
+    to: '/admin/announcements',
+    icon: 'mdi-bullhorn-outline',
+    role: 'admin'
+  },
+  {
     title: '下属管理',
     to: '/admin/subordinates',
     icon: 'mdi-file-tree-outline',

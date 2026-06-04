@@ -71,10 +71,10 @@
         </template>
 
         <!-- 自定义槽位：跑量 -->
-        <template v-slot:item.amount="{ item }">
-          <span v-if="item.amount != null" class="font-weight-bold text-primary">{{ item.amount }}{{ getAmountUnit(item.app) }}</span>
-          <span v-else class="text-grey">-</span>
-        </template>
+  <template v-slot:item.amount="{ item }">
+    <span v-if="item.amount != null" class="font-weight-black text-error">{{ item.amount }}{{ getAmountUnit(item.app) }}</span>
+    <span v-else class="text-grey">-</span>
+  </template>
 
         <!-- 自定义槽位：创建时间 -->
         <template v-slot:item.created_at="{ item }">
@@ -141,13 +141,13 @@
                     <td class="font-weight-bold text-primary">跑量</td>
                     <td class="font-weight-bold text-primary">{{ detailsDialog.item.amount }}{{ getAmountUnit(detailsDialog.item.app) }}</td>
                   </tr>
-                  <tr v-for="row in detailFields" :key="row.key">
-                    <td class="font-weight-bold">{{ row.key }}</td>
-                    <td>
-                      {{ row.value }}
-                      <v-btn v-if="templateFieldCopyable[row.key]" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyFieldValue(row.key, row.value)"></v-btn>
-                    </td>
-                  </tr>
+              <tr v-for="row in detailFields" :key="row.key">
+                <td :style="fieldStyle(row.key)">{{ row.key }}</td>
+                <td :style="fieldStyle(row.key)">
+                  {{ row.value }}
+                  <v-btn v-if="templateFieldCopyable[row.key]" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyFieldValue(row.key, row.value)"></v-btn>
+                </td>
+              </tr>
                 </tbody>
               </v-table>
               <v-alert v-if="detailsDialog.item?.reject_reason" type="error" variant="tonal" class="mt-3" density="compact">
@@ -156,6 +156,7 @@
             </v-card-text>
             <v-card-actions class="pa-4 pt-0">
               <v-btn variant="text" size="small" prepend-icon="mdi-content-copy" @click="copyDetailText">复制为文本</v-btn>
+              <v-btn v-if="detailsDialog.item?.status === 'pending'" variant="elevated" rounded size="small" color="warning" prepend-icon="mdi-pencil" class="px-4 font-weight-bold ms-2" @click="openModifyDialog(detailsDialog.item)">修改</v-btn>
               <v-spacer></v-spacer>
               <v-btn v-if="detailsDialog.item?.status !== 'approved'" variant="elevated" rounded size="small" color="success" prepend-icon="mdi-check" class="px-4 font-weight-bold" @click="doDetailsApprove">已处理</v-btn>
               <v-btn v-if="detailsDialog.item?.status !== 'rejected'" variant="elevated" rounded size="small" color="error" prepend-icon="mdi-close" class="px-4 font-weight-bold" @click="doDetailsReject">驳回</v-btn>
@@ -172,6 +173,91 @@
             />
           </div>
         </div>
+      </v-card>
+    </v-dialog>
+
+    <!-- 修改订单信息 Dialog -->
+    <v-dialog v-model="modifyDialog.show" max-width="700" persistent scrollable>
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon color="warning" class="mr-2">mdi-pencil-box</v-icon>
+          <span class="text-h6">修改订单信息</span>
+          <v-chip class="ml-3" color="primary" variant="tonal" size="small">{{ modifyDialog.app }}</v-chip>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" @click="modifyDialog.show = false"></v-btn>
+        </v-card-title>
+        <v-divider></v-divider>
+        <v-alert v-if="modifyDialog.templateMismatch" type="warning" variant="tonal" density="compact" class="ma-4 mb-0" icon="mdi-alert">
+          无法恢复原状态，模板与原模板不一致
+        </v-alert>
+        <v-card-text class="pa-4" style="max-height: 55vh; overflow-y: auto;">
+          <div class="mb-4">
+            <div class="text-subtitle-2 mb-2">优先级</div>
+            <v-btn-toggle v-model="modifyPriority" mandatory density="comfortable" variant="outlined" divided color="primary">
+              <v-btn value="low" size="small">低</v-btn>
+              <v-btn value="medium" size="small">中</v-btn>
+              <v-btn value="high" size="small">高</v-btn>
+            </v-btn-toggle>
+          </div>
+          <v-row dense>
+            <v-col v-for="field in modifyFields" :key="field.label" cols="12">
+              <template v-if="['text', 'textarea', 'number', 'date'].includes(field.type)">
+                <v-textarea v-if="field.type === 'textarea'" v-model="modifyFormData[field.label]" :label="field.label"
+                  :required="field.required" :rules="field.required ? [v => !!v || `${field.label}是必填项`] : []"
+                  variant="outlined" density="comfortable" color="primary" rows="2" auto-grow></v-textarea>
+                <v-text-field v-else v-model="modifyFormData[field.label]" :label="field.label" :type="field.type"
+                  :required="field.required" :rules="field.required ? [v => !!v || `${field.label}是必填项`] : []"
+                  variant="outlined" density="comfortable" color="primary"></v-text-field>
+              </template>
+              <template v-else-if="field.type === 'radio'">
+                <div class="text-subtitle-2 mb-1">{{ field.label }} <span v-if="field.required" class="text-error">*</span></div>
+                <v-radio-group v-model="modifyFormData[field.label]" :rules="field.required ? [v => !!v || '请选择一个选项'] : []"
+                  inline color="primary" density="comfortable">
+                  <v-radio v-for="opt in field.options" :key="opt.value" :label="opt.label" :value="opt.value"></v-radio>
+                </v-radio-group>
+              </template>
+              <template v-else-if="field.type === 'select'">
+                <v-select v-model="modifyFormData[field.label]" :items="field.options" item-title="label" item-value="value"
+                  :label="field.label" :required="field.required" :rules="field.required ? [v => !!v || '请选择一个选项'] : []"
+                  variant="outlined" density="comfortable" color="primary"></v-select>
+              </template>
+              <template v-else-if="field.type === 'checkbox'">
+                <div class="text-subtitle-2 mb-1">{{ field.label }} <span v-if="field.required" class="text-error">*</span></div>
+                <v-checkbox v-for="opt in field.options" :key="opt.value" v-model="modifyFormData[field.label]"
+                  :label="opt.label" :value="opt.value" density="compact" color="primary" hide-details></v-checkbox>
+              </template>
+              <template v-else-if="field.type.endsWith('-range')">
+                <div class="text-subtitle-2 mb-1">{{ field.label }} <span v-if="field.required" class="text-error">*</span></div>
+                <v-row dense>
+                  <v-col cols="6">
+                    <v-text-field v-model="modifyFormData[field.label][0]"
+                      :label="field.type === 'number-range' ? '最小值' : '开始'"
+                      :type="field.type === 'number-range' ? 'number' : field.type === 'date-range' ? 'date' : 'time'"
+                      variant="outlined" density="comfortable"></v-text-field>
+                  </v-col>
+                  <v-col cols="6">
+                    <v-text-field v-model="modifyFormData[field.label][1]"
+                      :label="field.type === 'number-range' ? '最大值' : '结束'"
+                      :type="field.type === 'number-range' ? 'number' : field.type === 'date-range' ? 'date' : 'time'"
+                      variant="outlined" density="comfortable"></v-text-field>
+                  </v-col>
+                </v-row>
+              </template>
+            </v-col>
+          </v-row>
+          <v-row v-if="modifyDialog.showAmount">
+            <v-col cols="12">
+              <v-text-field v-model.number="modifyDialog.amount" label="跑量" type="number"
+                variant="outlined" density="comfortable"></v-text-field>
+            </v-col>
+          </v-row>
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="modifyDialog.show = false">取消</v-btn>
+          <v-btn color="warning" variant="flat" :loading="modifySaving" @click="doModify">保存修改</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -311,10 +397,16 @@ const currentPage = ref(1)
 const detailsDialog = reactive({ show: false, item: null as RegistrationItem | null })
 const deleteDialog = reactive({ show: false, item: null as RegistrationItem | null })
 const rejectDialog = reactive({ show: false, item: null as RegistrationItem | null, reason: '' })
+const modifyDialog = reactive({ show: false, item: null as RegistrationItem | null, app: '', amount: null as number | null | undefined, templateMismatch: false, showAmount: false })
+const modifyFields = ref<any[]>([])
+const modifyFormData = ref<Record<string, any>>({})
+const modifyPriority = ref('low')
+const modifySaving = ref(false)
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 const templateFieldOrder = ref<string[]>([])
 const templateFieldCopyable = ref<Record<string, boolean>>({})
+const templateFieldStyles = ref<Record<string, { bold: boolean; color: string; size: string }>>({})
 const detailTemplateLoading = ref(false)
 
 const detailFields = computed(() => {
@@ -336,8 +428,19 @@ const detailFields = computed(() => {
 
 function _formatVal(val: any): string {
   if (val === null || val === undefined) return '-'
-  if (Array.isArray(val)) return val.join(', ')
+  if (Array.isArray(val)) return val.join(' - ')
   return String(val)
+}
+
+function fieldStyle(key: string): Record<string, string> {
+  const style: Record<string, string> = {}
+  const s = templateFieldStyles.value[key]
+  if (s) {
+    if (s.bold) style['font-weight'] = '900'
+    if (s.color) style['color'] = s.color
+    if (s.size) style['font-size'] = s.size
+  }
+  return style
 }
 
 function showMsg(text: string, color: string = 'success') {
@@ -372,7 +475,7 @@ async function loadStats() {
 
 async function loadTemplateFieldOrder(appName: string, templateUid: string) {
   const app = runningApps.value.find(a => a.name === appName)
-  if (!app || !templateUid) { templateFieldOrder.value = []; templateFieldCopyable.value = {}; detailTemplateLoading.value = false; return }
+  if (!app || !templateUid) { templateFieldOrder.value = []; templateFieldCopyable.value = {}; templateFieldStyles.value = {}; detailTemplateLoading.value = false; return }
   try {
     const res = await ajax<any[]>(`/api/admin/settings/running-apps/${app.uid}/templates`, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
@@ -382,8 +485,15 @@ async function loadTemplateFieldOrder(appName: string, templateUid: string) {
       if (tpl?.fields) {
         templateFieldOrder.value = tpl.fields.map((f: any) => f.label)
         const copyableMap: Record<string, boolean> = {}
-        tpl.fields.forEach((f: any) => { if (f.copyable) copyableMap[f.label] = true })
+        const stylesMap: Record<string, { bold: boolean; color: string; size: string }> = {}
+        tpl.fields.forEach((f: any) => {
+          if (f.copyable) copyableMap[f.label] = true
+          if (f.bold || f.color || f.size) {
+            stylesMap[f.label] = { bold: f.bold || false, color: f.color || '', size: f.size || '' }
+          }
+        })
         templateFieldCopyable.value = copyableMap
+        templateFieldStyles.value = stylesMap
         detailTemplateLoading.value = false
         return
       }
@@ -391,6 +501,7 @@ async function loadTemplateFieldOrder(appName: string, templateUid: string) {
   } catch (err) { /* ignore */ }
   templateFieldOrder.value = []
   templateFieldCopyable.value = {}
+  templateFieldStyles.value = {}
   detailTemplateLoading.value = false
 }
 
@@ -638,6 +749,84 @@ async function handleDelete() {
     showMsg('请求失败', 'error')
   } finally {
     loading.value = false
+  }
+}
+
+async function openModifyDialog(item: RegistrationItem) {
+  const info = item.registration_info || {}
+  const appName = info['跑步APP'] || ''
+  const templateUid = item.template_uid || ''
+  if (!appName || !templateUid) { showMsg('无法修改：缺少APP或模板信息', 'error'); return }
+  const app = runningApps.value.find(a => a.name === appName)
+  if (!app) { showMsg('无法修改：APP不存在', 'error'); return }
+  try {
+    const res = await ajax<any[]>(`/api/admin/settings/running-apps/${app.uid}/templates`, {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200) {
+      const tpl = (res.data || []).find((t: any) => t.uid === templateUid)
+      if (!tpl) { showMsg('无法修改：模板不存在', 'error'); return }
+      modifyFields.value = tpl.fields || []
+      const templateLabels = (tpl.fields || []).map((f: any) => f.label)
+      const oldKeys = Object.keys(info).filter(k => k !== '跑步APP')
+      const mismatch = oldKeys.length !== templateLabels.length ||
+        !oldKeys.every(k => templateLabels.includes(k)) ||
+        !templateLabels.every((l: string) => oldKeys.includes(l))
+      const formData: Record<string, any> = {}
+      modifyFields.value.forEach((field: any) => {
+        if (field.type === 'checkbox') {
+          formData[field.label] = Array.isArray(field.default) ? [...field.default] : []
+        } else if (field.type.endsWith('-range')) {
+          formData[field.label] = ['', '']
+        } else {
+          formData[field.label] = field.default || ''
+        }
+      })
+      if (!mismatch) {
+        for (const key of Object.keys(info)) {
+          if (key !== '跑步APP' && key in formData) {
+            formData[key] = info[key]
+          }
+        }
+      }
+      modifyDialog.item = item
+      modifyDialog.app = appName
+      modifyDialog.amount = item.amount
+      modifyDialog.templateMismatch = mismatch
+      modifyDialog.showAmount = !!app.balance_mode
+      modifyPriority.value = item.priority || 'low'
+      modifyFormData.value = formData
+      modifyDialog.show = true
+    }
+  } catch { showMsg('加载模板失败', 'error') }
+}
+
+async function doModify() {
+  if (!modifyDialog.item) return
+  modifySaving.value = true
+  try {
+    const data: Record<string, any> = { '跑步APP': modifyDialog.app }
+    for (const [key, value] of Object.entries(modifyFormData.value)) {
+      data[key] = value
+    }
+    const token = cookie.get('token') || ''
+    const res = await ajax(`/api/admin/registrations/${modifyDialog.item.id}/data`, {
+      method: 'PUT',
+      body: { data, amount: modifyDialog.amount, priority: modifyPriority.value },
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.code === 200) {
+      showMsg('订单信息已修改')
+      modifyDialog.show = false
+      detailsDialog.show = false
+      loadRegisters()
+    } else {
+      showMsg(res.msg || '修改失败', 'error')
+    }
+  } catch {
+    showMsg('请求失败', 'error')
+  } finally {
+    modifySaving.value = false
   }
 }
 

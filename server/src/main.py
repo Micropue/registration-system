@@ -300,6 +300,35 @@ async def update_registration_status(
     except Exception as e:
         return api_response(500, f"Error updating status: {str(e)}")
 
+@app.put("/admin/registrations/{uid}/data")
+async def admin_update_registration_data(
+    uid: str,
+    data: dict[str, Any],
+    authorization: Optional[str] = Header(None)
+):
+    session, err = require_perm(authorization, "订单处理", "修改")
+    if err: return err
+    try:
+        priority = data.get('priority')
+        template_uid = data.get('template_uid')
+        amount = data.get('amount')
+        if amount is not None and isinstance(amount, (int, float)):
+            amount = float(amount)
+        else:
+            amount = None
+        account_service.update_registration_data(
+            uid,
+            data.get('data', {}),
+            priority,
+            template_uid,
+            amount
+        )
+        return api_response(200, "Data updated")
+    except AccountError as e:
+        return api_response(400, str(e))
+    except Exception as e:
+        return api_response(500, f"Error: {str(e)}")
+
 
 @app.delete("/admin/registrations/{uid}")
 async def delete_registration(
@@ -979,6 +1008,72 @@ async def process_recharge(uid: str, data: dict[str, Any], authorization: Option
         return api_response(200, "Recharge processed")
     except AccountError as e:
         return api_response(400, str(e))
+
+# --- 公告接口 ---
+
+@app.get("/announcements/latest")
+async def get_latest_announcement():
+    ann = account_service.get_latest_announcement()
+    return JSONResponse(status_code=200, content={"code": 200, "msg": "Success", "data": ann})
+
+@app.get("/announcements")
+async def get_announcements(authorization: Optional[str] = Header(None)):
+    include_unpublished = False
+    if authorization:
+        token = get_token(authorization)
+        session = account_service.get_login_session(token)
+        if session and account_service._check_permission(session.user_uid, "公告管理", "查看"):
+            include_unpublished = True
+    data = account_service.get_announcements(include_unpublished=include_unpublished)
+    return api_response(200, "Success", data)
+
+@app.get("/admin/announcements")
+async def admin_get_announcements(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "公告管理", "查看")
+    if err: return err
+    data = account_service.get_announcements(include_unpublished=True)
+    return api_response(200, "Success", data)
+
+@app.post("/admin/announcements")
+async def create_announcement(data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "公告管理", "编辑")
+    if err: return err
+    try:
+        uid = account_service.create_announcement(session.user_uid, session.username, data.get('title', ''), data.get('content', ''))
+        return api_response(200, "Announcement created", {'uid': uid})
+    except Exception as e:
+        return api_response(500, str(e))
+
+@app.put("/admin/announcements/{uid}")
+async def update_announcement(uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "公告管理", "编辑")
+    if err: return err
+    try:
+        account_service.update_announcement(uid, data.get('title', ''), data.get('content', ''))
+        return api_response(200, "Updated")
+    except Exception as e:
+        return api_response(500, str(e))
+
+@app.post("/admin/announcements/{uid}/publish")
+async def publish_announcement(uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "公告管理", "发布")
+    if err: return err
+    account_service.publish_announcement(uid)
+    return api_response(200, "Published")
+
+@app.post("/admin/announcements/{uid}/unpublish")
+async def unpublish_announcement(uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "公告管理", "发布")
+    if err: return err
+    account_service.unpublish_announcement(uid)
+    return api_response(200, "Unpublished")
+
+@app.delete("/admin/announcements/{uid}")
+async def delete_announcement(uid: str, authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "公告管理", "删除")
+    if err: return err
+    account_service.delete_announcement(uid)
+    return api_response(200, "Deleted")
 
 # --- 通知接口 ---
 

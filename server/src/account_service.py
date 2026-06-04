@@ -169,6 +169,19 @@ class AccountService:
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
             """)
             cursor.execute("""
+                CREATE TABLE IF NOT EXISTS announcements (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    title VARCHAR(500) NOT NULL,
+                    content TEXT NOT NULL,
+                    publisher_uid VARCHAR(64) NOT NULL,
+                    publisher_name VARCHAR(255) NOT NULL,
+                    is_published BOOLEAN DEFAULT FALSE,
+                    create_time DATETIME NOT NULL,
+                    update_time DATETIME NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
+            cursor.execute("""
                 CREATE TABLE IF NOT EXISTS registration_chats (
                     id INT AUTO_INCREMENT PRIMARY KEY,
                     uid VARCHAR(64) UNIQUE NOT NULL,
@@ -347,11 +360,12 @@ class AccountService:
     PERMISSION_TREE = {
         "账户管理": {"查看": {"下属用户": True, "其他用户": True}, "创建": True, "修改": True, "删除": True, "强制下线": True},
         "账户组管理": {"查看": True, "创建": True, "修改": True, "删除": True},
-        "订单处理": {"查看": True, "处理": True, "驳回": True, "删除": True},
+        "订单处理": {"查看": True, "处理": True, "驳回": True, "删除": True, "修改": True},
         "工单处理": {"查看": True, "回复": True, "解决": True, "删除": True},
         "APP配置": {"查看": True, "修改": True, "余额管理": True},
         "充值审批": {"查看": True, "处理": True},
         "下属管理": {"查看": True, "配置": True},
+        "公告管理": {"查看": True, "编辑": True, "发布": True, "删除": True},
         "新建登记": True,
         "新建工单": True,
         "充值申请": True,
@@ -1267,6 +1281,29 @@ class AccountService:
                     self.adjust_user_balance(user_uid, app_uid2, -amount,
                         note="登记重新提交扣除")
 
+    def update_registration_data(self, uid: str, data: dict[str, Any], priority: str | None = None, template_uid: str | None = None, amount: float | None = None) -> None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT status FROM registrations WHERE uid = %s", (uid,))
+            reg = cursor.fetchone()
+            if not reg:
+                raise AccountError("登记记录不存在")
+            updates = ["data = %s"]
+            params: list[Any] = [json.dumps(data, ensure_ascii=False)]
+            if priority is not None:
+                updates.append("priority = %s")
+                params.append(priority)
+            if template_uid is not None:
+                updates.append("template_uid = %s")
+                params.append(template_uid)
+            if amount is not None:
+                updates.append("amount = %s")
+                params.append(amount)
+            updates.append("status = 'pending'")
+            params.append(uid)
+            cursor.execute(f"UPDATE registrations SET {', '.join(updates)} WHERE uid = %s", tuple(params))
+            connection.commit()
+
     # ---- Admin Registrations ----
 
     def get_registrations(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc", running_app: str | None = None, username: str | None = None) -> dict[str, Any]:
@@ -1530,6 +1567,88 @@ class AccountService:
             cursor = connection.cursor()
             cursor.execute("SELECT COUNT(*) FROM app_templates WHERE app_id = %s", (app_id,))
             return cursor.fetchone()[0]
+
+    # ---- Announcements ----
+
+    def create_announcement(self, publisher_uid: str, publisher_name: str, title: str, content: str) -> str:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO announcements (uid, title, content, publisher_uid, publisher_name, is_published, create_time, update_time) VALUES (%s, %s, %s, %s, %s, FALSE, %s, %s)",
+                (uid, title, content, publisher_uid, publisher_name, now, now))
+            connection.commit()
+        return uid
+
+    def get_announcements(self, include_unpublished: bool = False) -> list[dict[str, Any]]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            if include_unpublished:
+                cursor.execute("SELECT uid, title, content, publisher_name, is_published, create_time, update_time FROM announcements ORDER BY create_time DESC")
+            else:
+                cursor.execute("SELECT uid, title, content, publisher_name, is_published, create_time, update_time FROM announcements WHERE is_published = TRUE ORDER BY create_time DESC")
+            rows = cursor.fetchall()
+        return [{
+            'uid': row['uid'], 'title': row['title'], 'content': row['content'],
+            'publisher_name': row['publisher_name'], 'is_published': bool(row['is_published']),
+            'create_time': row['create_time'].isoformat(), 'update_time': row['update_time'].isoformat()
+        } for row in rows]
+
+    def get_latest_announcement(self) -> dict[str, Any] | None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, title, content, publisher_name, create_time FROM announcements WHERE is_published = TRUE ORDER BY create_time DESC LIMIT 1")
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'uid': row['uid'], 'title': row['title'], 'content': row['content'],
+            'publisher_name': row['publisher_name'], 'create_time': row['create_time'].isoformat()
+        }
+
+    def get_announcement(self, uid: str) -> dict[str, Any] | None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, title, content, publisher_name, is_published, create_time, update_time FROM announcements WHERE uid = %s", (uid,))
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            'uid': row['uid'], 'title': row['title'], 'content': row['content'],
+            'publisher_name': row['publisher_name'], 'is_published': bool(row['is_published']),
+            'create_time': row['create_time'].isoformat(), 'update_time': row['update_time'].isoformat()
+        }
+
+    def update_announcement(self, uid: str, title: str, content: str) -> bool:
+        now = self.db.now()
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE announcements SET title = %s, content = %s, update_time = %s WHERE uid = %s",
+                (title, content, now, uid))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def publish_announcement(self, uid: str) -> bool:
+        now = self.db.now()
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE announcements SET is_published = TRUE, update_time = %s WHERE uid = %s", (now, uid))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def unpublish_announcement(self, uid: str) -> bool:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE announcements SET is_published = FALSE WHERE uid = %s", (uid,))
+            connection.commit()
+            return cursor.rowcount > 0
+
+    def delete_announcement(self, uid: str) -> bool:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM announcements WHERE uid = %s", (uid,))
+            connection.commit()
+            return cursor.rowcount > 0
 
     def get_dashboard_stats(self) -> dict[str, Any]:
         now = self.db.now()
