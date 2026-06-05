@@ -14,9 +14,9 @@
             <div class="text-caption text-medium-emphasis pt-1">{{ log.date }}</div>
           </template>
           <v-card elevation="0" border rounded="md" class="mb-2">
-            <v-card-title class="d-flex align-center flex-wrap py-3 px-3">
+            <v-card-title class="py-3 px-3" style="word-break: break-word; white-space: normal">
               <v-chip size="x-small" color="primary" variant="flat" class="mr-2 mb-1">{{ log.version }}</v-chip>
-              <span class="text-body-2 font-weight-bold">{{ log.title }}</span>
+              {{ log.title }}
             </v-card-title>
             <v-divider />
             <v-card-text class="pa-3">
@@ -30,9 +30,9 @@
 
       <div class="hidden-sm-and-up">
         <v-card v-for="log in logs" :key="log.version" elevation="0" border rounded="md" class="mb-3">
-          <v-card-title class="d-flex align-center flex-wrap py-3 px-3">
+          <v-card-title class="py-3 px-3" style="word-break: break-word; white-space: normal">
             <v-chip size="x-small" color="primary" variant="flat" class="mr-2 mb-1">{{ log.version }}</v-chip>
-            <span class="text-body-2 font-weight-bold">{{ log.title }}</span>
+            {{ log.title }}
           </v-card-title>
           <v-divider />
           <v-card-subtitle class="text-caption text-medium-emphasis pa-3 pb-0">{{ log.date }}</v-card-subtitle>
@@ -48,9 +48,9 @@
 </template>
 
 <style scoped>
-.table-wrapper { width: 90%; }
+.table-wrapper { width: 90%; padding: 0 16px; }
 @media (max-width: 600px) {
-  .table-wrapper { width: 100%; }
+  .table-wrapper { width: 100%; padding: 0 12px; }
 }
 </style>
 

@@ -144,6 +144,7 @@ function defaultPermissions(): Record<string, any> {
     "新建工单": false,
     "充值申请": false,
     "余额查看": false,
+    "聊天": false,
   }
 }
 

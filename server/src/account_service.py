@@ -370,6 +370,7 @@ class AccountService:
         "新建工单": True,
         "充值申请": True,
         "余额查看": True,
+        "聊天": True,
     }
 
     def _init_default_groups(self, cursor: Any) -> None:

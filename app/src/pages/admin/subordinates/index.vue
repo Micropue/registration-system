@@ -213,12 +213,12 @@
 </template>
 
 <style scoped>
-.table-wrapper { width: 90%; }
+.table-wrapper { width: 90%; padding: 0 16px; }
 .bg-warning-subtle { background-color: rgba(217, 119, 6, 0.04); }
 .balance-table-wrap { overflow-x: auto; }
 
 @media (max-width: 600px) {
-  .table-wrapper { width: 100%; }
+  .table-wrapper { width: 100%; padding: 0 12px; }
 }
 </style>
 

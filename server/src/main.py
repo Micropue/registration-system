@@ -1336,8 +1336,8 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
         await websocket.close(code=4001)
         return
     is_staff = account_service._check_permission(session.user_uid, "订单处理", "查看")
-    can_chat = account_service._check_permission(session.user_uid, "新建登记")
-    if not is_staff and not can_chat:
+    can_chat = account_service._check_permission(session.user_uid, "聊天")
+    if not can_chat:
         await websocket.close(code=4003)
         return
     if not is_staff:
@@ -1384,9 +1384,9 @@ async def get_chat_history(registration_uid: str, authorization: Optional[str] =
     if not session:
         return api_response(401, "Unauthorized")
     is_staff = account_service._check_permission(session.user_uid, "订单处理", "查看")
-    can_chat = account_service._check_permission(session.user_uid, "新建登记")
-    if not is_staff and not can_chat:
-        return api_response(403, 您没有此操作权限)
+    can_chat = account_service._check_permission(session.user_uid, "聊天")
+    if not can_chat:
+        return api_response(403, "您没有聊天权限")
     if not is_staff:
         detail = account_service.get_registration_detail(registration_uid)
         if not detail or detail['user_uid'] != session.user_uid:
