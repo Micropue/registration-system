@@ -1820,6 +1820,97 @@ class AccountService:
             b = cursor.fetchone()[0]
             return r + f + b
 
+    # ---- Notifications (actual notification records, not pending items) ----
+
+    def create_notification(self, user_uid: str, ntype: str, title: str, content: str = "", reference_id: str = "") -> str:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)",
+                (uid, user_uid, ntype, reference_id, title, content, now))
+            connection.commit()
+        if AccountService.ws_push:
+            AccountService.ws_push(user_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_unread', 'notif_type': ntype, 'title': title, 'content': content, 'reference_id': reference_id, 'created_at': now.isoformat()})
+        return uid
+
+    def create_notification_for_admins(self, ntype: str, title: str, content: str = "", reference_id: str = "") -> None:
+        ws_pushes: list[tuple[str, dict]] = []
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT u.uid FROM users u INNER JOIN user_groups ug ON ug.uid = u.group_uid WHERE ug.name IN ('管理员','超级管理员')")
+            admins = cursor.fetchall()
+            for (admin_uid,) in admins:
+                uid = self.db.new_uid()
+                now = self.db.now()
+                cursor.execute("INSERT INTO notifications (uid, user_uid, type, reference_id, title, content, is_read, create_time) VALUES (%s, %s, %s, %s, %s, %s, FALSE, %s)",
+                    (uid, admin_uid, ntype, reference_id, title, content, now))
+                ws_pushes.append((admin_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_unread', 'notif_type': ntype, 'title': title, 'content': content, 'reference_id': reference_id, 'created_at': now.isoformat()}))
+            connection.commit()
+        if AccountService.ws_push:
+            for admin_uid, data in ws_pushes:
+                AccountService.ws_push(admin_uid, data)
+
+    def get_user_notifications(self, user_uid: str, page: int = 1, page_size: int = 20) -> dict[str, Any]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT COUNT(*) as total FROM notifications WHERE user_uid = %s", (user_uid,))
+            total = cursor.fetchone()["total"]
+            offset = (page - 1) * page_size
+            cursor.execute("SELECT uid, type, reference_id, title, content, is_read, create_time FROM notifications WHERE user_uid = %s ORDER BY is_read ASC, create_time DESC LIMIT %s OFFSET %s", (user_uid, page_size, offset))
+            rows = cursor.fetchall()
+            items = [{'id': row['uid'], 'type': row['type'], 'reference_id': row['reference_id'], 'title': row['title'], 'content': row['content'] or '', 'is_read': bool(row['is_read']), 'created_at': row['create_time'].isoformat()} for row in rows]
+            return {"total": total, "page": page, "page_size": page_size, "items": items}
+
+    def get_unread_notification_count(self, user_uid: str) -> int:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM notifications WHERE user_uid = %s AND is_read = FALSE", (user_uid,))
+            row = cursor.fetchone()
+            return row[0] if row else 0
+
+    def mark_notification_read(self, uid: str) -> None:
+        user_uid = ''
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE uid = %s", (uid,))
+            cursor.execute("SELECT user_uid FROM notifications WHERE uid = %s", (uid,))
+            row = cursor.fetchone()
+            if row:
+                user_uid = row[0]
+            connection.commit()
+        if AccountService.ws_push and user_uid:
+            AccountService.ws_push(user_uid, {'type': 'notification_update', 'id': uid, 'status': 'to_read'})
+
+    def mark_all_notifications_read(self, user_uid: str) -> None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s", (user_uid,))
+            connection.commit()
+        if AccountService.ws_push:
+            AccountService.ws_push(user_uid, {'type': 'notification_update', 'status': 'all_read'})
+
+    def mark_notifications_read_by_reference(self, user_uid: str, reference_id: str) -> int:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE notifications SET is_read = TRUE WHERE user_uid = %s AND reference_id = %s AND is_read = FALSE", (user_uid, reference_id))
+            count = cursor.rowcount
+            connection.commit()
+            return count
+
+    def mark_notifications_read_by_types(self, user_uid: str, types: list[str]) -> int:
+        if not types:
+            return 0
+        placeholders = ','.join(['%s'] * len(types))
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute(f"UPDATE notifications SET is_read = TRUE WHERE user_uid = %s AND type IN ({placeholders}) AND is_read = FALSE", [user_uid] + types)
+            count = cursor.rowcount
+            connection.commit()
+        if AccountService.ws_push and count > 0:
+            AccountService.ws_push(user_uid, {'type': 'notification_update', 'status': 'all_read'})
+        return count
+
     # ---- Subordinate Management ----
 
     def is_balance_delegated(self, user_uid: str, app_uid: str = "") -> bool:

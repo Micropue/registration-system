@@ -21,6 +21,10 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
+  function incrementUnread(uid: string) {
+    chatUnreadCounts.value[uid] = (chatUnreadCounts.value[uid] || 0) + 1
+  }
+
   function open(uid: string, t: string, admin: boolean, username: string) {
     registrationUid.value = uid
     title.value = t
@@ -42,5 +46,5 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  return { isOpen, registrationUid, title, isAdminView, currentUsername, chatUnreadCounts, setUnreadCounts, clearUnreadCount, open, close, toggle }
+  return { isOpen, registrationUid, title, isAdminView, currentUsername, chatUnreadCounts, setUnreadCounts, clearUnreadCount, incrementUnread, open, close, toggle }
 })

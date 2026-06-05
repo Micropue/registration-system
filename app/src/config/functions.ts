@@ -62,6 +62,12 @@ export const functions: NavFunction[] = [
     exact: true
   },
   {
+    title: '通知中心',
+    to: '/notifications',
+    icon: 'mdi-bell-outline',
+    role: 'default'
+  },
+  {
     title: '账户管理',
     to: '/admin/users',
     icon: 'mdi-account-group-outline',

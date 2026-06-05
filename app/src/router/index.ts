@@ -113,6 +113,12 @@ const router = createRouter({
       meta: { title: '关于' }
     },
     {
+      path: '/notifications',
+      component: () => import("@/pages/admin/notifications/index.vue"),
+      beforeEnter: requireDefault,
+      meta: { title: '通知中心' }
+    },
+    {
       path: '/admin',
       component: () => import("@/pages/admin/index.vue"),
       beforeEnter: requireAdmin,

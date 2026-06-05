@@ -64,11 +64,12 @@
           </v-fade-transition>
 
           <template v-if="user">
-            <v-menu v-model="notifMenuOpen" location="bottom end" :close-on-content-click="false" min-width="320">
+            <!-- 待处理任务 -->
+            <v-menu v-model="pendingMenuOpen" location="bottom end" :close-on-content-click="false" min-width="320">
               <template v-slot:activator="{ props: menuProps }">
                 <v-badge :model-value="pendingTotalCount > 0" :content="pendingTotalCount" color="error" overlap>
-                  <v-btn icon="mdi-bell-outline" variant="text" size="small" v-bind="menuProps"
-                    @click="fetchNotifications"></v-btn>
+                  <v-btn icon="mdi-clipboard-list-outline" variant="text" size="small" v-bind="menuProps"
+                    @click="fetchPendingList"></v-btn>
                 </v-badge>
               </template>
               <v-list density="compact" max-height="400" style="overflow-y: auto;">
@@ -76,11 +77,40 @@
                   <span class="text-subtitle-2 font-weight-bold">待处理任务</span>
                 </div>
                 <v-divider></v-divider>
-                <div v-if="notifList.length === 0" class="pa-4 text-center text-grey">暂无待处理任务</div>
-                <v-list-item v-for="n in notifList" :key="n.id"
-                  @click="handleNotificationClick(n)" density="compact" class="mb-1">
+                <div v-if="pendingList.length === 0" class="pa-4 text-center text-grey">暂无待处理任务</div>
+                <v-list-item v-for="n in pendingList" :key="n.id"
+                  @click="handlePendingClick(n)" density="compact" class="mb-1">
                   <template v-slot:prepend>
                     <v-icon size="18" :color="typeColor(n.type)">{{ typeIcon(n.type) }}</v-icon>
+                  </template>
+                  <v-list-item-title class="text-body-2">{{ n.title }}</v-list-item-title>
+                  <v-list-item-subtitle class="text-caption">{{ n.content }}</v-list-item-subtitle>
+                  <template v-slot:append>
+                    <span class="text-caption text-grey">{{ formatNotifDate(n.created_at) }}</span>
+                  </template>
+                </v-list-item>
+              </v-list>
+            </v-menu>
+
+            <!-- 通知消息 -->
+            <v-menu v-model="notifMenuOpen" location="bottom end" :close-on-content-click="false" min-width="320">
+              <template v-slot:activator="{ props: menuProps }">
+                <v-badge :model-value="notifUnreadCount > 0" :content="notifUnreadCount" color="error" overlap>
+                  <v-btn icon="mdi-bell-outline" variant="text" size="small" v-bind="menuProps"
+                    @click="fetchNotifications"></v-btn>
+                </v-badge>
+              </template>
+              <v-list density="compact" max-height="400" style="overflow-y: auto;">
+                <div class="d-flex justify-space-between align-center pa-2">
+                  <span class="text-subtitle-2 font-weight-bold">消息</span>
+                  <v-btn v-if="notifUnreadCount > 0" variant="text" size="x-small" @click="markAllRead">全部已读</v-btn>
+                </div>
+                <v-divider></v-divider>
+                <div v-if="notifList.length === 0" class="pa-4 text-center text-grey">暂无消息</div>
+                <v-list-item v-for="n in notifList" :key="n.id" :class="!n.is_read ? 'bg-primary-lighten-5' : ''"
+                  @click="handleNotificationClick(n)" density="compact" class="mb-1">
+                  <template v-slot:prepend>
+                    <v-icon size="18" :color="n.is_read ? 'grey' : 'primary'">mdi-circle</v-icon>
                   </template>
                   <v-list-item-title class="text-body-2">{{ n.title }}</v-list-item-title>
                   <v-list-item-subtitle class="text-caption">{{ n.content }}</v-list-item-subtitle>
@@ -162,6 +192,7 @@ import { cookie } from '@/api/cookie'
 import { ajax } from '@/api/ajax'
 import { functions } from '@/config/functions'
 import { useAppStore } from '@/stores/app'
+import { useChatStore } from '@/stores/chat'
 import type { CheckLoginData } from '@/config/api-type'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
 import Prism from './components/effect/prism.vue'
@@ -170,6 +201,7 @@ const router = useRouter()
 const route = useRoute()
 const { mobile } = useDisplay()
 const appStore = useAppStore()
+const chatStore = useChatStore()
 const { mdAndUp } = useDisplay()
 const sideOpen = ref(false)
 const user = ref<CheckLoginData | null>(null)
@@ -235,10 +267,10 @@ async function fetchUser() {
   user.value = await checkLoginStatus()
   appStore.setUserInfo(user.value)
   if (user.value && !prevUser) {
-    fetchNotifications()
     fetchPendingCounts()
     setTimeout(connectNotifWs, 1000)
   }
+  fetchNotifications()
   fetchLatestAnnouncement()
   isAuthChecking.value = false
 }
@@ -252,18 +284,22 @@ function handleLogout() {
   user.value = null
   appStore.setUserInfo(null)
   notifList.value = []
+  pendingList.value = []
   businessBadges.value = {}
   if (notifWs) { notifWs.close(); notifWs = null }
   if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null }
   router.push('/login')
 }
 
+const pendingList = ref<any[]>([])
+const pendingMenuOpen = ref(false)
 const notifList = ref<any[]>([])
 const notifMenuOpen = ref(false)
 const businessBadges = ref<Record<string, number>>({})
 const pendingTotalCount = computed(() => {
   return Object.values(businessBadges.value).reduce((a, b) => a + b, 0)
 })
+const notifUnreadCount = computed(() => notifList.value.filter((n: any) => !n.is_read).length)
 let notifWs: WebSocket | null = null
 let reconnectTimer: any = null
 
@@ -283,8 +319,23 @@ function typeColor(type: string) {
 
 const pendingCounts = computed(() => {
   const isAdmin = user.value?.role !== 'default'
-  if (!isAdmin) return {}
-  return businessBadges.value
+  const result: Record<string, number> = { '订单': 0, '工单反馈': 0, '充值申请': 0 }
+  for (const n of notifList.value) {
+    if (n.is_read) continue
+    if (n.type === 'chat_message' || n.type === 'registration_approved' || n.type === 'registration_rejected') {
+      result['订单']++
+    } else if (n.type === 'feedback_replied' || n.type === 'feedback_status') {
+      result['工单反馈']++
+    } else if (n.type === 'recharge_approved' || n.type === 'recharge_rejected') {
+      result['充值申请']++
+    }
+  }
+  if (isAdmin) {
+    result['订单处理'] = businessBadges.value['订单处理'] || 0
+    result['工单处理'] = businessBadges.value['工单处理'] || 0
+    result['充值审批'] = businessBadges.value['充值审批'] || 0
+  }
+  return result
 })
 
 function connectNotifWs() {
@@ -297,11 +348,29 @@ function connectNotifWs() {
   notifWs.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data)
-      if (data.type === 'business_update') {
+      if (data.type === 'notification_update') {
+        if (data.status === 'to_unread') {
+          const exists = notifList.value.find((n: any) => n.id === data.id)
+          if (!exists) {
+            notifList.value.unshift({
+              id: data.id, type: data.notif_type, title: data.title || '',
+              content: data.content || '', reference_id: data.reference_id || '',
+              is_read: false, created_at: data.created_at
+            })
+          }
+        } else if (data.status === 'to_read') {
+          const item = notifList.value.find((n: any) => n.id === data.id)
+          if (item) item.is_read = true
+        } else if (data.status === 'all_read') {
+          notifList.value.forEach((n: any) => { n.is_read = true })
+        }
+      } else if (data.type === 'business_update') {
         const isAdmin = user.value?.role !== 'default'
         if (isAdmin) {
           businessBadges.value[data.key] = Math.max(0, (businessBadges.value[data.key] || 0) + (data.delta || 0))
         }
+      } else if (data.type === 'chat_unread') {
+        chatStore.incrementUnread(data.uid)
       }
     } catch (e) { /* ignore */ }
   }
@@ -316,11 +385,23 @@ function connectNotifWs() {
 async function fetchNotifications() {
   if (!user.value) return
   try {
-    const res = await ajax<any>('/api/notifications', {
+    const res = await ajax<any>('/api/notifications?page=1&page_size=20', {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200 && res.data) {
       notifList.value = res.data.items || []
+    }
+  } catch (e) { /* ignore */ }
+}
+
+async function fetchPendingList() {
+  if (!user.value) return
+  try {
+    const res = await ajax<any>('/api/pending-items', {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200 && res.data) {
+      pendingList.value = res.data.items || []
       if (res.data.counts) {
         businessBadges.value = res.data.counts
       }
@@ -344,7 +425,43 @@ async function fetchPendingCounts() {
   } catch (e) { /* ignore */ }
 }
 
-function handleNotificationClick(n: any) {
+async function markAllRead() {
+  try {
+    await ajax('/api/notifications/read-all', {
+      method: 'POST', headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    notifList.value.forEach((n: any) => { n.is_read = true })
+  } catch (e) { /* ignore */ }
+}
+
+async function handleNotificationClick(n: any) {
+  if (!n.is_read) {
+    const item = notifList.value.find((x: any) => x.id === n.id)
+    if (item) item.is_read = true
+    try {
+      await ajax(`/api/notifications/${n.id}/read`, {
+        method: 'POST', headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+      })
+    } catch (e) { /* ignore */ }
+  }
+  const isAdmin = user.value?.role !== 'default'
+  if (n.type === 'chat_message') {
+    const targetPath = isAdmin ? '/admin/registers' : '/sign'
+    router.push({ path: targetPath, query: n.reference_id ? { chat: n.reference_id } : {} })
+  }
+  else if (n.type === 'registration_rejected' || n.type === 'registration_approved') {
+    router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
+  }
+  else if (n.type === 'feedback_replied' || n.type === 'feedback_status') {
+    router.push({ path: '/feedback', query: n.reference_id ? { id: n.reference_id } : {} })
+  }
+  else if (n.type === 'recharge_approved' || n.type === 'recharge_rejected') {
+    router.push('/recharge')
+  }
+  notifMenuOpen.value = false
+}
+
+function handlePendingClick(n: any) {
   if (n.type === 'pending_registration') {
     router.push({ path: '/admin/registers', query: n.reference_id ? { chat: n.reference_id } : {} })
   }
@@ -354,17 +471,13 @@ function handleNotificationClick(n: any) {
   else if (n.type === 'pending_recharge') {
     router.push('/admin/recharges')
   }
-  notifMenuOpen.value = false
+  pendingMenuOpen.value = false
 }
 
 function formatNotifDate(iso: string) {
   if (!iso) return ''
   const d = new Date(iso)
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
-  return d.toLocaleDateString('zh-CN')
+  return d.toLocaleString('zh-CN', { hour12: false })
 }
 
 function formatDate(iso: string) {
@@ -408,6 +521,33 @@ onUnmounted(() => {
   if (notifWs) notifWs.close()
 })
 watch(() => route.path, fetchUser)
+
+watch(() => route.path, (path) => {
+  const types: string[] = []
+  if (path === '/sign' || path.startsWith('/sign?')) {
+    types.push('chat_message', 'registration_approved', 'registration_rejected')
+  } else if (path === '/feedback' || path.startsWith('/feedback?')) {
+    types.push('feedback_replied', 'feedback_status')
+  } else if (path === '/recharge' || path.startsWith('/recharge?')) {
+    types.push('recharge_approved', 'recharge_rejected')
+  } else if (path.startsWith('/admin/registers')) {
+    types.push('chat_message', 'registration_approved', 'registration_rejected')
+  } else if (path.startsWith('/admin/feedbacks')) {
+    types.push('feedback_replied', 'feedback_status')
+  } else if (path.startsWith('/admin/recharges')) {
+    types.push('recharge_approved', 'recharge_rejected')
+  }
+  if (types.length > 0) {
+    ajax('/api/notifications/read-by-types', {
+      method: 'POST',
+      body: { types },
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    }).catch(() => {})
+    for (const n of notifList.value) {
+      if (!n.is_read && types.includes(n.type)) n.is_read = true
+    }
+  }
+})
 
 const { needRefresh, updateServiceWorker } = useRegisterSW()
 
