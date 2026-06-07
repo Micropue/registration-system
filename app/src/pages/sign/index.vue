@@ -88,6 +88,42 @@
                     </v-col>
                   </v-row>
                 </template>
+                <template v-else-if="field.type === 'image'">
+                  <div class="text-subtitle-2 mb-2 text-medium-emphasis">
+                    {{ field.label }} <span v-if="field.required" class="text-error">*</span>
+                  </div>
+                  <v-file-input
+                    :model-value="imageFiles[field.label]"
+                    @update:model-value="onMainImageChange(field.label, $event)"
+                    :label="field.label"
+                    accept="image/*"
+                    prepend-icon="mdi-camera-image"
+                    variant="outlined"
+                    density="comfortable"
+                    :rules="field.required ? [v => !!v || '请上传' + field.label] : []"
+                    show-size
+                  ></v-file-input>
+                  <v-img
+                    v-if="imageFiles[field.label]"
+                    :src="getImageLocalUrl(imageFiles[field.label]!)"
+                    max-height="100"
+                    max-width="130"
+                    class="my-3 rounded elevation-1"
+                    cover
+                    @click="imageFiles[field.label] && openImagePreview(getImageLocalUrl(imageFiles[field.label]!))"
+                    style="cursor: pointer"
+                  ></v-img>
+                  <v-img
+                    v-else-if="isImageUrl(formData[field.label])"
+                    :src="formData[field.label]"
+                    max-height="100"
+                    max-width="130"
+                    class="my-3 rounded elevation-1"
+                    cover
+                    @click="openImagePreview(formData[field.label])"
+                    style="cursor: pointer"
+                  ></v-img>
+                </template>
               </v-col>
             </v-row>
           </v-form>
@@ -262,6 +298,42 @@
                     :label="field.label" :required="field.required" :rules="field.required ? [v => !!v || '请选择一个选项'] : []"
                     variant="outlined" density="comfortable" color="primary"></v-select>
                 </template>
+                <template v-else-if="field.type === 'image'">
+                  <div class="text-subtitle-2 mb-2 text-medium-emphasis">
+                    {{ field.label }} <span v-if="field.required" class="text-error">*</span>
+                  </div>
+                  <v-file-input
+                    :model-value="resubmitImageFiles[field.label]"
+                    @update:model-value="onResubmitImageChange(field.label, $event)"
+                    :label="field.label"
+                    accept="image/*"
+                    prepend-icon="mdi-camera-image"
+                    variant="outlined"
+                    density="comfortable"
+                    :rules="field.required ? [v => !!v || '请上传' + field.label] : []"
+                    show-size
+                  ></v-file-input>
+                  <v-img
+                    v-if="resubmitImageFiles[field.label]"
+                    :src="getImageLocalUrl(resubmitImageFiles[field.label]!)"
+                    max-height="100"
+                    max-width="130"
+                    class="my-3 rounded elevation-1"
+                    cover
+                    @click="resubmitImageFiles[field.label] && openImagePreview(getImageLocalUrl(resubmitImageFiles[field.label]!))"
+                    style="cursor: pointer"
+                  ></v-img>
+                  <v-img
+                    v-else-if="isImageUrl(resubmitFormDialog.data[field.label])"
+                    :src="resubmitFormDialog.data[field.label]"
+                    max-height="100"
+                    max-width="130"
+                    class="my-3 rounded elevation-1"
+                    cover
+                    @click="openImagePreview(resubmitFormDialog.data[field.label])"
+                    style="cursor: pointer"
+                  ></v-img>
+                </template>
               </v-col>
             </v-row>
           </v-form>
@@ -301,7 +373,18 @@
               </tr>
               <tr v-for="key in infoSortedKeys" :key="key">
                 <td :style="fieldStyle(key)">{{ key }}</td>
-                <td :style="fieldStyle(key)">{{ formatValue(infoDialogItem.data[key]) }}</td>
+                <td :style="fieldStyle(key)">
+                  <template v-if="isImageUrl(infoDialogItem.data[key])">
+                    <div class="d-flex align-center">
+                      <v-img :src="infoDialogItem.data[key]" max-height="100" max-width="130"
+                        class="rounded elevation-1 cursor-pointer my-1" cover
+                        @click="openImagePreview(infoDialogItem.data[key])"></v-img>
+                      <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
+                        class="ms-2" @click="downloadImage(infoDialogItem.data[key])"></v-btn>
+                    </div>
+                  </template>
+                  <template v-else>{{ formatValue(infoDialogItem.data[key]) }}</template>
+                </td>
               </tr>
             </tbody>
           </v-table>
@@ -403,7 +486,18 @@
                   </tr>
                   <tr v-for="key in sortedDetailKeys" :key="key">
                 <td :style="fieldStyle(key)">{{ key }}</td>
-                <td :style="fieldStyle(key)">{{ formatValue(detailDialog.data[key]) }}</td>
+                <td :style="fieldStyle(key)">
+                  <template v-if="isImageUrl(detailDialog.data[key])">
+                    <div class="d-flex align-center">
+                      <v-img :src="detailDialog.data[key]" max-height="100" max-width="130"
+                        class="rounded elevation-1 cursor-pointer my-1" cover
+                        @click="openImagePreview(detailDialog.data[key])"></v-img>
+                      <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
+                        class="ms-2" @click="downloadImage(detailDialog.data[key])"></v-btn>
+                    </div>
+                  </template>
+                  <template v-else>{{ formatValue(detailDialog.data[key]) }}</template>
+                </td>
               </tr>
                 </tbody>
               </v-table>
@@ -425,6 +519,17 @@
       </v-card>
     </v-dialog>
 
+    <!-- 图片预览弹窗 -->
+    <v-dialog v-model="imagePreviewDialog.show" max-width="700">
+      <v-card>
+        <v-card-actions class="pa-2">
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" @click="imagePreviewDialog.show = false"></v-btn>
+        </v-card-actions>
+        <v-img :src="imagePreviewDialog.url" max-height="80vh" contain></v-img>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
@@ -433,7 +538,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive, computed, watch, nextTick } from 'vue'
+import { ref, shallowRef, onMounted, reactive, computed, watch, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
@@ -543,6 +648,59 @@ const resubmitFormAppIcon = computed(() => {
   const app = runningApps.value.find(a => a.name === resubmitFormDialog.app)
   return app?.icon || ''
 })
+
+const imageFiles = shallowRef<Record<string, File | null>>({})
+const resubmitImageFiles = shallowRef<Record<string, File | null>>({})
+const imagePreviewDialog = reactive({ show: false, url: '' })
+
+function onMainImageChange(label: string, files: File | File[]) {
+  const file = Array.isArray(files) ? (files[0] ?? null) : (files ?? null)
+  imageFiles.value = { ...imageFiles.value, [label]: file }
+}
+
+function onResubmitImageChange(label: string, files: File | File[]) {
+  const file = Array.isArray(files) ? (files[0] ?? null) : (files ?? null)
+  resubmitImageFiles.value = { ...resubmitImageFiles.value, [label]: file }
+}
+
+function isImageUrl(val: any): boolean {
+  if (typeof val !== 'string') return false
+  return val.startsWith('/media/') || val.startsWith('http')
+}
+
+function getImageLocalUrl(file: File): string {
+  return URL.createObjectURL(file)
+}
+
+function openImagePreview(url: string) {
+  imagePreviewDialog.url = url
+  imagePreviewDialog.show = true
+}
+
+function downloadImage(url: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = url.split('/').pop() || 'image'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+async function uploadImage(file: File): Promise<string | null> {
+  const token = cookie.get('token')
+  try {
+    const res = await ajax<{ url: string }>(ApiUrl.UPLOAD_IMAGE, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: { file },
+      isFormData: true
+    })
+    if (res.code === 200) {
+      return res.data?.url || null
+    }
+  } catch { /* ignore */ }
+  return null
+}
 
 const detailDialog = reactive({
   show: false,
@@ -677,6 +835,9 @@ function initFormData() {
     } else if (field.type.endsWith('-range')) {
       formData[field.label] = (Array.isArray(field.default) && field.default.length === 2)
         ? [...field.default] : ['', '']
+    } else if (field.type === 'image') {
+      formData[field.label] = field.default || ''
+      imageFiles.value[field.label] = null
     } else {
       formData[field.label] = field.default || ''
     }
@@ -817,6 +978,20 @@ function openConfirm() {
 async function submitForm() {
   isSubmitting.value = true
   const token = cookie.get('token')
+
+  for (const field of formFields.value) {
+    if (field.type === 'image' && imageFiles.value[field.label]) {
+      const url = await uploadImage(imageFiles.value[field.label]!)
+      if (url) {
+        formData[field.label] = url
+      } else {
+        showMsg(`${field.label} 上传失败`, 'error')
+        isSubmitting.value = false
+        return
+      }
+    }
+  }
+
   const submissionData: Record<string, any> = {
     跑步APP: selectedApp.value,
     priority: priority.value,
@@ -995,6 +1170,9 @@ async function openModifyDialog(item: RegistrationItem) {
   formFields.value.forEach(field => {
     if (field.type === 'checkbox') {
       data[field.label] = Array.isArray(field.default) ? [...field.default] : []
+    } else if (field.type === 'image') {
+      data[field.label] = field.default || ''
+      resubmitImageFiles.value[field.label] = null
     } else {
       data[field.label] = field.default || ''
     }
@@ -1088,6 +1266,9 @@ function fillResubmitForm() {
   formFields.value.forEach(field => {
     if (field.type === 'checkbox') {
       data[field.label] = Array.isArray(field.default) ? [...field.default] : []
+    } else if (field.type === 'image') {
+      data[field.label] = field.default || ''
+      resubmitImageFiles.value[field.label] = null
     } else {
       data[field.label] = field.default || ''
     }
@@ -1113,6 +1294,20 @@ async function doResubmit() {
   if (!valid) return
   isSubmitting.value = true
   const token = cookie.get('token')
+
+  for (const field of formFields.value) {
+    if (field.type === 'image' && resubmitImageFiles.value[field.label]) {
+      const url = await uploadImage(resubmitImageFiles.value[field.label]!)
+      if (url) {
+        resubmitFormDialog.data[field.label] = url
+      } else {
+        showMsg(`${field.label} 上传失败`, 'error')
+        isSubmitting.value = false
+        return
+      }
+    }
+  }
+
   const submissionData: Record<string, any> = {
     跑步APP: resubmitFormDialog.app,
     priority: resubmitPriority.value,

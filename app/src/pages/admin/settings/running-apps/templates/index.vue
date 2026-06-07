@@ -213,7 +213,7 @@
               </v-sheet>
             </v-col>
 
-            <v-col cols="12" v-if="!isOptionType(editFieldData.type) && !isRangeType(editFieldData.type)">
+            <v-col cols="12" v-if="!isOptionType(editFieldData.type) && !isRangeType(editFieldData.type) && editFieldData.type !== 'image'">
               <v-text-field
                 v-model="editFieldData.default"
                 label="默认填充内容"
@@ -591,7 +591,8 @@ const fieldTypes = [
   { label: '时间范围', value: 'time-range', icon: 'mdi-clock-time-eight-outline' },
   { label: '单选按钮', value: 'radio', icon: 'mdi-radiobox-marked' },
   { label: '复选框组', value: 'checkbox', icon: 'mdi-checkbox-marked-outline' },
-  { label: '下拉菜单', value: 'select', icon: 'mdi-form-dropdown' }
+  { label: '下拉菜单', value: 'select', icon: 'mdi-form-dropdown' },
+  { label: '图片上传', value: 'image', icon: 'mdi-image-outline' }
 ]
 
 function getFieldIcon(type: string) {

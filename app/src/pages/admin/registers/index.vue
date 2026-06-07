@@ -144,8 +144,19 @@
               <tr v-for="row in detailFields" :key="row.key">
                 <td :style="fieldStyle(row.key)">{{ row.key }}</td>
                 <td :style="fieldStyle(row.key)">
-                  {{ row.value }}
-                  <v-btn v-if="templateFieldCopyable[row.key]" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyFieldValue(row.key, row.value)"></v-btn>
+                  <template v-if="isImageUrl(row.value)">
+                    <div class="d-flex align-center">
+                      <v-img :src="row.value" max-height="100" max-width="130"
+                        class="rounded elevation-1 cursor-pointer my-1" cover
+                        @click="openImagePreview(row.value)"></v-img>
+                      <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
+                        class="ms-2" @click="downloadImage(row.value)"></v-btn>
+                    </div>
+                  </template>
+                  <template v-else>
+                    {{ row.value }}
+                    <v-btn v-if="templateFieldCopyable[row.key]" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyFieldValue(row.key, row.value)"></v-btn>
+                  </template>
                 </td>
               </tr>
                 </tbody>
@@ -243,6 +254,38 @@
                   </v-col>
                 </v-row>
               </template>
+              <template v-else-if="field.type === 'image'">
+                <div class="text-subtitle-2 mb-2">{{ field.label }} <span v-if="field.required" class="text-error">*</span></div>
+                <v-file-input
+                  :model-value="modifyImageFiles[field.label]"
+                  @update:model-value="onModifyImageChange(field.label, $event)"
+                  :label="field.label"
+                  accept="image/*"
+                  prepend-icon="mdi-camera-image"
+                  variant="outlined"
+                  density="comfortable"
+                  :rules="field.required ? [v => !!v || '请上传' + field.label] : []"
+                  show-size
+                ></v-file-input>
+                <v-img
+                  v-if="modifyImageFiles[field.label]"
+                  :src="getModifyImageLocalUrl(modifyImageFiles[field.label]!)"
+                  max-height="100"
+                  max-width="130"
+                  class="my-3 rounded elevation-1 cursor-pointer"
+                  cover
+                  @click="modifyImageFiles[field.label] && openImagePreview(getModifyImageLocalUrl(modifyImageFiles[field.label]!))"
+                ></v-img>
+                <v-img
+                  v-else-if="isImageUrl(modifyFormData[field.label])"
+                  :src="modifyFormData[field.label]"
+                  max-height="100"
+                  max-width="130"
+                  class="my-3 rounded elevation-1 cursor-pointer"
+                  cover
+                  @click="openImagePreview(modifyFormData[field.label])"
+                ></v-img>
+              </template>
             </v-col>
           </v-row>
           <v-row v-if="modifyDialog.showAmount">
@@ -290,6 +333,17 @@
           <v-btn variant="text" @click="rejectDialog.show = false">取消</v-btn>
           <v-btn color="error" variant="flat" :loading="loading" @click="confirmReject">确认驳回</v-btn>
         </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 图片预览弹窗 -->
+    <v-dialog v-model="imagePreviewDialog.show" max-width="700">
+      <v-card>
+        <v-card-actions class="pa-2">
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" @click="imagePreviewDialog.show = false"></v-btn>
+        </v-card-actions>
+        <v-img :src="imagePreviewDialog.url" max-height="80vh" contain></v-img>
       </v-card>
     </v-dialog>
 
@@ -354,7 +408,7 @@
 </style>
 
 <script lang="ts" setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, shallowRef, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppDataTable from '@/components/AppDataTable.vue'
 import RegistrationChat from '@/components/RegistrationChat.vue'
@@ -402,6 +456,52 @@ const modifyFields = ref<any[]>([])
 const modifyFormData = ref<Record<string, any>>({})
 const modifyPriority = ref('low')
 const modifySaving = ref(false)
+const modifyImageFiles = shallowRef<Record<string, File | null>>({})
+const imagePreviewDialog = reactive({ show: false, url: '' })
+
+function onModifyImageChange(label: string, files: File | File[]) {
+  const file = Array.isArray(files) ? (files[0] ?? null) : (files ?? null)
+  modifyImageFiles.value = { ...modifyImageFiles.value, [label]: file }
+}
+
+function isImageUrl(val: any): boolean {
+  if (typeof val !== 'string') return false
+  return val.startsWith('/media/') || val.startsWith('http')
+}
+
+function getModifyImageLocalUrl(file: File): string {
+  return URL.createObjectURL(file)
+}
+
+function openImagePreview(url: string) {
+  imagePreviewDialog.url = url
+  imagePreviewDialog.show = true
+}
+
+function downloadImage(url: string) {
+  const a = document.createElement('a')
+  a.href = url
+  a.download = url.split('/').pop() || 'image'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+}
+
+async function uploadModifyImage(file: File): Promise<string | null> {
+  const token = cookie.get('token')
+  try {
+    const res = await ajax<{ url: string }>(ApiUrl.UPLOAD_IMAGE, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}` },
+      body: { file },
+      isFormData: true
+    })
+    if (res.code === 200) {
+      return res.data?.url || null
+    }
+  } catch { /* ignore */ }
+  return null
+}
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 const templateFieldOrder = ref<string[]>([])
@@ -778,6 +878,9 @@ async function openModifyDialog(item: RegistrationItem) {
           formData[field.label] = Array.isArray(field.default) ? [...field.default] : []
         } else if (field.type.endsWith('-range')) {
           formData[field.label] = ['', '']
+        } else if (field.type === 'image') {
+          formData[field.label] = field.default || ''
+          modifyImageFiles.value[field.label] = null
         } else {
           formData[field.label] = field.default || ''
         }
@@ -805,6 +908,19 @@ async function doModify() {
   if (!modifyDialog.item) return
   modifySaving.value = true
   try {
+    for (const field of modifyFields.value) {
+      if (field.type === 'image' && modifyImageFiles.value[field.label]) {
+        const url = await uploadModifyImage(modifyImageFiles.value[field.label]!)
+        if (url) {
+          modifyFormData.value[field.label] = url
+        } else {
+          showMsg(`${field.label} 上传失败`, 'error')
+          modifySaving.value = false
+          return
+        }
+      }
+    }
+
     const data: Record<string, any> = { '跑步APP': modifyDialog.app }
     for (const [key, value] of Object.entries(modifyFormData.value)) {
       data[key] = value

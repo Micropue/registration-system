@@ -41,7 +41,7 @@ account_service = AccountService()
 MEDIA_DIR = Path(os.environ.get("MEDIA_DIR", str(Path(__file__).resolve().parent.parent / "media")))
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
-ALLOWED_ORIGINS = {"http://localhost:3000", "https://huhurun.micropue.com.cn"}
+ALLOWED_ORIGINS = {"http://localhost:3000", "http://localhost:3001", "https://huhurun.micropue.com.cn"}
 
 app.add_middleware(
     CORSMiddleware,
@@ -56,7 +56,7 @@ ALLOWED_MIME_TYPES = {
     "image/webp", "image/jpeg", "image/png", "image/gif",
     "image/heic", "image/heif"
 }
-MAX_IMAGE_SIZE = 5 * 1024 * 1024
+MAX_IMAGE_SIZE = 1 * 1024 * 1024
 
 MIME_TO_EXT = {
     "image/webp": ".webp",
@@ -112,7 +112,7 @@ async def upload_image(
 
     contents = await file.read()
     if len(contents) > MAX_IMAGE_SIZE:
-        return api_response(400, "Image size exceeds 5MB limit")
+        return api_response(400, "Image size exceeds 1MB limit")
 
     magic = contents[:12]
     if magic[:4] == b'\x89PNG':
