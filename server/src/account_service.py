@@ -1258,7 +1258,7 @@ class AccountService:
                 raise AccountError("登记记录不存在")
             cursor.execute("UPDATE registrations SET data = %s, create_time = %s, status = 'pending', reject_reason = NULL, priority = %s, template_uid = %s, amount = %s WHERE uid = %s", (json.dumps(data, ensure_ascii=False), now, priority, template_uid, amount, uid))
             connection.commit()
-        if old_amount and old_app_name and old_status == 'approved':
+        if old_amount and old_app_name and old_status != 'rejected':
             app_uid = None
             with self.db.connect() as conn2:
                 cur = conn2.cursor(dictionary=True)
