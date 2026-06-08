@@ -1283,12 +1283,20 @@ class AccountService:
                         note="登记重新提交扣除")
 
     def update_registration_data(self, uid: str, data: dict[str, Any], priority: str | None = None, template_uid: str | None = None, amount: float | None = None) -> None:
+        old_amount = None
+        old_app_name = None
+        old_status = None
+        user_uid = None
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT status FROM registrations WHERE uid = %s", (uid,))
+            cursor.execute("SELECT user_uid, status, amount, JSON_UNQUOTE(JSON_EXTRACT(data, '$.跑步APP')) as app_name FROM registrations WHERE uid = %s", (uid,))
             reg = cursor.fetchone()
             if not reg:
                 raise AccountError("登记记录不存在")
+            user_uid = reg["user_uid"]
+            old_amount = reg.get("amount")
+            old_app_name = reg.get("app_name")
+            old_status = reg.get("status")
             updates = ["data = %s"]
             params: list[Any] = [json.dumps(data, ensure_ascii=False)]
             if priority is not None:
@@ -1304,6 +1312,34 @@ class AccountService:
             params.append(uid)
             cursor.execute(f"UPDATE registrations SET {', '.join(updates)} WHERE uid = %s", tuple(params))
             connection.commit()
+
+        if old_amount and old_app_name and old_status != 'rejected':
+            app_uid = None
+            with self.db.connect() as conn2:
+                cur = conn2.cursor(dictionary=True)
+                cur.execute("SELECT uid FROM running_apps WHERE name = %s", (old_app_name,))
+                app = cur.fetchone()
+                app_uid = app["uid"] if app else None
+            if app_uid and user_uid:
+                try:
+                    self.adjust_user_balance(user_uid, app_uid, float(old_amount),
+                        note="订单修改，撤销原扣除")
+                except Exception:
+                    pass
+        effective_amount = amount if amount is not None else old_amount
+        if effective_amount and effective_amount > 0:
+            app_name = data.get('跑步APP', old_app_name or '')
+            if app_name:
+                app_uid2 = None
+                with self.db.connect() as conn3:
+                    cur = conn3.cursor(dictionary=True)
+                    cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
+                    app = cur.fetchone()
+                    app_uid2 = app["uid"] if app else None
+                if app_uid2 and user_uid:
+                    self._ensure_user_balance(user_uid, app_uid2)
+                    self.adjust_user_balance(user_uid, app_uid2, -effective_amount,
+                        note="订单修改，重新扣除")
 
     # ---- Admin Registrations ----
 
