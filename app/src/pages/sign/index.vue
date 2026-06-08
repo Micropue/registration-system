@@ -275,6 +275,12 @@
               <v-btn value="high" size="small">高</v-btn>
             </v-btn-toggle>
           </div>
+          <div v-if="registrationAmount != null" class="mb-4">
+            <div class="text-subtitle-2 mb-2 text-medium-emphasis">{{ amountUnitLabel }}</div>
+            <v-text-field v-model.number="registrationAmount" :label="amountUnitLabel"
+              type="number" variant="outlined" density="comfortable"
+              :rules="[v => !!v || '请输入', v => v > 0 || '必须大于0']"></v-text-field>
+          </div>
           <v-form ref="resubmitFormRef" v-model="resubmitFormValid">
             <v-row dense>
               <v-col v-for="field in formFields" :key="field.label" cols="12">
@@ -647,6 +653,14 @@ const resubmitFormDialog = reactive({
 const resubmitFormAppIcon = computed(() => {
   const app = runningApps.value.find(a => a.name === resubmitFormDialog.app)
   return app?.icon || ''
+})
+
+const amountUnitLabel = computed(() => {
+  const app = runningApps.value.find(a => a.name === resubmitFormDialog.app)
+  if (!app?.balance_mode) return '跑量'
+  if (app.balance_mode === 'mileage') return '公里数'
+  if (app.balance_mode === 'count') return '次数'
+  return '跑量'
 })
 
 const imageFiles = shallowRef<Record<string, File | null>>({})
@@ -1193,8 +1207,7 @@ async function openModifyDialog(item: RegistrationItem) {
     showMsg('无法恢复原状态，模板与原模板不一致', 'warning')
   }
 
-  const balanceApp = runningApps.value.find(a => a.name === appName)
-  if (balanceApp?.balance_mode && item.amount != null) {
+  if (item.amount != null) {
     registrationAmount.value = item.amount
   } else {
     registrationAmount.value = null
@@ -1216,6 +1229,9 @@ function openResubmitDialog(item: RegistrationItem) {
   resubmitPriority.value = item.priority || 'low'
   resubmitTemplateUid.value = item.template_uid || ''
   resubmitDialog.show = true
+  if (item.amount != null) {
+    registrationAmount.value = item.amount
+  }
   nextTick(() => {
     resubmitSelectFormRef.value?.resetValidation()
   })
@@ -1258,8 +1274,8 @@ function startResubmitRegistration() {
     skipOldData.value = false
   }
   const app = runningApps.value.find(a => a.name === selectedApp.value)
-  if (app?.balance_mode) {
-    amountDialog.value = 0
+  if (app?.balance_mode || registrationAmount.value != null) {
+    amountDialog.value = registrationAmount.value || 0
     amountDialog.show = true
   } else {
     registrationAmount.value = null
