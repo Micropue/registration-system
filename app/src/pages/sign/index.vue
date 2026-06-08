@@ -410,7 +410,7 @@
       v-model:page="currentPage"
       v-model:items-per-page="itemsPerPage"
       show-search show-filter
-      search-label="搜索跑步APP/模板/状态"
+      search-label="搜索"
       @update:options="loadHistory"
       @reset="loadHistory"
     >
@@ -1038,7 +1038,13 @@ async function loadHistory(options: any = { page: 1, itemsPerPage: 20 }) {
     if (res.code === 200) {
       registrations.value = res.data.items.map((item: any) => ({
         ...item,
-        amount_unit: getAmountUnit(item.data?.['跑步APP'])
+        amount_unit: getAmountUnit(item.data?.['跑步APP']),
+        _searchable: item.data
+          ? Object.values(item.data)
+              .filter((v: any) => v != null)
+              .map((v: any) => Array.isArray(v) ? v.join(', ') : String(v))
+              .join(' ')
+          : ''
       }))
       totalRegistrations.value = res.data.total
     }
