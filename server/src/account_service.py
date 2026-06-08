@@ -717,7 +717,7 @@ class AccountService:
             if owner_uid != user_uid:
                 resolved_note = f"{note}（经余额链接从用户 {user_uid} 扣除）" if note else f"经余额链接从用户 {user_uid} 扣除"
             self._record_balance_transaction(app_uid, txn_type, abs(amount),
-                user_uid=owner_uid, note=resolved_note)
+                user_uid=owner_uid, note=resolved_note, balance_after=new_balance)
         return {"balance": new_balance, "owner_uid": owner_uid}
 
     def set_app_balance_mode(self, app_uid: str, balance_mode: str) -> None:
@@ -732,25 +732,28 @@ class AccountService:
             return False
         return bal["balance"] >= amount
 
-    def _record_balance_transaction(self, app_uid: str, type: str, amount: float, user_uid: str = "", related_uid: str = "", related_type: str = "", note: str = "") -> str:
+    def _record_balance_transaction(self, app_uid: str, type: str, amount: float, user_uid: str = "", related_uid: str = "", related_type: str = "", note: str = "", balance_after: float | None = None) -> str:
         uid = self.db.new_uid()
         now = self.db.now()
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            if user_uid:
+            if balance_after is not None:
+                pass
+            elif user_uid:
                 cursor.execute("SELECT balance FROM user_balances WHERE user_uid = %s AND app_uid = %s", (user_uid, app_uid))
                 ub = cursor.fetchone()
                 current = float(ub["balance"] or 0) if ub else 0
             else:
                 current = 0
-            if type == 'recharge':
-                balance_after = round(current + amount, 2)
-            elif type == 'deduction':
-                balance_after = round(current - amount, 2)
-            elif type == 'reversal':
-                balance_after = round(current + amount, 2)
-            else:
-                balance_after = current
+            if balance_after is None:
+                if type == 'recharge':
+                    balance_after = round(current + amount, 2)
+                elif type == 'deduction':
+                    balance_after = round(current - amount, 2)
+                elif type == 'reversal':
+                    balance_after = round(current + amount, 2)
+                else:
+                    balance_after = current
             cursor.execute("INSERT INTO balance_transactions (uid, app_uid, user_uid, type, amount, balance_after, related_uid, related_type, note, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (uid, app_uid, user_uid, type, amount, balance_after, related_uid, related_type, note, now))
             connection.commit()
