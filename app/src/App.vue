@@ -222,21 +222,27 @@ function hasAnyAdminPerm(permissions: Record<string, any> | undefined): boolean 
 
 function hasPerm(permissions: Record<string, any> | undefined, key: string): boolean {
   if (!permissions) return false
+  if (key.includes('.')) {
+    const [parent, child] = key.split('.')
+    const parentVal = permissions[parent]
+    if (typeof parentVal === 'object' && parentVal !== null) return !!parentVal[child]
+    return false
+  }
   const val = permissions[key]
   if (typeof val === 'object' && val !== null) return Object.values(val).some(Boolean)
   return !!val
 }
 
 const PERM_MAP: Record<string, string> = {
-  '/admin/groups': '账户组管理',
-  '/admin/recharges': '充值审批',
-  '/admin/users': '账户管理',
-  '/admin/registers': '订单处理',
-  '/admin/feedbacks': '工单处理',
-  '/admin/running-apps': 'APP配置',
-  '/admin/update-logs': 'APP配置',
-  '/admin/announcements': '公告管理',
-  '/admin/subordinates': '下属管理',
+  '/admin/groups': '账户组管理.查看',
+  '/admin/recharges': '充值审批.查看',
+  '/admin/users': '账户管理.查看',
+  '/admin/registers': '订单处理.查看',
+  '/admin/feedbacks': '工单处理.查看',
+  '/admin/running-apps': 'APP配置.查看',
+  '/admin/update-logs': 'APP配置.查看',
+  '/admin/announcements': '公告管理.查看',
+  '/admin/subordinates': '下属管理.查看',
   '/sign': '新建登记',
   '/feedback': '新建工单',
   '/recharge': '充值申请',
