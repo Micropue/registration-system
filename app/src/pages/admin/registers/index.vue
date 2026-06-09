@@ -144,13 +144,15 @@
               <tr v-for="row in detailFields" :key="row.key">
                 <td :style="fieldStyle(row.key)">{{ row.key }}</td>
                 <td :style="fieldStyle(row.key)">
-                  <template v-if="isImageUrl(row.value)">
+                  <template v-if="hasImageData(detailsDialog.item?.registration_info[row.key])">
                     <div class="d-flex align-center">
-                      <v-img :src="row.value" max-height="100" max-width="130"
-                        class="rounded elevation-1 cursor-pointer my-1" cover
-                        @click="openImagePreview(row.value)"></v-img>
+                      <div class="d-flex align-center cursor-pointer" @click="openImagePreview(getImageUrls(detailsDialog.item?.registration_info[row.key]), 0)">
+                        <v-img :src="getFirstImageUrl(detailsDialog.item?.registration_info[row.key])" max-height="80" max-width="100"
+                          class="rounded elevation-1 my-1" cover></v-img>
+                        <span v-if="getImageCount(detailsDialog.item?.registration_info[row.key]) > 1" class="text-caption text-primary ms-1 font-weight-bold">+{{ getImageCount(detailsDialog.item?.registration_info[row.key]) - 1 }}</span>
+                      </div>
                       <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
-                        class="ms-2" @click="downloadImage(row.value)"></v-btn>
+                        class="ms-2" @click="downloadImage(getFirstImageUrl(detailsDialog.item?.registration_info[row.key]))"></v-btn>
                     </div>
                   </template>
                   <template v-else>
@@ -257,34 +259,28 @@
               <template v-else-if="field.type === 'image'">
                 <div class="text-subtitle-2 mb-2">{{ field.label }} <span v-if="field.required" class="text-error">*</span></div>
                 <v-file-input
-                  :model-value="modifyImageFiles[field.label]"
+                  :model-value="getAdminImageModel(field.label)"
                   @update:model-value="onModifyImageChange(field.label, $event)"
                   :label="field.label"
+                  :multiple="!!field.multiple"
                   accept="image/*"
                   prepend-icon="mdi-camera-image"
                   variant="outlined"
                   density="comfortable"
-                  :rules="field.required ? [v => !!v || '请上传' + field.label] : []"
+                  :rules="field.required ? [(v: any) => (field.multiple ? (v && v.length > 0) : !!v) || '请上传' + field.label] : []"
                   show-size
                 ></v-file-input>
-                <v-img
-                  v-if="modifyImageFiles[field.label]"
-                  :src="getModifyImageLocalUrl(modifyImageFiles[field.label]!)"
-                  max-height="100"
-                  max-width="130"
-                  class="my-3 rounded elevation-1 cursor-pointer"
-                  cover
-                  @click="modifyImageFiles[field.label] && openImagePreview(getModifyImageLocalUrl(modifyImageFiles[field.label]!))"
-                ></v-img>
-                <v-img
-                  v-else-if="isImageUrl(modifyFormData[field.label])"
-                  :src="modifyFormData[field.label]"
-                  max-height="100"
-                  max-width="130"
-                  class="my-3 rounded elevation-1 cursor-pointer"
-                  cover
-                  @click="openImagePreview(modifyFormData[field.label])"
-                ></v-img>
+                <div v-if="hasAdminImageValue(field.label)" class="d-flex flex-wrap ga-2 py-2">
+                  <div v-for="(url, idx) in getAdminDisplayImages(field.label)" :key="idx" class="position-relative">
+                    <v-img :src="url" max-height="80" max-width="100"
+                      class="rounded elevation-1 cursor-pointer"
+                      cover @click="openAdminImagePreview(getAdminPreviewUrls(field.label), idx)"></v-img>
+                    <v-btn v-if="field.multiple" icon="mdi-close-circle" size="x-small"
+                      variant="plain" color="error"
+                      class="position-absolute" style="top:-6px;right:-6px"
+                      @click="removeAdminImage(field.label, idx)"></v-btn>
+                  </div>
+                </div>
               </template>
             </v-col>
           </v-row>
@@ -337,13 +333,26 @@
     </v-dialog>
 
     <!-- 图片预览弹窗 -->
-    <v-dialog v-model="imagePreviewDialog.show" max-width="700">
+    <v-dialog v-model="imagePreviewDialog.show" max-width="900">
       <v-card>
         <v-card-actions class="pa-2">
           <v-spacer></v-spacer>
           <v-btn icon="mdi-close" variant="text" @click="imagePreviewDialog.show = false"></v-btn>
         </v-card-actions>
-        <v-img :src="imagePreviewDialog.url" max-height="80vh" contain></v-img>
+        <div class="d-flex" style="min-height:300px">
+          <div v-if="imagePreviewDialog.urls.length > 1" class="d-flex flex-column pa-2 overflow-y-auto" style="max-width:120px;max-height:70vh;gap:6px">
+            <v-img v-for="(url, idx) in imagePreviewDialog.urls" :key="idx"
+              :src="url" max-height="70" max-width="90"
+              class="rounded cursor-pointer"
+              :class="idx === imagePreviewDialog.currentIndex ? 'elevation-3' : 'elevation-1'"
+              style="border:2px solid"
+              :style="{ borderColor: idx === imagePreviewDialog.currentIndex ? 'rgb(var(--v-theme-primary))' : 'transparent' }"
+              cover @click="imagePreviewDialog.currentIndex = idx"></v-img>
+          </div>
+          <div class="flex-grow-1 pa-2">
+            <v-img :src="imagePreviewDialog.urls[imagePreviewDialog.currentIndex] || ''" max-height="75vh" contain></v-img>
+          </div>
+        </div>
       </v-card>
     </v-dialog>
 
@@ -456,12 +465,12 @@ const modifyFields = ref<any[]>([])
 const modifyFormData = ref<Record<string, any>>({})
 const modifyPriority = ref('low')
 const modifySaving = ref(false)
-const modifyImageFiles = shallowRef<Record<string, File | null>>({})
-const imagePreviewDialog = reactive({ show: false, url: '' })
+const modifyImageFiles = shallowRef<Record<string, File[]>>({})
+const imagePreviewDialog = reactive({ show: false, urls: [] as string[], currentIndex: 0 })
 
 function onModifyImageChange(label: string, files: File | File[]) {
-  const file = Array.isArray(files) ? (files[0] ?? null) : (files ?? null)
-  modifyImageFiles.value = { ...modifyImageFiles.value, [label]: file }
+  const arr = Array.isArray(files) ? files : files ? [files] : []
+  modifyImageFiles.value = { ...modifyImageFiles.value, [label]: arr }
 }
 
 function isImageUrl(val: any): boolean {
@@ -469,12 +478,38 @@ function isImageUrl(val: any): boolean {
   return val.startsWith('/media/') || val.startsWith('http')
 }
 
+function hasImageData(val: any): boolean {
+  if (typeof val === 'string') return isImageUrl(val)
+  if (Array.isArray(val)) return val.some(isImageUrl)
+  return false
+}
+
+function getFirstImageUrl(val: any): string {
+  if (typeof val === 'string') return val
+  if (Array.isArray(val)) return val.find((v: any) => isImageUrl(v)) || ''
+  return ''
+}
+
+function getImageCount(val: any): number {
+  if (typeof val === 'string') return isImageUrl(val) ? 1 : 0
+  if (Array.isArray(val)) return val.filter((v: any) => isImageUrl(v)).length
+  return 0
+}
+
+function getImageUrls(val: any): string[] {
+  if (typeof val === 'string') return isImageUrl(val) ? [val] : []
+  if (Array.isArray(val)) return val.filter((v: any) => isImageUrl(v))
+  return []
+}
+
 function getModifyImageLocalUrl(file: File): string {
   return URL.createObjectURL(file)
 }
 
-function openImagePreview(url: string) {
-  imagePreviewDialog.url = url
+function openImagePreview(urls: string | string[], index: number = 0) {
+  const arr = typeof urls === 'string' ? [urls] : urls
+  imagePreviewDialog.urls = arr
+  imagePreviewDialog.currentIndex = index
   imagePreviewDialog.show = true
 }
 
@@ -501,6 +536,57 @@ async function uploadModifyImage(file: File): Promise<string | null> {
     }
   } catch { /* ignore */ }
   return null
+}
+
+function getAdminImageModel(label: string): File | File[] | null {
+  const val = modifyImageFiles.value[label]
+  if (!val || val.length === 0) return null
+  const field = modifyFields.value.find((f: any) => f.label === label)
+  if (field?.multiple) return val
+  return val[0]
+}
+
+function hasAdminImageValue(label: string): boolean {
+  const files = modifyImageFiles.value[label]
+  if (files && files.length > 0) return true
+  const data = modifyFormData.value[label]
+  return hasImageData(data)
+}
+
+function getAdminDisplayImages(label: string): string[] {
+  const files = modifyImageFiles.value[label]
+  if (files && files.length > 0) return files.map((f: File) => URL.createObjectURL(f))
+  const data = modifyFormData.value[label]
+  if (Array.isArray(data)) return data.filter((d: any) => isImageUrl(d))
+  if (typeof data === 'string' && isImageUrl(data)) return [data]
+  return []
+}
+
+function getAdminPreviewUrls(label: string): string[] {
+  const files = modifyImageFiles.value[label]
+  if (files && files.length > 0) return files.map((f: File) => URL.createObjectURL(f))
+  const data = modifyFormData.value[label]
+  if (Array.isArray(data)) return data.filter((d: any) => isImageUrl(d)).map((u: any) => u)
+  if (typeof data === 'string' && isImageUrl(data)) return [data]
+  return []
+}
+
+function removeAdminImage(label: string, idx: number) {
+  const files = modifyImageFiles.value[label]
+  if (files) {
+    const next = files.filter((_: File, i: number) => i !== idx)
+    modifyImageFiles.value = { ...modifyImageFiles.value, [label]: next }
+  }
+  const data = modifyFormData.value[label]
+  if (Array.isArray(data)) {
+    modifyFormData.value[label] = data.filter((_: any, i: number) => i !== idx)
+  }
+}
+
+function openAdminImagePreview(urls: string[], index: number) {
+  imagePreviewDialog.urls = urls
+  imagePreviewDialog.currentIndex = index
+  imagePreviewDialog.show = true
 }
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
@@ -879,8 +965,8 @@ async function openModifyDialog(item: RegistrationItem) {
         } else if (field.type.endsWith('-range')) {
           formData[field.label] = ['', '']
         } else if (field.type === 'image') {
-          formData[field.label] = field.default || ''
-          modifyImageFiles.value[field.label] = null
+          formData[field.label] = field.multiple ? [] : (field.default || '')
+          modifyImageFiles.value = { ...modifyImageFiles.value, [field.label]: [] }
         } else {
           formData[field.label] = field.default || ''
         }
@@ -909,14 +995,21 @@ async function doModify() {
   modifySaving.value = true
   try {
     for (const field of modifyFields.value) {
-      if (field.type === 'image' && modifyImageFiles.value[field.label]) {
-        const url = await uploadModifyImage(modifyImageFiles.value[field.label]!)
-        if (url) {
-          modifyFormData.value[field.label] = url
-        } else {
-          showMsg(`${field.label} 上传失败`, 'error')
-          modifySaving.value = false
-          return
+      if (field.type === 'image') {
+        const files = modifyImageFiles.value[field.label]
+        if (files && files.length > 0) {
+          const urls: string[] = []
+          for (const file of files) {
+            const url = await uploadModifyImage(file)
+            if (url) {
+              urls.push(url)
+            } else {
+              showMsg(`${field.label} 上传失败`, 'error')
+              modifySaving.value = false
+              return
+            }
+          }
+          modifyFormData.value[field.label] = (field as any).multiple ? urls : urls[0]
         }
       }
     }

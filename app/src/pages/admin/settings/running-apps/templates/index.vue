@@ -213,6 +213,15 @@
               </v-sheet>
             </v-col>
 
+            <v-col cols="12" v-if="editFieldData.type === 'image'">
+              <v-sheet class="pa-3 bg-surface rounded-lg">
+                <div class="d-flex align-center">
+                  <span class="text-subtitle-2 mr-4">多图上传</span>
+                  <v-switch v-model="editFieldData.multiple" color="primary" hide-details density="compact"></v-switch>
+                </div>
+              </v-sheet>
+            </v-col>
+
             <v-col cols="12" v-if="!isOptionType(editFieldData.type) && !isRangeType(editFieldData.type) && editFieldData.type !== 'image'">
               <v-text-field
                 v-model="editFieldData.default"
@@ -506,6 +515,7 @@ interface Field {
   size: string
   default: string | string[]
   options: FieldOption[]
+  multiple?: boolean
 }
 
 interface Template {
@@ -548,7 +558,8 @@ const editFieldData = reactive<Field>({
   color: '#000000',
   size: '',
   default: '',
-  options: []
+  options: [],
+  multiple: false
 })
 
 const fontSizes = [
@@ -770,7 +781,8 @@ function addField() {
     color: '#000000',
     size: '',
     default: '',
-    options: []
+    options: [],
+    multiple: false
   })
   fieldDialog.show = true
 }

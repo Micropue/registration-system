@@ -93,36 +93,28 @@
                     {{ field.label }} <span v-if="field.required" class="text-error">*</span>
                   </div>
                   <v-file-input
-                    :model-value="imageFiles[field.label]"
+                    :model-value="getImageModel(field.label)"
                     @update:model-value="onMainImageChange(field.label, $event)"
                     :label="field.label"
+                    :multiple="!!field.multiple"
                     accept="image/*"
                     prepend-icon="mdi-camera-image"
                     variant="outlined"
                     density="comfortable"
-                    :rules="field.required ? [v => !!v || '请上传' + field.label] : []"
+                    :rules="field.required ? [(v: any) => (field.multiple ? (v && v.length > 0) : !!v) || '请上传' + field.label] : []"
                     show-size
                   ></v-file-input>
-                  <v-img
-                    v-if="imageFiles[field.label]"
-                    :src="getImageLocalUrl(imageFiles[field.label]!)"
-                    max-height="100"
-                    max-width="130"
-                    class="my-3 rounded elevation-1"
-                    cover
-                    @click="imageFiles[field.label] && openImagePreview(getImageLocalUrl(imageFiles[field.label]!))"
-                    style="cursor: pointer"
-                  ></v-img>
-                  <v-img
-                    v-else-if="isImageUrl(formData[field.label])"
-                    :src="formData[field.label]"
-                    max-height="100"
-                    max-width="130"
-                    class="my-3 rounded elevation-1"
-                    cover
-                    @click="openImagePreview(formData[field.label])"
-                    style="cursor: pointer"
-                  ></v-img>
+                  <div v-if="hasImageValue(field.label)" class="d-flex flex-wrap ga-2 py-2">
+                    <div v-for="(url, idx) in getDisplayImages(field.label)" :key="idx" class="position-relative">
+                      <v-img :src="url" max-height="80" max-width="100"
+                        class="rounded elevation-1 cursor-pointer"
+                        cover @click="openImagePreview(getPreviewUrls(field.label), idx)"></v-img>
+                      <v-btn v-if="field.multiple" icon="mdi-close-circle" size="x-small"
+                        variant="plain" color="error"
+                        class="position-absolute" style="top:-6px;right:-6px"
+                        @click="removeImage(field.label, idx)"></v-btn>
+                    </div>
+                  </div>
                 </template>
               </v-col>
             </v-row>
@@ -309,36 +301,28 @@
                     {{ field.label }} <span v-if="field.required" class="text-error">*</span>
                   </div>
                   <v-file-input
-                    :model-value="resubmitImageFiles[field.label]"
+                    :model-value="getResubmitImageModel(field.label)"
                     @update:model-value="onResubmitImageChange(field.label, $event)"
                     :label="field.label"
+                    :multiple="!!field.multiple"
                     accept="image/*"
                     prepend-icon="mdi-camera-image"
                     variant="outlined"
                     density="comfortable"
-                    :rules="field.required ? [v => !!v || '请上传' + field.label] : []"
+                    :rules="field.required ? [(v: any) => (field.multiple ? (v && v.length > 0) : !!v) || '请上传' + field.label] : []"
                     show-size
                   ></v-file-input>
-                  <v-img
-                    v-if="resubmitImageFiles[field.label]"
-                    :src="getImageLocalUrl(resubmitImageFiles[field.label]!)"
-                    max-height="100"
-                    max-width="130"
-                    class="my-3 rounded elevation-1"
-                    cover
-                    @click="resubmitImageFiles[field.label] && openImagePreview(getImageLocalUrl(resubmitImageFiles[field.label]!))"
-                    style="cursor: pointer"
-                  ></v-img>
-                  <v-img
-                    v-else-if="isImageUrl(resubmitFormDialog.data[field.label])"
-                    :src="resubmitFormDialog.data[field.label]"
-                    max-height="100"
-                    max-width="130"
-                    class="my-3 rounded elevation-1"
-                    cover
-                    @click="openImagePreview(resubmitFormDialog.data[field.label])"
-                    style="cursor: pointer"
-                  ></v-img>
+                  <div v-if="hasResubmitImageValue(field.label)" class="d-flex flex-wrap ga-2 py-2">
+                    <div v-for="(url, idx) in getResubmitDisplayImages(field.label)" :key="idx" class="position-relative">
+                      <v-img :src="url" max-height="80" max-width="100"
+                        class="rounded elevation-1 cursor-pointer"
+                        cover @click="openImagePreview(getResubmitPreviewUrls(field.label), idx)"></v-img>
+                      <v-btn v-if="field.multiple" icon="mdi-close-circle" size="x-small"
+                        variant="plain" color="error"
+                        class="position-absolute" style="top:-6px;right:-6px"
+                        @click="removeResubmitImage(field.label, idx)"></v-btn>
+                    </div>
+                  </div>
                 </template>
               </v-col>
             </v-row>
@@ -380,13 +364,15 @@
               <tr v-for="key in infoSortedKeys" :key="key">
                 <td :style="fieldStyle(key)">{{ key }}</td>
                 <td :style="fieldStyle(key)">
-                  <template v-if="isImageUrl(infoDialogItem.data[key])">
+                  <template v-if="hasImageData(infoDialogItem.data[key])">
                     <div class="d-flex align-center">
-                      <v-img :src="infoDialogItem.data[key]" max-height="100" max-width="130"
-                        class="rounded elevation-1 cursor-pointer my-1" cover
-                        @click="openImagePreview(infoDialogItem.data[key])"></v-img>
+                      <div class="d-flex align-center cursor-pointer" @click="openImagePreview(getImageUrls(infoDialogItem.data[key]), 0)">
+                        <v-img :src="getFirstImageUrl(infoDialogItem.data[key])" max-height="80" max-width="100"
+                          class="rounded elevation-1 my-1" cover></v-img>
+                        <span v-if="getImageCount(infoDialogItem.data[key]) > 1" class="text-caption text-primary ms-1 font-weight-bold">+{{ getImageCount(infoDialogItem.data[key]) - 1 }}</span>
+                      </div>
                       <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
-                        class="ms-2" @click="downloadImage(infoDialogItem.data[key])"></v-btn>
+                        class="ms-2" @click="downloadImage(getFirstImageUrl(infoDialogItem.data[key]))"></v-btn>
                     </div>
                   </template>
                   <template v-else>{{ formatValue(infoDialogItem.data[key]) }}</template>
@@ -493,13 +479,15 @@
                   <tr v-for="key in sortedDetailKeys" :key="key">
                 <td :style="fieldStyle(key)">{{ key }}</td>
                 <td :style="fieldStyle(key)">
-                  <template v-if="isImageUrl(detailDialog.data[key])">
+                  <template v-if="hasImageData(detailDialog.data[key])">
                     <div class="d-flex align-center">
-                      <v-img :src="detailDialog.data[key]" max-height="100" max-width="130"
-                        class="rounded elevation-1 cursor-pointer my-1" cover
-                        @click="openImagePreview(detailDialog.data[key])"></v-img>
+                      <div class="d-flex align-center cursor-pointer" @click="openImagePreview(getImageUrls(detailDialog.data[key]), 0)">
+                        <v-img :src="getFirstImageUrl(detailDialog.data[key])" max-height="80" max-width="100"
+                          class="rounded elevation-1 my-1" cover></v-img>
+                        <span v-if="getImageCount(detailDialog.data[key]) > 1" class="text-caption text-primary ms-1 font-weight-bold">+{{ getImageCount(detailDialog.data[key]) - 1 }}</span>
+                      </div>
                       <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
-                        class="ms-2" @click="downloadImage(detailDialog.data[key])"></v-btn>
+                        class="ms-2" @click="downloadImage(getFirstImageUrl(detailDialog.data[key]))"></v-btn>
                     </div>
                   </template>
                   <template v-else>{{ formatValue(detailDialog.data[key]) }}</template>
@@ -526,13 +514,26 @@
     </v-dialog>
 
     <!-- 图片预览弹窗 -->
-    <v-dialog v-model="imagePreviewDialog.show" max-width="700">
+    <v-dialog v-model="imagePreviewDialog.show" max-width="900">
       <v-card>
         <v-card-actions class="pa-2">
           <v-spacer></v-spacer>
           <v-btn icon="mdi-close" variant="text" @click="imagePreviewDialog.show = false"></v-btn>
         </v-card-actions>
-        <v-img :src="imagePreviewDialog.url" max-height="80vh" contain></v-img>
+        <div class="d-flex" style="min-height:300px">
+          <div v-if="imagePreviewDialog.urls.length > 1" class="d-flex flex-column pa-2 overflow-y-auto" style="max-width:120px;max-height:70vh;gap:6px">
+            <v-img v-for="(url, idx) in imagePreviewDialog.urls" :key="idx"
+              :src="url" max-height="70" max-width="90"
+              class="rounded cursor-pointer"
+              :class="idx === imagePreviewDialog.currentIndex ? 'elevation-3 border-primary' : 'elevation-1'"
+              style="border:2px solid"
+              :style="{ borderColor: idx === imagePreviewDialog.currentIndex ? 'rgb(var(--v-theme-primary))' : 'transparent' }"
+              cover @click="imagePreviewDialog.currentIndex = idx"></v-img>
+          </div>
+          <div class="flex-grow-1 pa-2">
+            <v-img :src="imagePreviewDialog.urls[imagePreviewDialog.currentIndex] || ''" max-height="75vh" contain></v-img>
+          </div>
+        </div>
       </v-card>
     </v-dialog>
 
@@ -561,6 +562,7 @@ interface FormField {
   required: boolean
   default: any
   options: { label: string; value: any }[]
+  multiple?: boolean
 }
 
 interface AppItem {
@@ -663,18 +665,61 @@ const amountUnitLabel = computed(() => {
   return '跑量'
 })
 
-const imageFiles = shallowRef<Record<string, File | null>>({})
-const resubmitImageFiles = shallowRef<Record<string, File | null>>({})
-const imagePreviewDialog = reactive({ show: false, url: '' })
+const imageFiles = shallowRef<Record<string, File[]>>({})
+const resubmitImageFiles = shallowRef<Record<string, File[]>>({})
+const imagePreviewDialog = reactive({ show: false, urls: [] as string[], currentIndex: 0 })
 
 function onMainImageChange(label: string, files: File | File[]) {
-  const file = Array.isArray(files) ? (files[0] ?? null) : (files ?? null)
-  imageFiles.value = { ...imageFiles.value, [label]: file }
+  imageFiles.value = { ...imageFiles.value, [label]: Array.isArray(files) ? files : files ? [files] : [] }
 }
 
 function onResubmitImageChange(label: string, files: File | File[]) {
-  const file = Array.isArray(files) ? (files[0] ?? null) : (files ?? null)
-  resubmitImageFiles.value = { ...resubmitImageFiles.value, [label]: file }
+  resubmitImageFiles.value = { ...resubmitImageFiles.value, [label]: Array.isArray(files) ? files : files ? [files] : [] }
+}
+
+function getImageModel(label: string): File | File[] | null {
+  const val = imageFiles.value[label]
+  if (!val || val.length === 0) return null
+  const field = formFields.value.find((f: any) => f.label === label)
+  if (field?.multiple) return val
+  return val[0]
+}
+
+function hasImageValue(label: string): boolean {
+  const files = imageFiles.value[label]
+  if (files && files.length > 0) return true
+  const data = formData[label]
+  return hasImageData(data)
+}
+
+function getDisplayImages(label: string): string[] {
+  const files = imageFiles.value[label]
+  if (files && files.length > 0) return files.map((f: File) => URL.createObjectURL(f))
+  const data = formData[label]
+  if (Array.isArray(data)) return data.filter((d: any) => isImageUrl(d))
+  if (typeof data === 'string' && isImageUrl(data)) return [data]
+  return []
+}
+
+function getPreviewUrls(label: string): string[] {
+  const files = imageFiles.value[label]
+  if (files && files.length > 0) return files.map((f: File) => URL.createObjectURL(f))
+  const data = formData[label]
+  if (Array.isArray(data)) return data.filter((d: any) => isImageUrl(d)).map((u: any) => (typeof u === 'string' ? u : ''))
+  if (typeof data === 'string' && isImageUrl(data)) return [data]
+  return []
+}
+
+function removeImage(label: string, idx: number) {
+  const files = imageFiles.value[label]
+  if (files) {
+    const next = files.filter((_: File, i: number) => i !== idx)
+    imageFiles.value = { ...imageFiles.value, [label]: next }
+  }
+  const data = formData[label]
+  if (Array.isArray(data)) {
+    formData[label] = data.filter((_: any, i: number) => i !== idx)
+  }
 }
 
 function isImageUrl(val: any): boolean {
@@ -682,12 +727,34 @@ function isImageUrl(val: any): boolean {
   return val.startsWith('/media/') || val.startsWith('http')
 }
 
-function getImageLocalUrl(file: File): string {
-  return URL.createObjectURL(file)
+function hasImageData(val: any): boolean {
+  if (typeof val === 'string') return isImageUrl(val)
+  if (Array.isArray(val)) return val.some(isImageUrl)
+  return false
 }
 
-function openImagePreview(url: string) {
-  imagePreviewDialog.url = url
+function getFirstImageUrl(val: any): string {
+  if (typeof val === 'string') return val
+  if (Array.isArray(val)) return val.find(isImageUrl) || ''
+  return ''
+}
+
+function getImageCount(val: any): number {
+  if (typeof val === 'string') return isImageUrl(val) ? 1 : 0
+  if (Array.isArray(val)) return val.filter(isImageUrl).length
+  return 0
+}
+
+function getImageUrls(val: any): string[] {
+  if (typeof val === 'string') return isImageUrl(val) ? [val] : []
+  if (Array.isArray(val)) return val.filter(isImageUrl)
+  return []
+}
+
+function openImagePreview(urls: string | string[], index: number = 0) {
+  const arr = typeof urls === 'string' ? [urls] : urls
+  imagePreviewDialog.urls = arr
+  imagePreviewDialog.currentIndex = index
   imagePreviewDialog.show = true
 }
 
@@ -698,6 +765,63 @@ function downloadImage(url: string) {
   document.body.appendChild(a)
   a.click()
   document.body.removeChild(a)
+}
+
+async function downloadAllImages(data: Record<string, any>) {
+  const urls: string[] = []
+  for (const key of Object.keys(data)) {
+    const val = data[key]
+    if (typeof val === 'string' && isImageUrl(val)) urls.push(val)
+    else if (Array.isArray(val)) val.filter(isImageUrl).forEach((u: string) => urls.push(u))
+  }
+  for (let i = 0; i < urls.length; i++) {
+    setTimeout(() => { const a = document.createElement('a'); a.href = urls[i]; a.download = urls[i].split('/').pop() || 'image'; document.body.appendChild(a); a.click(); document.body.removeChild(a) }, i * 300)
+  }
+}
+
+function getResubmitImageModel(label: string): File | File[] | null {
+  const val = resubmitImageFiles.value[label]
+  if (!val || val.length === 0) return null
+  const field = formFields.value.find((f: any) => f.label === label)
+  if (field?.multiple) return val
+  return val[0]
+}
+
+function hasResubmitImageValue(label: string): boolean {
+  const files = resubmitImageFiles.value[label]
+  if (files && files.length > 0) return true
+  const data = resubmitFormDialog.data[label]
+  return hasImageData(data)
+}
+
+function getResubmitDisplayImages(label: string): string[] {
+  const files = resubmitImageFiles.value[label]
+  if (files && files.length > 0) return files.map((f: File) => URL.createObjectURL(f))
+  const data = resubmitFormDialog.data[label]
+  if (Array.isArray(data)) return data.filter((d: any) => isImageUrl(d))
+  if (typeof data === 'string' && isImageUrl(data)) return [data]
+  return []
+}
+
+function getResubmitPreviewUrls(label: string): string[] {
+  const files = resubmitImageFiles.value[label]
+  if (files && files.length > 0) return files.map((f: File) => URL.createObjectURL(f))
+  const data = resubmitFormDialog.data[label]
+  if (Array.isArray(data)) return data.filter((d: any) => isImageUrl(d)).map((u: any) => (typeof u === 'string' ? u : ''))
+  if (typeof data === 'string' && isImageUrl(data)) return [data]
+  return []
+}
+
+function removeResubmitImage(label: string, idx: number) {
+  const files = resubmitImageFiles.value[label]
+  if (files) {
+    const next = files.filter((_: File, i: number) => i !== idx)
+    resubmitImageFiles.value = { ...resubmitImageFiles.value, [label]: next }
+  }
+  const data = resubmitFormDialog.data[label]
+  if (Array.isArray(data)) {
+    resubmitFormDialog.data[label] = data.filter((_: any, i: number) => i !== idx)
+  }
 }
 
 async function uploadImage(file: File): Promise<string | null> {
@@ -850,8 +974,8 @@ function initFormData() {
       formData[field.label] = (Array.isArray(field.default) && field.default.length === 2)
         ? [...field.default] : ['', '']
     } else if (field.type === 'image') {
-      formData[field.label] = field.default || ''
-      imageFiles.value[field.label] = null
+      formData[field.label] = field.multiple ? [] : (field.default || '')
+      imageFiles.value = { ...imageFiles.value, [field.label]: [] }
     } else {
       formData[field.label] = field.default || ''
     }
@@ -994,14 +1118,21 @@ async function submitForm() {
   const token = cookie.get('token')
 
   for (const field of formFields.value) {
-    if (field.type === 'image' && imageFiles.value[field.label]) {
-      const url = await uploadImage(imageFiles.value[field.label]!)
-      if (url) {
-        formData[field.label] = url
-      } else {
-        showMsg(`${field.label} 上传失败`, 'error')
-        isSubmitting.value = false
-        return
+    if (field.type === 'image') {
+      const files = imageFiles.value[field.label]
+      if (files && files.length > 0) {
+        const urls: string[] = []
+        for (const file of files) {
+          const url = await uploadImage(file)
+          if (url) {
+            urls.push(url)
+          } else {
+            showMsg(`${field.label} 上传失败`, 'error')
+            isSubmitting.value = false
+            return
+          }
+        }
+        formData[field.label] = field.multiple ? urls : urls[0]
       }
     }
   }
@@ -1191,8 +1322,8 @@ async function openModifyDialog(item: RegistrationItem) {
     if (field.type === 'checkbox') {
       data[field.label] = Array.isArray(field.default) ? [...field.default] : []
     } else if (field.type === 'image') {
-      data[field.label] = field.default || ''
-      resubmitImageFiles.value[field.label] = null
+      data[field.label] = field.multiple ? [] : (field.default || '')
+      resubmitImageFiles.value = { ...resubmitImageFiles.value, [field.label]: [] }
     } else {
       data[field.label] = field.default || ''
     }
@@ -1289,8 +1420,8 @@ function fillResubmitForm() {
     if (field.type === 'checkbox') {
       data[field.label] = Array.isArray(field.default) ? [...field.default] : []
     } else if (field.type === 'image') {
-      data[field.label] = field.default || ''
-      resubmitImageFiles.value[field.label] = null
+      data[field.label] = field.multiple ? [] : (field.default || '')
+      resubmitImageFiles.value = { ...resubmitImageFiles.value, [field.label]: [] }
     } else {
       data[field.label] = field.default || ''
     }
@@ -1318,14 +1449,21 @@ async function doResubmit() {
   const token = cookie.get('token')
 
   for (const field of formFields.value) {
-    if (field.type === 'image' && resubmitImageFiles.value[field.label]) {
-      const url = await uploadImage(resubmitImageFiles.value[field.label]!)
-      if (url) {
-        resubmitFormDialog.data[field.label] = url
-      } else {
-        showMsg(`${field.label} 上传失败`, 'error')
-        isSubmitting.value = false
-        return
+    if (field.type === 'image') {
+      const files = resubmitImageFiles.value[field.label]
+      if (files && files.length > 0) {
+        const urls: string[] = []
+        for (const file of files) {
+          const url = await uploadImage(file)
+          if (url) {
+            urls.push(url)
+          } else {
+            showMsg(`${field.label} 上传失败`, 'error')
+            isSubmitting.value = false
+            return
+          }
+        }
+        resubmitFormDialog.data[field.label] = field.multiple ? urls : urls[0]
       }
     }
   }
