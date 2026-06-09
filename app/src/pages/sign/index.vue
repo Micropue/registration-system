@@ -93,7 +93,6 @@
                     {{ field.label }} <span v-if="field.required" class="text-error">*</span>
                   </div>
                   <v-file-input
-                    :model-value="getImageModel(field.label)"
                     @update:model-value="onMainImageChange(field.label, $event)"
                     :label="field.label"
                     :multiple="!!field.multiple"
@@ -301,7 +300,6 @@
                     {{ field.label }} <span v-if="field.required" class="text-error">*</span>
                   </div>
                   <v-file-input
-                    :model-value="getResubmitImageModel(field.label)"
                     @update:model-value="onResubmitImageChange(field.label, $event)"
                     :label="field.label"
                     :multiple="!!field.multiple"

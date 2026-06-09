@@ -259,7 +259,6 @@
               <template v-else-if="field.type === 'image'">
                 <div class="text-subtitle-2 mb-2">{{ field.label }} <span v-if="field.required" class="text-error">*</span></div>
                 <v-file-input
-                  :model-value="getAdminImageModel(field.label)"
                   @update:model-value="onModifyImageChange(field.label, $event)"
                   :label="field.label"
                   :multiple="!!field.multiple"
