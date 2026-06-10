@@ -424,7 +424,7 @@ async function fetchPendingCounts() {
     if (res.code === 200 && res.data) {
       businessBadges.value = {
         '订单处理': res.data.pending_registrations || 0,
-        '工单处理': res.data.pending_feedbacks || 0,
+        '工单处理': (res.data.pending_feedbacks || 0) + (res.data.unread_feedbacks || 0),
         '充值审批': res.data.pending_recharges || 0,
       }
     }

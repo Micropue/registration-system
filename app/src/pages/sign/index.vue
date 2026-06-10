@@ -93,10 +93,11 @@
                     {{ field.label }} <span v-if="field.required" class="text-error">*</span>
                   </div>
                   <v-file-input
+                    :key="field.label"
                     @update:model-value="onMainImageChange(field.label, $event)"
                     :label="field.label"
                     :multiple="!!field.multiple"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif"
                     prepend-icon="mdi-camera-image"
                     variant="outlined"
                     density="comfortable"
@@ -105,7 +106,7 @@
                   ></v-file-input>
                   <div v-if="hasImageValue(field.label)" class="d-flex flex-wrap ga-2 py-2">
                     <div v-for="(url, idx) in getDisplayImages(field.label)" :key="idx" class="position-relative">
-                      <v-img :src="url" max-height="80" max-width="100"
+                      <v-img :src="url" height="80" width="100"
                         class="rounded elevation-1 cursor-pointer"
                         cover @click="openImagePreview(getPreviewUrls(field.label), idx)"></v-img>
                       <v-btn v-if="field.multiple" icon="mdi-close-circle" size="x-small"
@@ -300,10 +301,11 @@
                     {{ field.label }} <span v-if="field.required" class="text-error">*</span>
                   </div>
                   <v-file-input
+                    :key="'resubmit-' + field.label"
                     @update:model-value="onResubmitImageChange(field.label, $event)"
                     :label="field.label"
                     :multiple="!!field.multiple"
-                    accept="image/*"
+                    accept="image/png,image/jpeg,image/webp,image/gif,image/heic,image/heif"
                     prepend-icon="mdi-camera-image"
                     variant="outlined"
                     density="comfortable"
@@ -312,7 +314,7 @@
                   ></v-file-input>
                   <div v-if="hasResubmitImageValue(field.label)" class="d-flex flex-wrap ga-2 py-2">
                     <div v-for="(url, idx) in getResubmitDisplayImages(field.label)" :key="idx" class="position-relative">
-                      <v-img :src="url" max-height="80" max-width="100"
+                      <v-img :src="url" height="80" width="100"
                         class="rounded elevation-1 cursor-pointer"
                         cover @click="openImagePreview(getResubmitPreviewUrls(field.label), idx)"></v-img>
                       <v-btn v-if="field.multiple" icon="mdi-close-circle" size="x-small"
@@ -365,12 +367,12 @@
                   <template v-if="hasImageData(infoDialogItem.data[key])">
                     <div class="d-flex align-center">
                       <div class="d-flex align-center cursor-pointer" @click="openImagePreview(getImageUrls(infoDialogItem.data[key]), 0)">
-                        <v-img :src="getFirstImageUrl(infoDialogItem.data[key])" max-height="80" max-width="100"
+                        <v-img :src="getFirstImageUrl(infoDialogItem.data[key])" height="80" width="100"
                           class="rounded elevation-1 my-1" cover></v-img>
                         <span v-if="getImageCount(infoDialogItem.data[key]) > 1" class="text-caption text-primary ms-1 font-weight-bold">+{{ getImageCount(infoDialogItem.data[key]) - 1 }}</span>
                       </div>
                       <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
-                        class="ms-2" @click="downloadImage(getFirstImageUrl(infoDialogItem.data[key]))"></v-btn>
+                        class="ms-2" @click="downloadAllImages(infoDialogItem.data)"></v-btn>
                     </div>
                   </template>
                   <template v-else>{{ formatValue(infoDialogItem.data[key]) }}</template>
@@ -381,6 +383,9 @@
           <v-alert v-if="infoDialogItem?.reject_reason" type="error" variant="tonal" class="mt-3" density="compact">
             <strong>驳回原因：</strong>{{ infoDialogItem.reject_reason }}
           </v-alert>
+          <div class="mt-3" v-if="infoDialogItem">
+            <v-btn v-if="hasAnyImages(infoDialogItem.data)" size="small" variant="tonal" color="primary" prepend-icon="mdi-download-multiple" @click="downloadAllImages(infoDialogItem.data)">导出所有图片</v-btn>
+          </div>
           <div class="text-caption text-medium-emphasis mt-2" v-if="infoDialogItem">
             提交时间：{{ formatDate(infoDialogItem.created_at) }}
           </div>
@@ -480,12 +485,12 @@
                   <template v-if="hasImageData(detailDialog.data[key])">
                     <div class="d-flex align-center">
                       <div class="d-flex align-center cursor-pointer" @click="openImagePreview(getImageUrls(detailDialog.data[key]), 0)">
-                        <v-img :src="getFirstImageUrl(detailDialog.data[key])" max-height="80" max-width="100"
+                        <v-img :src="getFirstImageUrl(detailDialog.data[key])" height="80" width="100"
                           class="rounded elevation-1 my-1" cover></v-img>
                         <span v-if="getImageCount(detailDialog.data[key]) > 1" class="text-caption text-primary ms-1 font-weight-bold">+{{ getImageCount(detailDialog.data[key]) - 1 }}</span>
                       </div>
                       <v-btn icon="mdi-download" size="x-small" variant="text" density="compact"
-                        class="ms-2" @click="downloadImage(getFirstImageUrl(detailDialog.data[key]))"></v-btn>
+                        class="ms-2" @click="downloadAllImages(detailDialog.data)"></v-btn>
                     </div>
                   </template>
                   <template v-else>{{ formatValue(detailDialog.data[key]) }}</template>
@@ -496,6 +501,9 @@
               <v-alert v-if="detailDialog.rejectReason" type="error" variant="tonal" class="mt-3" density="compact">
                 <strong>驳回原因：</strong>{{ detailDialog.rejectReason }}
               </v-alert>
+              <div class="mt-3">
+                <v-btn v-if="hasAnyImages(detailDialog.data)" size="small" variant="tonal" color="primary" prepend-icon="mdi-download-multiple" @click="downloadAllImages(detailDialog.data)">导出所有图片</v-btn>
+              </div>
             </v-card-text>
           </div>
 
@@ -519,14 +527,15 @@
           <v-btn icon="mdi-close" variant="text" @click="imagePreviewDialog.show = false"></v-btn>
         </v-card-actions>
         <div class="d-flex" style="min-height:300px">
-          <div v-if="imagePreviewDialog.urls.length > 1" class="d-flex flex-column pa-2 overflow-y-auto" style="max-width:120px;max-height:70vh;gap:6px">
-            <v-img v-for="(url, idx) in imagePreviewDialog.urls" :key="idx"
-              :src="url" max-height="70" max-width="90"
-              class="rounded cursor-pointer"
-              :class="idx === imagePreviewDialog.currentIndex ? 'elevation-3 border-primary' : 'elevation-1'"
-              style="border:2px solid"
-              :style="{ borderColor: idx === imagePreviewDialog.currentIndex ? 'rgb(var(--v-theme-primary))' : 'transparent' }"
-              cover @click="imagePreviewDialog.currentIndex = idx"></v-img>
+          <div v-if="imagePreviewDialog.urls.length > 1" class="d-flex flex-column pa-2 overflow-y-auto flex-shrink-0" style="width:80px;max-height:70vh;gap:6px">
+            <div v-for="(url, idx) in imagePreviewDialog.urls" :key="idx"
+              style="width:60px;height:60px;overflow:hidden;flex-shrink:0;border-radius:4px"
+              class="cursor-pointer"
+              :class="idx === imagePreviewDialog.currentIndex ? 'elevation-3' : 'elevation-1'"
+              :style="{ border: idx === imagePreviewDialog.currentIndex ? '2px solid rgb(var(--v-theme-primary))' : '2px solid transparent' }"
+              @click="imagePreviewDialog.currentIndex = idx">
+              <v-img :src="url" height="60" width="60" cover></v-img>
+            </div>
           </div>
           <div class="flex-grow-1 pa-2">
             <v-img :src="imagePreviewDialog.urls[imagePreviewDialog.currentIndex] || ''" max-height="75vh" contain></v-img>
@@ -668,11 +677,24 @@ const resubmitImageFiles = shallowRef<Record<string, File[]>>({})
 const imagePreviewDialog = reactive({ show: false, urls: [] as string[], currentIndex: 0 })
 
 function onMainImageChange(label: string, files: File | File[]) {
-  imageFiles.value = { ...imageFiles.value, [label]: Array.isArray(files) ? files : files ? [files] : [] }
+  const arr = Array.isArray(files) ? files : files ? [files] : []
+  const valid = arr.filter(f => isAllowedImageType(f))
+  if (valid.length < arr.length) showMsg('仅支持 PNG/JPEG/WebP/GIF/HEIC/HEIF 格式', 'warning')
+  imageFiles.value = { ...imageFiles.value, [label]: valid }
 }
 
 function onResubmitImageChange(label: string, files: File | File[]) {
-  resubmitImageFiles.value = { ...resubmitImageFiles.value, [label]: Array.isArray(files) ? files : files ? [files] : [] }
+  const arr = Array.isArray(files) ? files : files ? [files] : []
+  const valid = arr.filter(f => isAllowedImageType(f))
+  if (valid.length < arr.length) showMsg('仅支持 PNG/JPEG/WebP/GIF/HEIC/HEIF 格式', 'warning')
+  resubmitImageFiles.value = { ...resubmitImageFiles.value, [label]: valid }
+}
+
+function isAllowedImageType(file: File): boolean {
+  const allowed = ['image/png','image/jpeg','image/webp','image/gif','image/heic','image/heif']
+  if (allowed.includes(file.type)) return true
+  const ext = file.name.split('.').pop()?.toLowerCase() || ''
+  return ['png','jpg','jpeg','webp','gif','heic','heif'].includes(ext)
 }
 
 function getImageModel(label: string): File | File[] | null {
@@ -777,6 +799,13 @@ async function downloadAllImages(data: Record<string, any>) {
   }
 }
 
+function hasAnyImages(data: Record<string, any>): boolean {
+  for (const key of Object.keys(data)) {
+    if (hasImageData(data[key])) return true
+  }
+  return false
+}
+
 function getResubmitImageModel(label: string): File | File[] | null {
   const val = resubmitImageFiles.value[label]
   if (!val || val.length === 0) return null
@@ -823,6 +852,7 @@ function removeResubmitImage(label: string, idx: number) {
 }
 
 async function uploadImage(file: File): Promise<string | null> {
+  if (!isAllowedImageType(file)) return null
   const token = cookie.get('token')
   try {
     const res = await ajax<{ url: string }>(ApiUrl.UPLOAD_IMAGE, {

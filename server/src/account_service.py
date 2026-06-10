@@ -356,6 +356,14 @@ class AccountService:
                 FOREIGN KEY (app_id) REFERENCES running_apps(id) ON DELETE CASCADE
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
         """)
+        try:
+            cursor.execute("ALTER TABLE feedbacks ADD COLUMN admin_unread INT DEFAULT 0")
+        except:
+            pass
+        try:
+            cursor.execute("ALTER TABLE feedbacks ADD COLUMN user_unread INT DEFAULT 0")
+        except:
+            pass
 
     PERMISSION_TREE = {
         "账户管理": {"查看": {"下属用户": True, "其他用户": True}, "创建": True, "修改": True, "删除": True, "强制下线": True},
@@ -1690,39 +1698,58 @@ class AccountService:
             connection.commit()
             return cursor.rowcount > 0
 
-    def get_dashboard_stats(self) -> dict[str, Any]:
+    def get_dashboard_stats(self, user_uid: str = '') -> dict[str, Any]:
         now = self.db.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        sub_uids: list[str] = []
+        filter_by_user = False
+        if user_uid:
+            descendants = self._get_all_descendant_uids(user_uid)
+            if descendants:
+                sub_uids = [user_uid] + list(descendants)
+                filter_by_user = True
         with self.db.connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("SELECT COUNT(*) FROM users")
-            total_users = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM registrations")
-            total_registrations = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM registrations WHERE status = 'pending'")
-            pending_registrations = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM feedbacks")
-            total_feedbacks = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM feedbacks WHERE status = 'pending'")
-            pending_feedbacks = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM registrations WHERE create_time >= %s", (today_start,))
-            today_registrations = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM feedbacks WHERE create_time >= %s", (today_start,))
-            today_feedbacks = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM running_apps")
-            total_apps = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM registration_chats WHERE created_at >= %s", (today_start,))
-            today_chats = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM balance_recharges")
-            total_recharges = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM balance_recharges WHERE status = 'pending'")
-            pending_recharges = cursor.fetchone()[0]
+            def count(table: str, where: str = '', params: tuple = ()) -> int:
+                sql = f"SELECT COUNT(*) FROM {table}"
+                if where:
+                    sql += " WHERE " + where
+                cursor.execute(sql, params)
+                return cursor.fetchone()[0]
+            def build_in_placeholders(uids: list[str], filter_flag: bool) -> tuple[str, tuple]:
+                if not filter_flag:
+                    return "1=1", ()
+                if not uids:
+                    return "1=0", ()
+                return "user_uid IN (" + ",".join(["%s"] * len(uids)) + ")", tuple(uids)
+            reg_where, reg_params = build_in_placeholders(sub_uids, filter_by_user)
+            fb_where, fb_params = build_in_placeholders(sub_uids, filter_by_user)
+
+            total_users = len(sub_uids) if filter_by_user else count("users")
+            total_registrations = count("registrations", reg_where, reg_params)
+            pending_registrations = count("registrations", f"{reg_where} AND status = 'pending'", reg_params)
+            total_feedbacks = count("feedbacks", fb_where, fb_params)
+            pending_feedbacks = count("feedbacks", f"{fb_where} AND status = 'pending'", fb_params)
+            unread_feedbacks = count("feedbacks", f"{fb_where} AND COALESCE(admin_unread, 0) > 0", fb_params)
+            today_registrations = count("registrations", f"{reg_where} AND create_time >= %s", reg_params + (today_start,))
+            today_feedbacks = count("feedbacks", f"{fb_where} AND create_time >= %s", fb_params + (today_start,))
+            total_apps = count("running_apps")
+            if filter_by_user and sub_uids:
+                chat_where = "created_at >= %s AND sender_uid IN (" + ",".join(["%s"] * len(sub_uids)) + ")"
+                chat_params: tuple = (today_start,) + tuple(sub_uids)
+            else:
+                chat_where = "created_at >= %s"
+                chat_params = (today_start,)
+            today_chats = count("registration_chats", chat_where, chat_params)
+            total_recharges = count("balance_recharges", reg_where, reg_params)
+            pending_recharges = count("balance_recharges", f"{reg_where} AND status = 'pending'", reg_params)
         return {
             'total_users': total_users,
             'total_registrations': total_registrations,
             'pending_registrations': pending_registrations,
             'total_feedbacks': total_feedbacks,
             'pending_feedbacks': pending_feedbacks,
+            'unread_feedbacks': unread_feedbacks,
             'total_recharges': total_recharges,
             'pending_recharges': pending_recharges,
             'today_registrations': today_registrations,
@@ -1748,12 +1775,13 @@ class AccountService:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM feedbacks WHERE user_uid = %s", (user_uid,))
             total = cursor.fetchone()["total"]
-            cursor.execute("SELECT f.uid, f.title, f.content, f.status, f.create_time, (SELECT COUNT(*) FROM feedback_replies WHERE feedback_uid = f.uid) as reply_count FROM feedbacks f WHERE f.user_uid = %s ORDER BY f.create_time DESC LIMIT %s OFFSET %s", (user_uid, page_size, offset))
+            cursor.execute("SELECT f.uid, f.title, f.content, f.status, f.create_time, f.user_unread, (SELECT COUNT(*) FROM feedback_replies WHERE feedback_uid = f.uid) as reply_count FROM feedbacks f WHERE f.user_uid = %s ORDER BY f.create_time DESC LIMIT %s OFFSET %s", (user_uid, page_size, offset))
             rows = cursor.fetchall()
         return {'total': total, 'page': page, 'page_size': page_size, 'items': [{
             'id': row['uid'], 'title': row['title'], 'content': row['content'],
             'status': row['status'], 'created_at': row['create_time'].isoformat(),
-            'reply_count': row['reply_count']
+            'reply_count': row['reply_count'],
+            'user_unread': row['user_unread'] or 0
         } for row in rows]}
 
     def get_all_feedbacks(self, page: int = 1, page_size: int = 20, username: str | None = None) -> dict[str, Any]:
@@ -1767,12 +1795,13 @@ class AccountService:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM feedbacks f JOIN users u ON f.user_uid = u.uid" + where_clause, tuple(params))
             total = cursor.fetchone()["total"]
-            cursor.execute("SELECT f.uid, f.title, f.content, f.status, f.create_time, u.username FROM feedbacks f JOIN users u ON f.user_uid = u.uid" + where_clause + " ORDER BY CASE f.status WHEN 'pending' THEN 0 ELSE 1 END ASC, f.create_time DESC LIMIT %s OFFSET %s", tuple(params) + (page_size, offset))
+            cursor.execute("SELECT f.uid, f.title, f.content, f.status, f.create_time, f.admin_unread, u.username FROM feedbacks f JOIN users u ON f.user_uid = u.uid" + where_clause + " ORDER BY CASE f.status WHEN 'pending' THEN 0 ELSE 1 END ASC, f.create_time DESC LIMIT %s OFFSET %s", tuple(params) + (page_size, offset))
             rows = cursor.fetchall()
         return {'total': total, 'page': page, 'page_size': page_size, 'items': [{
             'id': row['uid'], 'username': row['username'], 'title': row['title'],
             'content': row['content'], 'status': row['status'],
-            'created_at': row['create_time'].isoformat()
+            'created_at': row['create_time'].isoformat(),
+            'admin_unread': row['admin_unread'] or 0
         } for row in rows]}
 
     def get_feedback_detail(self, uid: str) -> dict[str, Any] | None:
@@ -1784,6 +1813,8 @@ class AccountService:
                 return None
             cursor.execute("SELECT fr.uid, fr.content, fr.is_admin, fr.create_time, u.username, ug.name as group_name FROM feedback_replies fr JOIN users u ON fr.user_uid = u.uid LEFT JOIN user_groups ug ON ug.uid = u.group_uid WHERE fr.feedback_uid = %s ORDER BY fr.create_time ASC", (uid,))
             replies = [{'id': r['uid'], 'content': r['content'], 'username': r['username'], 'group_name': r.get('group_name') or '未分配', 'is_admin': bool(r['is_admin']), 'created_at': r['create_time'].isoformat()} for r in cursor.fetchall()]
+            cursor.execute("UPDATE feedbacks SET admin_unread = 0, user_unread = 0 WHERE uid = %s AND (COALESCE(admin_unread, 0) > 0 OR COALESCE(user_unread, 0) > 0)", (uid,))
+            connection.commit()
         return {'id': row['uid'], 'username': row['username'], 'user_uid': row['user_uid'], 'title': row['title'], 'content': row['content'], 'status': row['status'], 'created_at': row['create_time'].isoformat(), 'replies': replies}
 
     def add_feedback_reply(self, feedback_uid: str, user_uid: str, content: str, is_admin: bool = False) -> str:
@@ -1792,6 +1823,13 @@ class AccountService:
         with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO feedback_replies (uid, feedback_uid, user_uid, is_admin, content, create_time) VALUES (%s, %s, %s, %s, %s, %s)", (uid, feedback_uid, user_uid, is_admin, content, now))
+            if not is_admin:
+                cursor.execute("SELECT user_uid FROM feedbacks WHERE uid = %s", (feedback_uid,))
+                fb = cursor.fetchone()
+                if fb and fb[0] != user_uid:
+                    cursor.execute("UPDATE feedbacks SET admin_unread = COALESCE(admin_unread, 0) + 1 WHERE uid = %s", (feedback_uid,))
+            else:
+                cursor.execute("UPDATE feedbacks SET user_unread = COALESCE(user_unread, 0) + 1 WHERE uid = %s", (feedback_uid,))
             connection.commit()
         return uid
 

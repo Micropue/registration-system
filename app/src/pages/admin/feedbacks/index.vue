@@ -20,7 +20,10 @@
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn variant="tonal" rounded color="primary" @click="openDetail(item)">查看/回复</v-btn>
+            <div style="position:relative;display:inline-block">
+              <v-btn variant="tonal" rounded color="primary" @click="openDetail(item)">查看/回复</v-btn>
+              <span v-if="item.admin_unread > 0" style="position:absolute;top:-6px;right:-6px;background:#e53935;color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;padding:0 4px;box-sizing:border-box;z-index:1">{{ item.admin_unread }}</span>
+            </div>
             <v-btn variant="tonal" rounded color="success" @click="updateStatus(item, 'resolved')">已处理</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="updateStatus(item, 'rejected')">驳回</v-btn>
             <v-btn variant="tonal" rounded color="warning" @click="updateStatus(item, 'pending')">待处理</v-btn>
@@ -166,6 +169,10 @@ async function openDetail(item: FeedbackItem) {
     }
   } catch (err) { showMsg('加载失败', 'error') }
 }
+
+watch(() => detailDialog.show, (val) => {
+  if (!val) loadFeedbacks()
+})
 
 async function openDetailById(id: string) {
   return openDetail({ id } as FeedbackItem)

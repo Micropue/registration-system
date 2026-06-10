@@ -525,7 +525,7 @@ async def get_balance_transactions(authorization: Optional[str] = Header(None), 
 async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "订单处理", "查看")
     if err: return err
-    stats = account_service.get_dashboard_stats()
+    stats = account_service.get_dashboard_stats(session.user_uid)
     return api_response(200, "Success", stats)
 
 @app.get("/admin/settings/running-apps/{app_uid}/templates")

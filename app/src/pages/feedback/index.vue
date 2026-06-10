@@ -34,7 +34,10 @@
       </template>
 
       <template v-slot:item.actions="{ item }">
-        <v-btn variant="tonal" rounded size="small" color="primary" @click="openDetail(item.id)">查看详情</v-btn>
+        <div style="position:relative;display:inline-block">
+          <v-btn variant="tonal" rounded size="small" color="primary" @click="openDetail(item.id)">查看详情</v-btn>
+          <span v-if="(item.user_unread || 0) > 0" style="position:absolute;top:-6px;right:-6px;background:#e53935;color:#fff;border-radius:50%;min-width:18px;height:18px;font-size:11px;line-height:18px;text-align:center;padding:0 4px;box-sizing:border-box;z-index:1">{{ item.user_unread }}</span>
+        </div>
       </template>
     </app-data-table>
 
@@ -213,6 +216,10 @@ async function openDetail(id: string) {
     }
   } catch (err) { showMsg('加载失败', 'error') }
 }
+
+watch(() => detailDialog.show, (val) => {
+  if (!val) loadFeedbacks()
+})
 
 function handleFeedbackQueryId() {
   const feedbackId = route.query.id
