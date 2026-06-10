@@ -241,7 +241,10 @@ async function submitReply() {
     if (res.code === 200) {
       showMsg('回复成功')
       detailDialog.replyContent = ''
-      openDetail(detailDialog.data.id)
+      const fres = await ajax<FeedbackDetail>(`${ApiUrl.GET_FEEDBACK_DETAIL}/${detailDialog.data.id}?no_reset=1`, {
+        headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+      })
+      if (fres.code === 200) detailDialog.data = fres.data
     } else showMsg(res.msg, 'error')
   } catch (err) { showMsg('回复失败', 'error') }
   finally { replyLoading.value = false }

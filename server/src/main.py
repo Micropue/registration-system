@@ -262,7 +262,7 @@ async def get_registrations(
 ):
     session, err = require_perm(authorization, "订单处理", "查看")
     if err: return err
-    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=running_app, username=username)
+    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=running_app, username=username, current_user_uid=session.user_uid)
     return api_response(200, "Success", data)
 
 @app.get("/admin/registrations/stats")
@@ -574,7 +574,7 @@ async def update_app_template(app_uid: str, uid: str, data: dict[str, Any], auth
     if not account_service.verify_account_type(token, "admin"):
         return api_response(403, "您没有此操作权限")
     try:
-        account_service.update_app_template(uid, data.get('version_name', ''), data.get('fields', []))
+        account_service.update_app_template(uid, data.get('version_name', ''), data.get('fields', []), data.get('emphasis_config'))
         return api_response(200, "Template updated")
     except Exception as e:
         return api_response(500, str(e))
@@ -746,13 +746,27 @@ async def get_user_feedbacks(
     return api_response(200, "Success", data)
 
 @app.get("/feedbacks/{uid}")
-async def get_feedback(uid: str, authorization: Optional[str] = Header(None)):
+async def get_feedback(uid: str, authorization: Optional[str] = Header(None), no_reset: int = Query(0)):
     session, err = require_perm(authorization, "新建工单")
     if err: return err
+    is_admin = account_service._check_permission(session.user_uid, "工单处理", "查看")
     detail = account_service.get_feedback_detail(uid)
     if not detail: return api_response(404, "Not found")
-    if not account_service._check_permission(session.user_uid, "工单处理", "查看") and detail['user_uid'] != session.user_uid:
+    if not is_admin and detail['user_uid'] != session.user_uid:
         return api_response(403, 您没有此操作权限)
+    if not no_reset:
+        if is_admin:
+            with account_service.db.connect() as conn:
+                cur = conn.cursor()
+                cur.execute("UPDATE feedbacks SET admin_unread = 0 WHERE uid = %s AND COALESCE(admin_unread, 0) > 0", (uid,))
+                if cur.rowcount > 0:
+                    conn.commit()
+                    asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "工单处理"}))
+        if detail['user_uid'] == session.user_uid:
+            with account_service.db.connect() as conn:
+                cur = conn.cursor()
+                cur.execute("UPDATE feedbacks SET user_unread = 0 WHERE uid = %s AND COALESCE(user_unread, 0) > 0", (uid,))
+                conn.commit()
     return api_response(200, "Success", detail)
 
 @app.post("/feedbacks/{uid}/reply")
@@ -770,8 +784,10 @@ async def reply_feedback(
         if not is_admin and detail['user_uid'] != session.user_uid:
             return api_response(403, 您没有此操作权限)
         account_service.add_feedback_reply(uid, session.user_uid, content, is_admin)
-        if is_admin:
+        if detail['user_uid'] != session.user_uid:
             account_service.create_notification(detail['user_uid'], 'feedback_replied', '工单有新回复', f'管理员回复了您的工单: {detail["title"]}', uid)
+        else:
+            asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "工单处理", "delta": 1}))
         return api_response(200, "Reply added")
     except Exception as e:
         return api_response(500, f"Error: {str(e)}")
@@ -786,7 +802,7 @@ async def admin_get_feedbacks(
 ):
     session, err = require_perm(authorization, "工单处理", "查看")
     if err: return err
-    data = account_service.get_all_feedbacks(page, page_size, username)
+    data = account_service.get_all_feedbacks(page, page_size, username, current_user_uid=session.user_uid)
     return api_response(200, "Success", data)
 
 @app.post("/admin/feedbacks/{uid}/status")

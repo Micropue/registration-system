@@ -373,7 +373,11 @@ function connectNotifWs() {
       } else if (data.type === 'business_update') {
         const isAdmin = user.value?.role !== 'default'
         if (isAdmin) {
-          businessBadges.value[data.key] = Math.max(0, (businessBadges.value[data.key] || 0) + (data.delta || 0))
+          if (data.delta !== undefined) {
+            businessBadges.value[data.key] = Math.max(0, (businessBadges.value[data.key] || 0) + (data.delta || 0))
+          } else {
+            fetchPendingCounts()
+          }
         }
       } else if (data.type === 'chat_unread') {
         chatStore.incrementUnread(data.uid)

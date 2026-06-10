@@ -134,8 +134,8 @@ function defaultPermissions(): Record<string, any> {
   return {
     "账户管理": { "查看": { "下属用户": false, "其他用户": false }, "创建": false, "修改": false, "删除": false, "强制下线": false },
     "账户组管理": { "查看": false, "创建": false, "修改": false, "删除": false },
-    "订单处理": { "查看": false, "处理": false, "驳回": false, "删除": false, "修改": false },
-    "工单处理": { "查看": false, "回复": false, "解决": false, "删除": false },
+    "订单处理": { "查看": { "下属订单": false, "其他订单": false }, "处理": false, "驳回": false, "删除": false, "修改": false },
+    "工单处理": { "查看": { "下属工单": false, "其他工单": false }, "回复": false, "解决": false, "删除": false },
     "APP配置": { "查看": false, "修改": false, "余额管理": false },
     "充值审批": { "查看": false, "处理": false },
     "下属管理": { "查看": false, "配置": false },

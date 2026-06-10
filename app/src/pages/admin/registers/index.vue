@@ -174,6 +174,7 @@
               <v-spacer></v-spacer>
               <v-btn v-if="detailsDialog.item?.status !== 'approved'" variant="elevated" rounded size="small" color="success" prepend-icon="mdi-check" class="px-4 font-weight-bold" @click="doDetailsApprove">已处理</v-btn>
               <v-btn v-if="detailsDialog.item?.status !== 'rejected'" variant="elevated" rounded size="small" color="error" prepend-icon="mdi-close" class="px-4 font-weight-bold" @click="doDetailsReject">驳回</v-btn>
+              <v-btn v-if="emphasisTemplateConfig" variant="tonal" rounded size="small" color="warning" prepend-icon="mdi-alert-octagon" class="ms-auto" @click="showEmphasisDialog">强调窗</v-btn>
             </v-card-actions>
             </template>
           </div>
@@ -187,6 +188,39 @@
             />
           </div>
         </div>
+      </v-card>
+    </v-dialog>
+
+    <!-- 强调弹窗 -->
+    <v-dialog v-model="emphasisDialog.show" max-width="650" scrollable>
+      <v-card v-if="emphasisDialog.items.length" class="pa-4">
+        <v-card-title class="d-flex align-center">
+          <v-icon color="warning" class="mr-2">mdi-alert-octagon</v-icon>
+          <span class="text-h6">重要提醒</span>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="emphasisDialog.show = false"></v-btn>
+        </v-card-title>
+        <v-divider class="mb-3"></v-divider>
+        <v-card-text>
+          <v-table density="compact" border>
+            <thead>
+              <tr><th class="text-left">项目</th><th class="text-left">内容</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="(item, i) in emphasisDialog.items" :key="'em'+i">
+                <td :style="{ fontWeight: item.bold ? 'bold' : 'normal', color: item.color || undefined, fontSize: item.size || undefined }">{{ item.label }}</td>
+                <td :style="{ fontWeight: item.bold ? 'bold' : 'normal', color: item.color || undefined, fontSize: item.size || undefined }">
+                  {{ item.value }}
+                  <v-btn v-if="item.copyable" icon="mdi-content-copy" variant="text" density="compact" size="x-small" color="primary" class="ms-1" @click="copyEmphasisValue(item.value)"></v-btn>
+                </td>
+              </tr>
+            </tbody>
+          </v-table>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="emphasisDialog.show = false">关闭</v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
 
@@ -624,6 +658,8 @@ const snackbar = reactive({ show: false, text: '', color: 'success' })
 const templateFieldOrder = ref<string[]>([])
 const templateFieldCopyable = ref<Record<string, boolean>>({})
 const templateFieldStyles = ref<Record<string, { bold: boolean; color: string; size: string }>>({})
+const emphasisTemplateConfig = ref<any>(null)
+const emphasisDialog = reactive({ show: false, items: [] as { label: string; value: string; bold: boolean; color: string; size: string; copyable: boolean }[] })
 const detailTemplateLoading = ref(false)
 
 const detailFields = computed(() => {
@@ -711,7 +747,9 @@ async function loadTemplateFieldOrder(appName: string, templateUid: string) {
         })
         templateFieldCopyable.value = copyableMap
         templateFieldStyles.value = stylesMap
+        emphasisTemplateConfig.value = tpl.emphasis_config || null
         detailTemplateLoading.value = false
+        checkEmphasisConditions()
         return
       }
     }
@@ -719,7 +757,47 @@ async function loadTemplateFieldOrder(appName: string, templateUid: string) {
   templateFieldOrder.value = []
   templateFieldCopyable.value = {}
   templateFieldStyles.value = {}
+  emphasisTemplateConfig.value = null
   detailTemplateLoading.value = false
+}
+
+function checkEmphasisConditions() {
+  const config = emphasisTemplateConfig.value
+  if (!config || !config.conditions || config.conditions.length === 0) return
+  const info = detailsDialog.item?.registration_info
+  if (!info) return
+  const allMet = config.conditions.every((c: any) => {
+    const fieldVal = info[c.field]
+    if (fieldVal == null || fieldVal === '') return false
+    const matchLines = (c.values || '').split('\n').map((s: string) => s.trim()).filter(Boolean)
+    if (matchLines.length === 0) return false
+    const strVal = Array.isArray(fieldVal) ? fieldVal.join(', ') : String(fieldVal)
+    return matchLines.some((line: string) => strVal.includes(line))
+  })
+  if (allMet) {
+    showEmphasisDialog()
+  }
+}
+
+function showEmphasisDialog() {
+  const config = emphasisTemplateConfig.value
+  if (!config || !config.content) return
+  const info = detailsDialog.item?.registration_info || {}
+  emphasisDialog.items = config.content.map((c: any) => ({
+    label: c.label,
+    value: info[c.label] != null ? String(info[c.label]) : '',
+    bold: c.bold || false,
+    color: c.color || '#000000',
+    size: c.size || '',
+    copyable: c.copyable || false
+  }))
+  emphasisDialog.show = true
+}
+
+async function copyEmphasisValue(val: string) {
+  try {
+    await navigator.clipboard.writeText(val)
+  } catch { /* ignore */ }
 }
 
 onMounted(async () => {
@@ -753,6 +831,7 @@ function openDetailsDialog(item: RegistrationItem) {
 function handleDetailsClose() {
   detailsDialog.show = false
   detailTemplateLoading.value = false
+  emphasisTemplateConfig.value = null
   if (route.query.chat) {
     router.replace({ query: { ...route.query, chat: undefined } })
   }

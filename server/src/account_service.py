@@ -364,12 +364,16 @@ class AccountService:
             cursor.execute("ALTER TABLE feedbacks ADD COLUMN user_unread INT DEFAULT 0")
         except:
             pass
+        try:
+            cursor.execute("ALTER TABLE app_templates ADD COLUMN emphasis_config JSON DEFAULT NULL")
+        except:
+            pass
 
     PERMISSION_TREE = {
         "账户管理": {"查看": {"下属用户": True, "其他用户": True}, "创建": True, "修改": True, "删除": True, "强制下线": True},
         "账户组管理": {"查看": True, "创建": True, "修改": True, "删除": True},
-        "订单处理": {"查看": True, "处理": True, "驳回": True, "删除": True, "修改": True},
-        "工单处理": {"查看": True, "回复": True, "解决": True, "删除": True},
+        "订单处理": {"查看": {"下属订单": True, "其他订单": True}, "处理": True, "驳回": True, "删除": True, "修改": True},
+        "工单处理": {"查看": {"下属工单": True, "其他工单": True}, "回复": True, "解决": True, "删除": True},
         "APP配置": {"查看": True, "修改": True, "余额管理": True},
         "充值审批": {"查看": True, "处理": True},
         "下属管理": {"查看": True, "配置": True},
@@ -1354,7 +1358,7 @@ class AccountService:
 
     # ---- Admin Registrations ----
 
-    def get_registrations(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc", running_app: str | None = None, username: str | None = None) -> dict[str, Any]:
+    def get_registrations(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc", running_app: str | None = None, username: str | None = None, current_user_uid: str | None = None) -> dict[str, Any]:
         offset = (page - 1) * page_size
         params: list[Any] = []
         where_parts: list[str] = []
@@ -1364,6 +1368,31 @@ class AccountService:
         if username:
             where_parts.append("u.username = %s")
             params.append(username)
+        if current_user_uid:
+            perms = self._get_user_permissions(current_user_uid)
+            view_perm = perms.get("订单处理", {}).get("查看", False)
+            if isinstance(view_perm, dict):
+                can_see_subordinates = view_perm.get("下属订单", False)
+                can_see_others = view_perm.get("其他订单", False)
+            else:
+                can_see_subordinates = bool(view_perm)
+                can_see_others = bool(view_perm)
+            if not (can_see_subordinates and can_see_others):
+                descendant_uids = self._get_all_descendant_uids(current_user_uid) if can_see_subordinates else []
+                if can_see_subordinates and not can_see_others:
+                    allowed_uids = [current_user_uid] + descendant_uids
+                    placeholders = ",".join(["%s"] * len(allowed_uids))
+                    where_parts.append(f"r.user_uid IN ({placeholders})")
+                    params.extend(allowed_uids)
+                elif can_see_others and not can_see_subordinates:
+                    exclude_uids = [d for d in descendant_uids if d != current_user_uid]
+                    if exclude_uids:
+                        placeholders = ",".join(["%s"] * len(exclude_uids))
+                        where_parts.append(f"r.user_uid NOT IN ({placeholders})")
+                        params.extend(exclude_uids)
+                else:
+                    where_parts.append("r.user_uid = %s")
+                    params.append(current_user_uid)
         where_clause = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         if sort_by == 'priority':
             order_clause = "FIELD(r.priority, 'high', 'medium', 'low') ASC, r.create_time DESC"
@@ -1555,31 +1584,33 @@ class AccountService:
 
     # ---- App Templates ----
 
-    def create_app_template(self, app_id: int, version_name: str, fields: list[dict[str, Any]]) -> str:
+    def create_app_template(self, app_id: int, version_name: str, fields: list[dict[str, Any]], emphasis_config: dict[str, Any] | None = None) -> str:
         uid = self.db.new_uid()
         now = self.db.now()
         with self.db.connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO app_templates (uid, app_id, version_name, fields, create_time) VALUES (%s, %s, %s, %s, %s)", (uid, app_id, version_name, json.dumps(fields, ensure_ascii=False), now))
+            ec = json.dumps(emphasis_config, ensure_ascii=False) if emphasis_config else None
+            cursor.execute("INSERT INTO app_templates (uid, app_id, version_name, fields, emphasis_config, create_time) VALUES (%s, %s, %s, %s, %s, %s)", (uid, app_id, version_name, json.dumps(fields, ensure_ascii=False), ec, now))
             connection.commit()
         return uid
 
     def get_app_templates(self, app_id: int) -> list[dict[str, Any]]:
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT uid, app_id, version_name, fields, create_time FROM app_templates WHERE app_id = %s ORDER BY create_time DESC", (app_id,))
+            cursor.execute("SELECT uid, app_id, version_name, fields, emphasis_config, create_time FROM app_templates WHERE app_id = %s ORDER BY create_time DESC", (app_id,))
             rows = cursor.fetchall()
         return [{
             'uid': row['uid'], 'app_id': row['app_id'],
             'version_name': row['version_name'],
             'fields': json.loads(row['fields']),
+            'emphasis_config': json.loads(row['emphasis_config']) if row.get('emphasis_config') else None,
             'create_time': row['create_time'].isoformat()
         } for row in rows]
 
     def get_app_template(self, uid: str) -> dict[str, Any] | None:
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT uid, app_id, version_name, fields, create_time FROM app_templates WHERE uid = %s", (uid,))
+            cursor.execute("SELECT uid, app_id, version_name, fields, emphasis_config, create_time FROM app_templates WHERE uid = %s", (uid,))
             row = cursor.fetchone()
         if not row:
             return None
@@ -1587,13 +1618,15 @@ class AccountService:
             'uid': row['uid'], 'app_id': row['app_id'],
             'version_name': row['version_name'],
             'fields': json.loads(row['fields']),
+            'emphasis_config': json.loads(row['emphasis_config']) if row.get('emphasis_config') else None,
             'create_time': row['create_time'].isoformat()
         }
 
-    def update_app_template(self, uid: str, version_name: str, fields: list[dict[str, Any]]) -> bool:
+    def update_app_template(self, uid: str, version_name: str, fields: list[dict[str, Any]], emphasis_config: dict[str, Any] | None = None) -> bool:
         with self.db.connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("UPDATE app_templates SET version_name = %s, fields = %s WHERE uid = %s", (version_name, json.dumps(fields, ensure_ascii=False), uid))
+            ec = json.dumps(emphasis_config, ensure_ascii=False) if emphasis_config else None
+            cursor.execute("UPDATE app_templates SET version_name = %s, fields = %s, emphasis_config = %s WHERE uid = %s", (version_name, json.dumps(fields, ensure_ascii=False), ec, uid))
             connection.commit()
             return cursor.rowcount > 0
 
@@ -1608,7 +1641,7 @@ class AccountService:
         source = self.get_app_template(source_uid)
         if not source:
             raise AccountError("源模板不存在")
-        return self.create_app_template(target_app_id, version_name, source['fields'])
+        return self.create_app_template(target_app_id, version_name, source['fields'], source.get('emphasis_config'))
 
     def get_app_template_count(self, app_id: int) -> int:
         with self.db.connect() as connection:
@@ -1784,13 +1817,39 @@ class AccountService:
             'user_unread': row['user_unread'] or 0
         } for row in rows]}
 
-    def get_all_feedbacks(self, page: int = 1, page_size: int = 20, username: str | None = None) -> dict[str, Any]:
+    def get_all_feedbacks(self, page: int = 1, page_size: int = 20, username: str | None = None, current_user_uid: str | None = None) -> dict[str, Any]:
         offset = (page - 1) * page_size
-        where_clause = ""
+        where_parts: list[str] = []
         params: list[Any] = []
         if username:
-            where_clause = " WHERE u.username = %s"
+            where_parts.append("u.username = %s")
             params.append(username)
+        if current_user_uid:
+            perms = self._get_user_permissions(current_user_uid)
+            view_perm = perms.get("工单处理", {}).get("查看", False)
+            if isinstance(view_perm, dict):
+                can_see_subordinates = view_perm.get("下属工单", False)
+                can_see_others = view_perm.get("其他工单", False)
+            else:
+                can_see_subordinates = bool(view_perm)
+                can_see_others = bool(view_perm)
+            if not (can_see_subordinates and can_see_others):
+                descendant_uids = self._get_all_descendant_uids(current_user_uid) if can_see_subordinates else []
+                if can_see_subordinates and not can_see_others:
+                    allowed_uids = [current_user_uid] + descendant_uids
+                    placeholders = ",".join(["%s"] * len(allowed_uids))
+                    where_parts.append(f"f.user_uid IN ({placeholders})")
+                    params.extend(allowed_uids)
+                elif can_see_others and not can_see_subordinates:
+                    exclude_uids = [d for d in descendant_uids if d != current_user_uid]
+                    if exclude_uids:
+                        placeholders = ",".join(["%s"] * len(exclude_uids))
+                        where_parts.append(f"f.user_uid NOT IN ({placeholders})")
+                        params.extend(exclude_uids)
+                else:
+                    where_parts.append("f.user_uid = %s")
+                    params.append(current_user_uid)
+        where_clause = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("SELECT COUNT(*) as total FROM feedbacks f JOIN users u ON f.user_uid = u.uid" + where_clause, tuple(params))
@@ -1813,8 +1872,6 @@ class AccountService:
                 return None
             cursor.execute("SELECT fr.uid, fr.content, fr.is_admin, fr.create_time, u.username, ug.name as group_name FROM feedback_replies fr JOIN users u ON fr.user_uid = u.uid LEFT JOIN user_groups ug ON ug.uid = u.group_uid WHERE fr.feedback_uid = %s ORDER BY fr.create_time ASC", (uid,))
             replies = [{'id': r['uid'], 'content': r['content'], 'username': r['username'], 'group_name': r.get('group_name') or '未分配', 'is_admin': bool(r['is_admin']), 'created_at': r['create_time'].isoformat()} for r in cursor.fetchall()]
-            cursor.execute("UPDATE feedbacks SET admin_unread = 0, user_unread = 0 WHERE uid = %s AND (COALESCE(admin_unread, 0) > 0 OR COALESCE(user_unread, 0) > 0)", (uid,))
-            connection.commit()
         return {'id': row['uid'], 'username': row['username'], 'user_uid': row['user_uid'], 'title': row['title'], 'content': row['content'], 'status': row['status'], 'created_at': row['create_time'].isoformat(), 'replies': replies}
 
     def add_feedback_reply(self, feedback_uid: str, user_uid: str, content: str, is_admin: bool = False) -> str:
@@ -1823,11 +1880,10 @@ class AccountService:
         with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO feedback_replies (uid, feedback_uid, user_uid, is_admin, content, create_time) VALUES (%s, %s, %s, %s, %s, %s)", (uid, feedback_uid, user_uid, is_admin, content, now))
-            if not is_admin:
-                cursor.execute("SELECT user_uid FROM feedbacks WHERE uid = %s", (feedback_uid,))
-                fb = cursor.fetchone()
-                if fb and fb[0] != user_uid:
-                    cursor.execute("UPDATE feedbacks SET admin_unread = COALESCE(admin_unread, 0) + 1 WHERE uid = %s", (feedback_uid,))
+            cursor.execute("SELECT user_uid FROM feedbacks WHERE uid = %s", (feedback_uid,))
+            fb = cursor.fetchone()
+            if fb and fb[0] == user_uid:
+                cursor.execute("UPDATE feedbacks SET admin_unread = COALESCE(admin_unread, 0) + 1 WHERE uid = %s", (feedback_uid,))
             else:
                 cursor.execute("UPDATE feedbacks SET user_unread = COALESCE(user_unread, 0) + 1 WHERE uid = %s", (feedback_uid,))
             connection.commit()

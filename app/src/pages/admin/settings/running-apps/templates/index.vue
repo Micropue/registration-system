@@ -37,6 +37,7 @@
       <template v-slot:item.actions="{ item }">
         <div class="d-flex ga-1">
           <v-btn variant="tonal" rounded size="small" color="primary" @click="openEditDialog(item)">编辑</v-btn>
+          <v-btn variant="tonal" rounded size="small" color="warning" @click="openEmphasisDialog(item)">强调弹窗</v-btn>
           <v-btn variant="tonal" rounded size="small" color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
         </div>
       </template>
@@ -408,6 +409,98 @@
       </v-card>
     </v-dialog>
 
+    <!-- 强调弹窗配置 Dialog -->
+    <v-dialog v-model="emphasisDialog.show" max-width="650" scrollable>
+      <v-card rounded="lg">
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon color="warning" class="mr-2">mdi-alert-octagon</v-icon>
+          <span class="text-h6">强调弹窗配置</span>
+          <span class="text-caption text-medium-emphasis ml-2">— {{ emphasisTemplate?.version_name }}</span>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="emphasisDialog.show = false"></v-btn>
+        </v-card-title>
+        <v-divider></v-divider>
+        <v-card-text class="pa-4">
+          <div class="text-subtitle-2 font-weight-bold mb-2">显示条件
+            <span class="text-caption text-medium-emphasis">（所有条件同时满足时弹出）</span>
+          </div>
+          <div v-for="(cond, i) in emphasisConditions" :key="'c'+i" class="pa-3 mb-2 rounded" style="border:1px solid rgba(var(--v-theme-on-surface), 0.12)">
+            <div class="d-flex align-center mb-2">
+              <span class="text-body-2 font-weight-bold">条件 {{ i + 1 }}</span>
+              <v-spacer></v-spacer>
+              <v-btn icon="mdi-delete" variant="text" size="x-small" color="error" @click="emphasisConditions.splice(i, 1)"></v-btn>
+            </div>
+            <v-select
+              v-model="cond.field"
+              :items="emphasisTemplate?.fields?.map(f => f.label) || []"
+              label="选择字段"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="mb-2"
+            ></v-select>
+            <v-textarea
+              v-model="cond.values"
+              label="匹配值（一行一个）"
+              variant="outlined"
+              density="compact"
+              rows="3"
+              auto-grow
+              hide-details
+              placeholder="输入匹配值，每行一个&#10;字段内容包含任意一行即成立"
+            ></v-textarea>
+          </div>
+          <v-btn variant="tonal" size="small" block prepend-icon="mdi-plus" class="mb-4" @click="emphasisConditions.push({ field: '', values: '' })">添加条件</v-btn>
+
+          <v-divider class="mb-4"></v-divider>
+
+          <div class="text-subtitle-2 font-weight-bold mb-2">显示内容</div>
+          <div v-for="(item, i) in emphasisContent" :key="'ct'+i" class="pa-3 mb-2 rounded" style="border:1px solid rgba(var(--v-theme-on-surface), 0.12)">
+            <div class="d-flex align-center mb-2">
+              <span class="text-body-2 font-weight-bold">内容 {{ i + 1 }}</span>
+              <v-spacer></v-spacer>
+              <v-btn icon="mdi-delete" variant="text" size="x-small" color="error" @click="emphasisContent.splice(i, 1)"></v-btn>
+            </div>
+            <v-select
+              v-model="item.label"
+              :items="emphasisTemplate?.fields?.map(f => f.label) || []"
+              label="选择字段"
+              variant="outlined"
+              density="compact"
+              hide-details
+              class="mb-2"
+            ></v-select>
+            <v-row dense>
+              <v-col cols="4">
+                <v-select v-model="item.size" :items="fontSizes" item-title="title" item-value="value" label="字号" variant="outlined" density="compact" hide-details></v-select>
+              </v-col>
+              <v-col cols="4">
+                <v-text-field v-model="item.color" label="颜色" variant="outlined" density="compact" hide-details>
+                  <template v-slot:append-inner>
+                    <input type="color" v-model="item.color" style="width:24px;height:24px;border:none;cursor:pointer;padding:0">
+                  </template>
+                </v-text-field>
+              </v-col>
+              <v-col cols="2">
+                <v-checkbox v-model="item.bold" label="加粗" density="compact" hide-details></v-checkbox>
+              </v-col>
+              <v-col cols="2">
+                <v-checkbox v-model="item.copyable" label="复制" density="compact" hide-details></v-checkbox>
+              </v-col>
+            </v-row>
+          </div>
+          <v-btn variant="tonal" size="small" block prepend-icon="mdi-plus" @click="emphasisContent.push({ label: '', color: '#000000', bold: false, copyable: false, size: '' })">添加内容</v-btn>
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4">
+          <v-btn variant="tonal" color="error" @click="clearEmphasisConfig" :disabled="!emphasisTemplate?.emphasis_config">清除配置</v-btn>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="emphasisDialog.show = false">取消</v-btn>
+          <v-btn color="warning" variant="flat" :loading="emphasisSaving" @click="saveEmphasisConfig">保存配置</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="3000">
       {{ snackbar.text }}
     </v-snackbar>
@@ -523,6 +616,25 @@ interface Template {
   version_name: string
   fields: Field[]
   create_time: string
+  emphasis_config?: EmphasisConfig | null
+}
+
+interface EmphasisCondition {
+  field: string
+  values: string
+}
+
+interface EmphasisContent {
+  label: string
+  color: string
+  bold: boolean
+  copyable: boolean
+  size: string
+}
+
+interface EmphasisConfig {
+  conditions: EmphasisCondition[]
+  content: EmphasisContent[]
 }
 
 const route = useRoute()
@@ -537,6 +649,12 @@ const loading = ref(false)
 const saving = ref(false)
 
 const snackbar = reactive({ show: false, text: '', color: 'success' })
+
+const emphasisDialog = reactive({ show: false })
+const emphasisTemplate = ref<Template | null>(null)
+const emphasisConditions = ref<EmphasisCondition[]>([])
+const emphasisContent = ref<EmphasisContent[]>([])
+const emphasisSaving = ref(false)
 
 const createDialog = reactive({ show: false, versionName: '' })
 
@@ -844,6 +962,78 @@ function addOption() {
 
 function removeOption(i: number) {
   editFieldData.options.splice(i, 1)
+}
+
+function openEmphasisDialog(tpl: Template) {
+  emphasisTemplate.value = tpl
+  const ec = tpl.emphasis_config
+  if (ec && ec.conditions) {
+    emphasisConditions.value = JSON.parse(JSON.stringify(ec.conditions))
+  } else {
+    emphasisConditions.value = []
+  }
+  if (ec && ec.content) {
+    emphasisContent.value = JSON.parse(JSON.stringify(ec.content))
+  } else {
+    emphasisContent.value = []
+  }
+  emphasisDialog.show = true
+}
+
+async function saveEmphasisConfig() {
+  if (!emphasisTemplate.value) return
+  const cleanConditions = emphasisConditions.value.filter(c => c.field)
+  cleanConditions.forEach(c => { c.values = c.values.trim() })
+  const cleanContent = emphasisContent.value.filter(c => c.label)
+  const config: EmphasisConfig | null = (cleanConditions.length || cleanContent.length)
+    ? { conditions: cleanConditions, content: cleanContent }
+    : null
+  emphasisSaving.value = true
+  try {
+    const tpl = emphasisTemplate.value
+    const res = await ajax(`/api/admin/settings/running-apps/${appUid}/templates/${tpl.uid}`, {
+      method: 'PUT',
+      body: { version_name: tpl.version_name, fields: tpl.fields, emphasis_config: config },
+      headers: authHeaders()
+    })
+    if (res.code === 200) {
+      showMsg('强调弹窗配置已保存')
+      emphasisDialog.show = false
+      await loadTemplates()
+    } else {
+      showMsg(res.msg || '保存失败', 'error')
+    }
+  } catch {
+    showMsg('请求失败', 'error')
+  } finally {
+    emphasisSaving.value = false
+  }
+}
+
+async function clearEmphasisConfig() {
+  if (!emphasisTemplate.value) return
+  emphasisSaving.value = true
+  try {
+    const tpl = emphasisTemplate.value
+    const res = await ajax(`/api/admin/settings/running-apps/${appUid}/templates/${tpl.uid}`, {
+      method: 'PUT',
+      body: { version_name: tpl.version_name, fields: tpl.fields, emphasis_config: null },
+      headers: authHeaders()
+    })
+    if (res.code === 200) {
+      showMsg('配置已清除')
+      emphasisConditions.value = []
+      emphasisContent.value = []
+      emphasisDialog.show = false
+      await loadTemplates()
+    } else {
+      showMsg(res.msg || '清除失败', 'error')
+    }
+  } catch {
+    showMsg('请求失败', 'error')
+  } finally {
+    emphasisSaving.value = false
+  }
 }
 
 onMounted(async () => {
