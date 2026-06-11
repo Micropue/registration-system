@@ -43,32 +43,34 @@
                 <template v-if="typeof enabled === 'object' && !Array.isArray(enabled)">
                   <v-checkbox
                     :label="String(permKey)"
-                    :model-value="areAllTrue(enabled)"
-                    :indeterminate="isPartialTrue(enabled)"
-                    @update:model-value="setAllSub((dialog.permissions[category] as Record<string,any>)[permKey] as Record<string,any>, $event)"
+                    :model-value="isPermDisabled(category) ? false : areAllTrue(enabled)"
+                    :indeterminate="isPermDisabled(category) ? false : isPartialTrue(enabled)"
+                    @update:model-value="isPermDisabled(category) ? undefined : setAllSub((dialog.permissions[category] as Record<string,any>)[permKey] as Record<string,any>, $event)"
                     density="compact" hide-details color="primary"
-                    :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
+                    :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
                   <div class="ml-6">
                     <v-checkbox
                       v-for="(v, subKey) in enabled"
                       :key="subKey"
-                      :model-value="v"
-                      @update:model-value="((dialog.permissions[category] as Record<string,any>)[permKey] as Record<string,any>)[subKey] = $event"
+                      :model-value="isPermDisabled(category) ? false : v"
+                      @update:model-value="isPermDisabled(category) ? undefined : ((dialog.permissions[category] as Record<string,any>)[permKey] as Record<string,any>)[subKey] = $event"
                       :label="String(subKey)"
                       density="compact" hide-details color="primary"
-                      :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
+                      :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
                   </div>
                 </template>
                 <v-checkbox v-else
-                  :model-value="enabled"
-                  @update:model-value="(dialog.permissions[category] as Record<string,any>)[permKey] = $event"
+                  :model-value="isPermDisabled(category) ? false : enabled"
+                  @update:model-value="isPermDisabled(category) ? undefined : (dialog.permissions[category] as Record<string,any>)[permKey] = $event"
                   :label="String(permKey)" density="compact" hide-details color="primary"
-                  :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
+                  :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
               </template>
             </div>
-            <v-checkbox v-else v-model="dialog.permissions[category]"
+            <v-checkbox v-else
+              :model-value="isPermDisabled(category) ? false : dialog.permissions[category]"
+              @update:model-value="isPermDisabled(category) ? undefined : dialog.permissions[category] = $event"
               :label="category" density="compact" hide-details color="primary" class="ml-4"
-              :disabled="!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员'" />
+              :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
           </div>
         </v-card-text>
         <v-card-actions>
@@ -126,6 +128,18 @@ function showMsg(text: string, color = 'success') {
   snackbar.text = text; snackbar.color = color; snackbar.show = true
 }
 
+const DISABLED_PERM_KEYS = ['工单处理', '新建工单']
+
+function isPermDisabled(key: string): boolean {
+  return DISABLED_PERM_KEYS.includes(key)
+}
+
+function stripDisabledPerms(permissions: Record<string, any>) {
+  for (const key of DISABLED_PERM_KEYS) {
+    permissions[key] = false
+  }
+}
+
 function formatDate(iso: string) {
   return iso ? new Date(iso).toLocaleString('zh-CN') : '-'
 }
@@ -177,6 +191,7 @@ function openCreateDialog() {
   dialog.uid = ''
   dialog.name = ''
   dialog.permissions = defaultPermissions()
+  stripDisabledPerms(dialog.permissions)
   dialog.show = true
 }
 
@@ -186,6 +201,7 @@ function openEditDialog(group: UserGroup) {
   dialog.name = group.name
   const raw = JSON.parse(JSON.stringify(group.permissions))
   dialog.permissions = normalizePermissions({ ...defaultPermissions(), ...raw }, defaultPermissions())
+  stripDisabledPerms(dialog.permissions)
   dialog.show = true
 }
 
@@ -212,6 +228,7 @@ function normalizePermissions(perms: Record<string, any>, defaults: Record<strin
 async function saveGroup() {
   saving.value = true
   try {
+    stripDisabledPerms(dialog.permissions)
     const token = cookie.get('token') || ''
     if (dialog.isNew) {
       const res = await ajax(ApiUrl.CREATE_GROUP, {

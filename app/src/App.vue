@@ -40,6 +40,10 @@
           <v-list-item-title>{{ item.title }}</v-list-item-title>
         </v-list-item>
       </v-list>
+
+      <div class="sidebar-version text-caption text-grey text-center py-2">
+        {{ BUILD_VERSION }}
+      </div>
     </v-navigation-drawer>
 
     <!-- 顶部导航栏 -->
@@ -195,6 +199,7 @@ import { useAppStore } from '@/stores/app'
 import { useChatStore } from '@/stores/chat'
 import type { CheckLoginData } from '@/config/api-type'
 import { useRegisterSW } from 'virtual:pwa-register/vue'
+import { BUILD_VERSION } from '@/config/build-version'
 import Prism from './components/effect/prism.vue'
 
 const router = useRouter()

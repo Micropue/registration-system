@@ -194,8 +194,18 @@ class AccountService:
                     FOREIGN KEY (sender_uid) REFERENCES users(uid) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
             """)
+        try:
+            cursor.execute("ALTER TABLE registration_chats ADD COLUMN msg_type VARCHAR(30) DEFAULT 'text'")
+        except:
+            pass
+        try:
+            cursor.execute("SELECT is_recalled FROM registration_chats LIMIT 0")
+        except:
             try:
-                cursor.execute("ALTER TABLE registration_chats ADD COLUMN msg_type VARCHAR(30) DEFAULT 'text'")
+                with self.db.connect() as alt_conn:
+                    alt_cursor = alt_conn.cursor()
+                    alt_cursor.execute("ALTER TABLE registration_chats ADD COLUMN is_recalled TINYINT(1) DEFAULT 0")
+                    alt_conn.commit()
             except:
                 pass
             cursor.execute("""
@@ -281,6 +291,7 @@ class AccountService:
             except:
                 pass
             self._init_default_groups(cursor)
+            self._disable_feedback_permissions(cursor)
             connection.commit()
             try:
                 self.create_account("admin", "admin-123456", group_uid=self._get_default_super_admin_group_uid())
@@ -368,6 +379,32 @@ class AccountService:
             cursor.execute("ALTER TABLE app_templates ADD COLUMN emphasis_config JSON DEFAULT NULL")
         except:
             pass
+
+    DISABLED_PERM_KEYS = ['工单处理', '新建工单']
+
+    def _sanitize_permissions(self, permissions: dict) -> dict:
+        for key in self.DISABLED_PERM_KEYS:
+            permissions[key] = False
+        return permissions
+
+    def _disable_feedback_permissions(self, cursor: Any) -> None:
+        cursor.execute("SELECT uid, permissions FROM user_groups")
+        rows = cursor.fetchall()
+        if not rows:
+            return
+        updates: list[tuple[str, str]] = []
+        for group_uid, perms_json in rows:
+            if perms_json:
+                perms = json.loads(perms_json)
+                changed = False
+                for key in self.DISABLED_PERM_KEYS:
+                    if key in perms and perms[key]:
+                        perms[key] = False
+                        changed = True
+                if changed:
+                    updates.append((group_uid, json.dumps(perms, ensure_ascii=False)))
+        for group_uid, perms_str in updates:
+            cursor.execute("UPDATE user_groups SET permissions = %s WHERE uid = %s", (perms_str, group_uid))
 
     PERMISSION_TREE = {
         "账户管理": {"查看": {"下属用户": True, "其他用户": True}, "创建": True, "修改": True, "删除": True, "强制下线": True},
@@ -479,6 +516,7 @@ class AccountService:
         } for row in rows]
 
     def create_user_group(self, name: str, permissions: dict) -> str:
+        permissions = self._sanitize_permissions(permissions)
         uid = self.db.new_uid()
         now = self.db.now()
         with self.db.connect() as connection:
@@ -492,6 +530,8 @@ class AccountService:
         return uid
 
     def update_user_group(self, group_uid: str, name: str | None = None, permissions: dict | None = None) -> None:
+        if permissions is not None:
+            permissions = self._sanitize_permissions(permissions)
         with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("SELECT name FROM user_groups WHERE uid = %s", (group_uid,))
@@ -1505,7 +1545,7 @@ class AccountService:
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute("""
-                SELECT c.uid, c.registration_uid, c.sender_uid, c.message, c.msg_type, c.created_at, u.username,
+                SELECT c.uid, c.registration_uid, c.sender_uid, c.message, c.msg_type, c.created_at, c.is_recalled, u.username,
                        CASE WHEN ug.name IN ('管理员','超级管理员') THEN TRUE ELSE FALSE END as is_admin
                 FROM registration_chats c
                 JOIN users u ON c.sender_uid = u.uid
@@ -1519,8 +1559,27 @@ class AccountService:
             "sender_uid": row["sender_uid"], "username": row["username"],
             "is_admin": bool(row["is_admin"]), "message": row["message"],
             "msg_type": row.get("msg_type", "text"),
+            "is_recalled": bool(row.get("is_recalled", 0)),
             "created_at": row["created_at"].isoformat()
         } for row in rows]
+
+    def recall_chat_message(self, message_uid: str, sender_uid: str) -> tuple[bool, str]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT sender_uid, created_at, is_recalled FROM registration_chats WHERE uid = %s", (message_uid,))
+            msg = cursor.fetchone()
+            if not msg:
+                return False, "消息不存在"
+            if msg['sender_uid'] != sender_uid:
+                return False, "只能撤回自己发送的消息"
+            if msg['is_recalled']:
+                return False, "消息已被撤回"
+            elapsed = (datetime.now() - msg['created_at']).total_seconds()
+            if elapsed > 300:
+                return False, "超过5分钟无法撤回"
+            cursor.execute("UPDATE registration_chats SET is_recalled = 1 WHERE uid = %s", (message_uid,))
+            connection.commit()
+        return True, "撤回成功"
 
     # ---- Running Apps ----
 

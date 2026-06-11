@@ -1372,6 +1372,18 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
         while True:
             data = await websocket.receive_json()
             msg_type = data.get('type', 'text')
+            if msg_type == 'recall_message':
+                message_uid = data.get('message_uid', '')
+                success, msg_text = account_service.recall_chat_message(message_uid, session.user_uid)
+                if success:
+                    await manager.broadcast(registration_uid, {
+                        "type": "recall_message",
+                        "message_uid": message_uid,
+                        "username": session.username
+                    })
+                else:
+                    await websocket.send_json({"type": "error", "message": msg_text})
+                continue
             msg = account_service.save_chat_message(registration_uid, session.user_uid, data.get('message', ''), msg_type)
             msg['username'] = session.username
             msg['is_admin'] = is_staff
@@ -1409,6 +1421,27 @@ async def get_chat_history(registration_uid: str, authorization: Optional[str] =
             return api_response(403, 您没有此操作权限)
     messages = account_service.get_chat_history(registration_uid)
     return api_response(200, "Success", messages)
+
+@app.post("/chat/{registration_uid}/recall/{message_uid}")
+async def recall_chat_message(registration_uid: str, message_uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    can_chat = account_service._check_permission(session.user_uid, "聊天")
+    if not can_chat:
+        return api_response(403, "您没有聊天权限")
+    success, msg_text = account_service.recall_chat_message(message_uid, session.user_uid)
+    if success:
+        asyncio.create_task(manager.broadcast(registration_uid, {
+            "type": "recall_message",
+            "message_uid": message_uid,
+            "username": session.username
+        }))
+        return api_response(200, msg_text)
+    return api_response(400, msg_text)
 
 if __name__ == "__main__":
 

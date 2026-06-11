@@ -25,12 +25,6 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
-    title: '工单处理',
-    to: '/admin/feedbacks',
-    icon: 'mdi-folder-multiple-outline',
-    role: 'admin'
-  },
-  {
     title: '充值审批',
     to: '/admin/recharges',
     icon: 'mdi-cash-check',
@@ -40,12 +34,6 @@ export const functions: NavFunction[] = [
     title: '订单',
     to: '/sign',
     icon: 'mdi-plus-circle-outline',
-    role: 'default'
-  },
-  {
-    title: '工单反馈',
-    to: '/feedback',
-    icon: 'mdi-message-text-outline',
     role: 'default'
   },
   {

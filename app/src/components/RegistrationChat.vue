@@ -12,38 +12,40 @@
       <div v-for="msg in messages" :key="msg.id"
         :class="['chat-bubble-wrapper', msg.username === currentUsername ? 'is-self' : 'is-other']">
 
-        <!-- 聊天气泡 -->
-        <div :class="['chat-bubble', msg.msg_type && msg.msg_type !== 'text' ? 'is-card' : '']">
-          <!-- 头部信息：名字与时间 -->
+        <div :class="['chat-bubble', msg.msg_type && msg.msg_type !== 'text' && !msg.is_recalled ? 'is-card' : '', msg.is_recalled ? 'is-recalled' : '']">
           <div class="chat-meta">
             <span class="user-name">{{ msg.username }}</span>
             <span class="msg-time">{{ formatTime(msg.created_at) }}</span>
+            <v-btn v-if="msg.username === currentUsername && !msg.is_recalled"
+              icon="mdi-undo-variant" size="x-small" variant="text" density="compact"
+              class="recall-btn" @click="recallMessage(msg.id)" title="撤回消息" />
           </div>
 
-          <!-- 登记卡片 -->
-          <div v-if="msg.msg_type === 'registration_card'" class="chat-card reg-card">
-            <div class="chat-card-icon reg-icon">
-              <v-icon size="22">mdi-file-document-outline</v-icon>
-            </div>
-            <div class="chat-card-body">
-              <div class="card-title">客户信息</div>
-              <div class="card-text">{{ msg.message }}</div>
-            </div>
-          </div>
+          <div v-if="msg.is_recalled" class="chat-recalled">消息已撤回</div>
 
-          <!-- 反馈/工单卡片 -->
-          <div v-else-if="msg.msg_type === 'feedback_card'" class="chat-card fb-card">
-            <div class="chat-card-icon fb-icon">
-              <v-icon size="22">mdi-ticket-confirmation-outline</v-icon>
+          <template v-else>
+            <div v-if="msg.msg_type === 'registration_card'" class="chat-card reg-card">
+              <div class="chat-card-icon reg-icon">
+                <v-icon size="22">mdi-file-document-outline</v-icon>
+              </div>
+              <div class="chat-card-body">
+                <div class="card-title">客户信息</div>
+                <div class="card-text">{{ msg.message }}</div>
+              </div>
             </div>
-            <div class="chat-card-body">
-              <div class="card-title">工单信息</div>
-              <div class="card-text">{{ msg.message }}</div>
-            </div>
-          </div>
 
-          <!-- 普通文本消息 -->
-          <div v-else class="chat-text">{{ msg.message }}</div>
+            <div v-else-if="msg.msg_type === 'feedback_card'" class="chat-card fb-card">
+              <div class="chat-card-icon fb-icon">
+                <v-icon size="22">mdi-ticket-confirmation-outline</v-icon>
+              </div>
+              <div class="chat-card-body">
+                <div class="card-title">工单信息</div>
+                <div class="card-text">{{ msg.message }}</div>
+              </div>
+            </div>
+
+            <div v-else class="chat-text">{{ msg.message }}</div>
+          </template>
         </div>
       </div>
     </div>
@@ -52,7 +54,6 @@
       <slot name="quickActions"></slot>
     </div>
 
-    <!-- 底部输入区 -->
     <div class="chat-input-area">
       <div class="chat-input-row">
         <v-textarea v-model="input" density="compact" variant="solo-filled" flat
@@ -62,11 +63,15 @@
           :disabled="!input.trim()" :loading="sending" class="send-btn"></v-btn>
       </div>
     </div>
+
+    <v-snackbar v-model="snackbar.show" color="error" timeout="3000" location="top center">
+      {{ snackbar.text }}
+    </v-snackbar>
   </div>
 </template>
 
 <script lang="ts" setup>
-import { ref, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
@@ -82,6 +87,7 @@ const messages = ref<any[]>([])
 const input = ref('')
 const sending = ref(false)
 const msgContainer = ref<HTMLElement>()
+const snackbar = reactive({ show: false, text: '' })
 let ws: WebSocket | null = null
 
 const token = cookie.get('token') || ''
@@ -107,7 +113,7 @@ async function loadHistory() {
       headers: { 'Authorization': `Bearer ${token}` }
     })
     if (res.code === 200) {
-      messages.value = res.data
+      messages.value = (res.data || []).filter((m: any) => !m.is_recalled)
       scrollBottom()
       chatStore.clearUnreadCount(props.registrationUid)
     }
@@ -122,8 +128,22 @@ function connectWs() {
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data)
-      messages.value.push(data)
-      scrollBottom()
+      if (data.type === 'recall_message') {
+        const msg = messages.value.find(m => m.id === data.message_uid)
+        if (msg) {
+          msg.is_recalled = true
+          setTimeout(() => {
+            const idx = messages.value.findIndex(m => m.id === data.message_uid)
+            if (idx !== -1) messages.value.splice(idx, 1)
+          }, 3000)
+        }
+      } else if (data.type === 'error') {
+        snackbar.text = data.message
+        snackbar.show = true
+      } else {
+        messages.value.push(data)
+        scrollBottom()
+      }
     } catch (e) { /* ignore */ }
   }
   ws.onclose = () => {
@@ -148,6 +168,11 @@ function sendMessage(text: string, type: string = 'text') {
   ws.send(JSON.stringify({ message: text, type }))
 }
 
+function recallMessage(messageUid: string) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ type: 'recall_message', message_uid: messageUid }))
+}
+
 watch(() => props.registrationUid, (val) => {
   if (val) {
     messages.value = []
@@ -168,7 +193,6 @@ defineExpose({ sendMessage })
 </script>
 
 <style scoped>
-/* 全局容器 */
 .registration-chat {
   display: flex;
   flex-direction: column;
@@ -178,7 +202,6 @@ defineExpose({ sendMessage })
   border-radius: 12px;
 }
 
-/* 消息列表区 */
 .chat-messages {
   flex: 1;
   overflow-y: auto;
@@ -188,7 +211,6 @@ defineExpose({ sendMessage })
   scroll-behavior: smooth;
 }
 
-/* 滚动条 */
 .chat-messages::-webkit-scrollbar {
   width: 6px;
 }
@@ -202,7 +224,6 @@ defineExpose({ sendMessage })
   border-radius: 8px;
 }
 
-/* 空状态 */
 .chat-empty {
   display: flex;
   flex-direction: column;
@@ -222,7 +243,6 @@ defineExpose({ sendMessage })
   justify-content: center;
 }
 
-/* 气泡外层 */
 .chat-bubble-wrapper {
   display: flex;
   flex-direction: column;
@@ -231,7 +251,6 @@ defineExpose({ sendMessage })
   animation: fadeInUp 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
-/* 核心气泡 */
 .chat-bubble {
   position: relative;
   padding: 10px 14px;
@@ -241,7 +260,6 @@ defineExpose({ sendMessage })
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.04);
 }
 
-/* 别人发的消息 */
 .is-other {
   align-items: flex-start;
 }
@@ -256,7 +274,6 @@ defineExpose({ sendMessage })
   color: rgba(var(--v-theme-on-background), 0.6);
 }
 
-/* 自己发的消息 */
 .is-self {
   align-items: flex-end;
 }
@@ -273,7 +290,25 @@ defineExpose({ sendMessage })
   justify-content: flex-end;
 }
 
-/* 卡片类型 */
+.chat-bubble.is-recalled {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: rgb(var(--v-theme-on-surface)) !important;
+  padding: 8px 14px;
+  border: 1px dashed rgba(var(--v-theme-on-surface), 0.2);
+  animation: fadeOutRecall 0.5s ease 2.5s forwards;
+}
+
+.is-self .chat-bubble.is-recalled {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+@keyframes fadeOutRecall {
+  0% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
 .chat-bubble.is-card {
   padding: 0;
   background: transparent !important;
@@ -281,7 +316,6 @@ defineExpose({ sendMessage })
   max-width: 90%;
 }
 
-/* 元信息 */
 .chat-meta {
   display: flex;
   align-items: center;
@@ -296,7 +330,23 @@ defineExpose({ sendMessage })
   font-size: 0.7rem;
 }
 
-/* 文本消息 */
+.recall-btn {
+  margin-left: auto;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.recall-btn:hover {
+  opacity: 1;
+}
+
+.chat-recalled {
+  font-size: 0.85rem;
+  font-style: italic;
+  opacity: 0.6;
+  padding: 2px 0;
+}
+
 .chat-text {
   font-size: 0.9rem;
   line-height: 1.5;
@@ -304,7 +354,6 @@ defineExpose({ sendMessage })
   white-space: pre-wrap;
 }
 
-/* 卡片 */
 .chat-card {
   display: flex;
   gap: 12px;
@@ -377,7 +426,6 @@ defineExpose({ sendMessage })
   border-radius: 4px;
 }
 
-/* 输入区 */
 .chat-input-area {
   flex-shrink: 0;
   padding: 8px 12px;
@@ -419,24 +467,12 @@ defineExpose({ sendMessage })
 }
 
 @keyframes fadeInUp {
-  0% {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  0% { opacity: 0; transform: translateY(12px); }
+  100% { opacity: 1; transform: translateY(0); }
 }
 
 @keyframes fadeIn {
-  0% {
-    opacity: 0;
-  }
-
-  100% {
-    opacity: 1;
-  }
+  0% { opacity: 0; }
+  100% { opacity: 1; }
 }
 </style>
