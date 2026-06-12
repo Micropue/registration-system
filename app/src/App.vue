@@ -453,7 +453,7 @@ async function fetchPendingList() {
     if (res.code === 200 && res.data) {
       pendingList.value = res.data.items || []
       if (res.data.counts) {
-        businessBadges.value = res.data.counts
+        businessBadges.value = { ...businessBadges.value, ...res.data.counts }
       }
     }
   } catch (e) { /* ignore */ }

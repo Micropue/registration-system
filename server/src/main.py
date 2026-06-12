@@ -664,6 +664,7 @@ async def resubmit_registration(
                 if app and not account_service.check_user_balance(session.user_uid, app['uid'], amount):
                     return api_response(400, f"'{app_name}' 余额不足，无法重新提交")
         account_service.resubmit_registration(uid, session.user_uid, data, priority, template_uid, amount)
+        asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "订单处理"}))
         return api_response(200, "Registration resubmitted successfully")
     except AccountError as e:
         return api_response(400, str(e))
@@ -1390,6 +1391,7 @@ async def websocket_chat(websocket: WebSocket, registration_uid: str, token: str
             msg['is_admin'] = is_staff
             msg['msg_type'] = msg_type
             account_service.update_registration_status(registration_uid, 'pending')
+            asyncio.create_task(notif_manager.broadcast_to_all({"type": "business_update", "key": "订单处理"}))
             if detail:
                 if is_staff:
                     account_service.create_notification(detail['user_uid'], 'chat_message', '订单聊天新消息', f'管理员回复了您的订单', registration_uid)
