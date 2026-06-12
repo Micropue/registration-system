@@ -1547,12 +1547,13 @@ class AccountService:
                     note="登记记录已删除，撤销扣除")
         return deleted
 
-    def get_registration_stats(self) -> list[dict[str, Any]]:
+    def get_registration_stats(self, secondary: bool = False) -> list[dict[str, Any]]:
+        where = "WHERE COALESCE(r.is_secondary, 0) = 1" if secondary else "WHERE COALESCE(r.process_count, 0) = 0"
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("""
+            cursor.execute(f"""
                 SELECT JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app, r.status, COUNT(*) as cnt
-                FROM registrations r GROUP BY app, r.status
+                FROM registrations r {where} GROUP BY app, r.status
             """)
             rows = cursor.fetchall()
         app_map: dict[str, dict[str, int]] = {}

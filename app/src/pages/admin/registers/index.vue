@@ -718,7 +718,9 @@ async function loadRunningApps() {
 
 async function loadStats() {
   try {
-    const res = await ajax<{ app: string; pending: number }[]>(ApiUrl.REGISTRATION_STATS, {
+    let url: string = ApiUrl.REGISTRATION_STATS
+    if (showSecondary.value) url += '?secondary=1'
+    const res = await ajax<{ app: string; pending: number }[]>(url, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) {
@@ -820,6 +822,7 @@ onMounted(async () => {
 
 watch(() => route.query.tab, () => {
   loadRegisters()
+  loadStats()
 })
 
 watch(selectedApp, () => {

@@ -267,10 +267,10 @@ async def get_registrations(
     return api_response(200, "Success", data)
 
 @app.get("/admin/registrations/stats")
-async def get_registration_stats(authorization: Optional[str] = Header(None)):
+async def get_registration_stats(authorization: Optional[str] = Header(None), secondary: int = Query(0)):
     session, err = require_perm(authorization, "订单处理", "查看")
     if err: return err
-    stats = account_service.get_registration_stats()
+    stats = account_service.get_registration_stats(secondary=bool(secondary))
     return api_response(200, "Success", stats)
 
 @app.post("/admin/registrations/{uid}/status")
