@@ -1573,6 +1573,8 @@ class AccountService:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO registration_chats (uid, registration_uid, sender_uid, message, created_at, msg_type) VALUES (%s, %s, %s, %s, %s, %s)", (uid, registration_uid, sender_uid, message, now, msg_type))
             cursor.execute("UPDATE registrations SET is_secondary = 1 WHERE uid = %s AND COALESCE(process_count, 0) >= 1 AND COALESCE(is_secondary, 0) = 0", (registration_uid,))
+            affected = cursor.rowcount
+            print(f"[CHAT] uid={uid} reg={registration_uid} secondary_set={affected}", flush=True)
             connection.commit()
         return {"id": uid, "registration_uid": registration_uid, "sender_uid": sender_uid, "message": message, "created_at": now.isoformat(), "msg_type": msg_type}
 
