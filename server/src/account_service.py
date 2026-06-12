@@ -133,6 +133,20 @@ class AccountService:
                     cursor.execute("ALTER TABLE registrations MODIFY COLUMN amount DECIMAL(12,2) DEFAULT NULL")
                 except Exception:
                     pass
+            try:
+                cursor.execute("ALTER TABLE registrations ADD COLUMN process_count INT DEFAULT 0")
+            except:
+                pass
+            try:
+                cursor.execute("SELECT is_secondary FROM registrations LIMIT 0")
+            except:
+                try:
+                    with self.db.connect() as alt_conn:
+                        alt_cursor = alt_conn.cursor()
+                        alt_cursor.execute("ALTER TABLE registrations ADD COLUMN is_secondary TINYINT(1) DEFAULT 0")
+                        alt_conn.commit()
+                except:
+                    pass
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS feedbacks (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -1256,7 +1270,7 @@ class AccountService:
     def get_registration_detail(self, uid: str, user_uid: str | None = None) -> dict[str, Any] | None:
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, u.username, r.user_uid FROM registrations r JOIN users u ON r.user_uid = u.uid WHERE r.uid = %s", (uid,))
+            cursor.execute("SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, COALESCE(r.process_count, 0) as process_count, COALESCE(r.is_secondary, 0) as is_secondary, u.username, r.user_uid FROM registrations r JOIN users u ON r.user_uid = u.uid WHERE r.uid = %s", (uid,))
             row = cursor.fetchone()
             if not row:
                 return None
@@ -1269,7 +1283,9 @@ class AccountService:
             "reject_reason": row.get("reject_reason") or "",
             "priority": row.get("priority") or "low",
             "template_uid": row.get("template_uid") or "",
-            "amount": float(row["amount"]) if row.get("amount") else None
+            "amount": float(row["amount"]) if row.get("amount") else None,
+            "process_count": int(row.get("process_count") or 0),
+            "is_secondary": bool(row.get("is_secondary") or 0),
         }
 
     def check_registration_exists(self, user_uid: str) -> bool:
@@ -1398,7 +1414,7 @@ class AccountService:
 
     # ---- Admin Registrations ----
 
-    def get_registrations(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc", running_app: str | None = None, username: str | None = None, current_user_uid: str | None = None) -> dict[str, Any]:
+    def get_registrations(self, page: int = 1, page_size: int = 20, sort_by: str | None = None, order: str = "desc", running_app: str | None = None, username: str | None = None, current_user_uid: str | None = None, secondary: bool = False) -> dict[str, Any]:
         offset = (page - 1) * page_size
         params: list[Any] = []
         where_parts: list[str] = []
@@ -1432,7 +1448,11 @@ class AccountService:
                         params.extend(exclude_uids)
                 else:
                     where_parts.append("r.user_uid = %s")
-                    params.append(current_user_uid)
+                params.append(current_user_uid)
+        if secondary:
+            where_parts.append("COALESCE(r.process_count, 0) >= 2")
+        else:
+            where_parts.append("COALESCE(r.process_count, 0) < 2")
         where_clause = (" WHERE " + " AND ".join(where_parts)) if where_parts else ""
         if sort_by == 'priority':
             order_clause = "FIELD(r.priority, 'high', 'medium', 'low') ASC, r.create_time DESC"
@@ -1444,7 +1464,7 @@ class AccountService:
             cursor.execute(count_sql, tuple(params))
             total = cursor.fetchone()["total"]
             sql = f"""
-                SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, u.username, at2.version_name as template_name
+                SELECT r.uid, r.data, r.create_time, r.status, r.reject_reason, r.priority, r.template_uid, r.amount, COALESCE(r.process_count, 0) as process_count, COALESCE(r.is_secondary, 0) as is_secondary, u.username, at2.version_name as template_name
                 FROM registrations r
                 JOIN users u ON r.user_uid = u.uid
                 LEFT JOIN app_templates at2 ON at2.uid = r.template_uid
@@ -1462,7 +1482,9 @@ class AccountService:
             "priority": row.get("priority") or "low",
             "template_uid": row.get("template_uid") or "",
             "template_name": row.get("template_name") or "",
-            "amount": float(row["amount"]) if row.get("amount") else None
+            "amount": float(row["amount"]) if row.get("amount") else None,
+            "process_count": int(row.get("process_count") or 0),
+            "is_secondary": bool(row.get("is_secondary") or 0),
         } for row in rows]
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
@@ -1474,10 +1496,21 @@ class AccountService:
             reg = cursor.fetchone()
             if reg:
                 reg_info = {"old_status": reg["old_status"], "amount": reg.get("amount"), "app_name": reg.get("app_name"), "user_uid": reg.get("user_uid")}
+            inc_count = status in ('approved', 'rejected') and reg_info and reg_info.get("old_status") not in ('approved', 'rejected')
+            set_clauses = ["status = %s"]
+            params: list = [status]
             if reject_reason is not None:
-                cursor.execute("UPDATE registrations SET status = %s, reject_reason = %s WHERE uid = %s", (status, reject_reason, registration_uid))
-            else:
-                cursor.execute("UPDATE registrations SET status = %s WHERE uid = %s", (status, registration_uid))
+                set_clauses.append("reject_reason = %s")
+                params.append(reject_reason)
+            if inc_count:
+                set_clauses.append("process_count = COALESCE(process_count, 0) + 1")
+            if status == 'rejected':
+                set_clauses.append("is_secondary = 1")
+            elif status == 'approved':
+                set_clauses.append("is_secondary = 0")
+            sql = f"UPDATE registrations SET {', '.join(set_clauses)} WHERE uid = %s"
+            params.append(registration_uid)
+            cursor.execute(sql, tuple(params))
             connection.commit()
         if reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("user_uid") and status == 'rejected' and reg_info.get("old_status") != 'rejected':
             app_name = reg_info["app_name"]
@@ -1538,6 +1571,7 @@ class AccountService:
         with self.db.connect() as connection:
             cursor = connection.cursor()
             cursor.execute("INSERT INTO registration_chats (uid, registration_uid, sender_uid, message, created_at, msg_type) VALUES (%s, %s, %s, %s, %s, %s)", (uid, registration_uid, sender_uid, message, now, msg_type))
+            cursor.execute("UPDATE registrations SET is_secondary = 1 WHERE uid = %s AND COALESCE(process_count, 0) >= 1 AND COALESCE(is_secondary, 0) = 0", (registration_uid,))
             connection.commit()
         return {"id": uid, "registration_uid": registration_uid, "sender_uid": sender_uid, "message": message, "created_at": now.isoformat(), "msg_type": msg_type}
 
@@ -1819,7 +1853,8 @@ class AccountService:
 
             total_users = len(sub_uids) if filter_by_user else count("users")
             total_registrations = count("registrations", reg_where, reg_params)
-            pending_registrations = count("registrations", f"{reg_where} AND status = 'pending'", reg_params)
+            pending_registrations = count("registrations", f"{reg_where} AND status = 'pending' AND COALESCE(process_count, 0) = 0", reg_params)
+            pending_secondary_registrations = count("registrations", f"{reg_where} AND status = 'pending' AND COALESCE(is_secondary, 0) = 1", reg_params)
             total_feedbacks = count("feedbacks", fb_where, fb_params)
             pending_feedbacks = count("feedbacks", f"{fb_where} AND status = 'pending'", fb_params)
             unread_feedbacks = count("feedbacks", f"{fb_where} AND COALESCE(admin_unread, 0) > 0", fb_params)
@@ -1839,6 +1874,7 @@ class AccountService:
             'total_users': total_users,
             'total_registrations': total_registrations,
             'pending_registrations': pending_registrations,
+            'pending_secondary_registrations': pending_secondary_registrations,
             'total_feedbacks': total_feedbacks,
             'pending_feedbacks': pending_feedbacks,
             'unread_feedbacks': unread_feedbacks,

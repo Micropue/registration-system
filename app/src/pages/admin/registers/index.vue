@@ -48,7 +48,6 @@
         </v-badge>
       </div>
 
-      <!-- 使用封装后的通用表格组件 -->
       <app-data-table :headers="headers" :items="registers" :total-items="totalRegisters" :loading="loading"
         v-model:page="currentPage" v-model:items-per-page="itemsPerPage" show-search show-filter search-label="搜索"
         @update:options="loadRegisters" @reset="loadRegisters"
@@ -120,6 +119,9 @@
       <v-card v-if="detailsDialog.item" class="detail-card">
         <v-card-title class="d-flex align-center pa-4 pb-0">
           客户信息 - {{ detailsDialog.item?.username }}
+          <v-chip v-if="detailsDialog.item?.is_secondary" color="warning" size="small" variant="tonal" class="me-2">
+            待二次处理
+          </v-chip>
           <v-spacer></v-spacer>
           <v-chip :color="getPriorityColor(detailsDialog.item?.priority || 'low')" size="small" variant="tonal" class="me-2">
             {{ getPriorityText(detailsDialog.item?.priority || 'low') }}
@@ -475,6 +477,8 @@ interface RegistrationItem {
   priority?: string
   template_uid?: string
   amount?: number | null
+  process_count?: number
+  is_secondary?: boolean
 }
 
 // 状态管理
@@ -490,6 +494,7 @@ const totalPending = computed(() => Object.values(appStats.value).reduce((sum, s
 
 const registers = ref<RegistrationItem[]>([])
 const loading = ref(false)
+const showSecondary = computed(() => route.query.tab === 'secondary')
 const totalRegisters = ref(0)
 const itemsPerPage = ref(20)
 const currentPage = ref(1)
@@ -811,6 +816,10 @@ onMounted(async () => {
   }
   await loadRegisters()
   openChatFromQuery()
+})
+
+watch(() => route.query.tab, () => {
+  loadRegisters()
 })
 
 watch(selectedApp, () => {
@@ -1169,6 +1178,9 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
   if (options.sortBy && options.sortBy.length > 0) {
     url += `&sort_by=${encodeURIComponent(options.sortBy[0].key)}&order=${options.sortBy[0].order}`
   }
+  if (showSecondary.value) {
+    url += '&secondary=1'
+  }
 
   try {
     const res = await ajax(url, {
@@ -1180,6 +1192,8 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
         ...item,
         app: item.registration_info?.['跑步APP'] || '',
         amount: item.amount ?? null,
+        process_count: item.process_count || 0,
+        is_secondary: item.is_secondary || false,
         _searchable: item.registration_info
           ? Object.values(item.registration_info)
               .filter((v: any) => v != null)

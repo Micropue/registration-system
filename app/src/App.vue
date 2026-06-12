@@ -24,14 +24,38 @@
 
       <!-- 导航菜单 -->
       <v-list nav density="compact" class="pa-2">
-        <v-list-item v-for="item in mainFunctions" :key="item.to" :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
-          <template v-slot:prepend>
-            <v-badge :model-value="(pendingCounts[item.title] || 0) > 0" :content="pendingCounts[item.title]" color="error" offset-x="4" offset-y="4" size="small" inline>
-              <v-icon>{{ item.icon }}</v-icon>
-            </v-badge>
-          </template>
-          <v-list-item-title>{{ item.title }}</v-list-item-title>
-        </v-list-item>
+        <template v-for="item in mainFunctions" :key="item.to">
+          <v-list-group v-if="item.children" value="订单处理">
+            <template v-slot:activator="{ props: groupProps }">
+              <v-list-item v-bind="groupProps" rounded="xl" class="mb-1">
+                <template v-slot:prepend>
+                  <v-badge :model-value="(pendingCounts[item.title] || 0) > 0" :content="pendingCounts[item.title]" color="error" offset-x="4" offset-y="4" size="small" inline>
+                    <v-icon>{{ item.icon }}</v-icon>
+                  </v-badge>
+                </template>
+                <v-list-item-title>{{ item.title }}</v-list-item-title>
+              </v-list-item>
+            </template>
+            <v-list-item v-for="child in item.children" :key="child.to" rounded="xl"
+              :active="isSubActive(child)" color="primary" class="mb-0 ps-8"
+              @click="router.push(child.to)">
+              <template v-slot:prepend>
+                <v-badge :model-value="(pendingCounts[child.title] || 0) > 0" :content="pendingCounts[child.title]" color="error" offset-x="4" offset-y="4" size="small" inline>
+                  <v-icon size="18">{{ child.icon || 'mdi-circle-small' }}</v-icon>
+                </v-badge>
+              </template>
+              <v-list-item-title class="text-body-2">{{ child.title }}</v-list-item-title>
+            </v-list-item>
+          </v-list-group>
+          <v-list-item v-else :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
+            <template v-slot:prepend>
+              <v-badge :model-value="(pendingCounts[item.title] || 0) > 0" :content="pendingCounts[item.title]" color="error" offset-x="4" offset-y="4" size="small" inline>
+                <v-icon>{{ item.icon }}</v-icon>
+              </v-badge>
+            </template>
+            <v-list-item-title>{{ item.title }}</v-list-item-title>
+          </v-list-item>
+        </template>
         <v-divider v-if="bottomFunctions.length > 0" class="mt-2 mb-1"></v-divider>
         <v-list-item v-for="item in bottomFunctions" :key="item.to" :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
           <template v-slot:prepend>
@@ -243,6 +267,7 @@ const PERM_MAP: Record<string, string> = {
   '/admin/recharges': '充值审批.查看',
   '/admin/users': '账户管理.查看',
   '/admin/registers': '订单处理.查看',
+  '/admin/registers?tab=secondary': '订单处理.查看',
   '/admin/feedbacks': '工单处理.查看',
   '/admin/running-apps': 'APP配置.查看',
   '/admin/update-logs': 'APP配置.查看',
@@ -255,12 +280,20 @@ const PERM_MAP: Record<string, string> = {
   '/balance-transactions': '余额查看',
 }
 
+function isSubActive(child: { title: string; to: string }): boolean {
+  if (!route.path.startsWith('/admin/registers')) return false
+  if (child.title === '二次订单') return route.query.tab === 'secondary'
+  return route.query.tab !== 'secondary'
+}
+
 const displayFunctions = computed(() => {
   if (!user.value) return []
   const perms = user.value.permissions
   if (!perms || typeof perms !== 'object') return []
 
   return functions.filter(item => {
+    if (item.children) return true
+
     const required = PERM_MAP[item.to]
     if (required) return hasPerm(perms, required)
     if (item.to === '/admin' && item.exact) return hasAnyAdminPerm(perms)
@@ -343,6 +376,8 @@ const pendingCounts = computed(() => {
   }
   if (isAdmin) {
     result['订单处理'] = businessBadges.value['订单处理'] || 0
+    result['一次订单'] = businessBadges.value['一次订单'] || 0
+    result['二次订单'] = businessBadges.value['二次订单'] || 0
     result['工单处理'] = businessBadges.value['工单处理'] || 0
     result['充值审批'] = businessBadges.value['充值审批'] || 0
   }
@@ -378,7 +413,7 @@ function connectNotifWs() {
       } else if (data.type === 'business_update') {
         const isAdmin = user.value?.role !== 'default'
         if (isAdmin) {
-          if (data.delta !== undefined) {
+          if (data.delta !== undefined && data.key !== '订单处理') {
             businessBadges.value[data.key] = Math.max(0, (businessBadges.value[data.key] || 0) + (data.delta || 0))
           } else {
             fetchPendingCounts()
@@ -432,7 +467,9 @@ async function fetchPendingCounts() {
     })
     if (res.code === 200 && res.data) {
       businessBadges.value = {
-        '订单处理': res.data.pending_registrations || 0,
+        '订单处理': (res.data.pending_registrations || 0) + (res.data.pending_secondary_registrations || 0),
+        '一次订单': res.data.pending_registrations || 0,
+        '二次订单': res.data.pending_secondary_registrations || 0,
         '工单处理': (res.data.pending_feedbacks || 0) + (res.data.unread_feedbacks || 0),
         '充值审批': res.data.pending_recharges || 0,
       }

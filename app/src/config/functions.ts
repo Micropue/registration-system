@@ -3,18 +3,13 @@
  */
 
 export interface NavFunction {
-  /** 显示名称 */
   title: string;
-  /** 路由跳转地址 */
   to: string;
-  /** 图标名称 (MDI) */
   icon?: string;
-  /** 允许访问的角色 (可选，不填则默认 default 可见) */
   role?: 'admin' | 'default';
-  /** 精确匹配（默认 false，即前缀匹配） */
   exact?: boolean;
-  /** 分组：undefined=主体菜单, 'bottom'=底部菜单 */
   group?: 'bottom';
+  children?: { title: string; to: string; icon?: string }[];
 }
 
 export const functions: NavFunction[] = [
@@ -22,7 +17,11 @@ export const functions: NavFunction[] = [
     title: '订单处理',
     to: '/admin/registers',
     icon: 'mdi-file-document-edit-outline',
-    role: 'admin'
+    role: 'admin',
+    children: [
+      { title: '一次订单', to: '/admin/registers', icon: 'mdi-file-document-outline' },
+      { title: '二次订单', to: '/admin/registers?tab=secondary', icon: 'mdi-file-refresh-outline' },
+    ]
   },
   {
     title: '充值审批',

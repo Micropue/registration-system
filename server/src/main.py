@@ -258,11 +258,12 @@ async def get_registrations(
     sort_by: Optional[str] = None, 
     order: str = "desc",
     running_app: Optional[str] = None,
-    username: Optional[str] = None
+    username: Optional[str] = None,
+    secondary: int = Query(0)
 ):
     session, err = require_perm(authorization, "订单处理", "查看")
     if err: return err
-    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=running_app, username=username, current_user_uid=session.user_uid)
+    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=running_app, username=username, current_user_uid=session.user_uid, secondary=bool(secondary))
     return api_response(200, "Success", data)
 
 @app.get("/admin/registrations/stats")
