@@ -52,7 +52,7 @@
               <v-list density="compact">
                 <v-list-item v-if="item.group_uid" @click="assignGroup(item.uid, '')" title="移除账户组"></v-list-item>
                 <v-divider v-if="item.group_uid"></v-divider>
-                <v-list-item v-for="g in groups" :key="g.uid" @click="assignGroup(item.uid, g.uid)" :title="g.name"
+                <v-list-item v-for="g in groupOptions" :key="g.uid" @click="assignGroup(item.uid, g.uid)" :title="g.name"
                   :active="item.group_uid === g.uid" active-color="primary"></v-list-item>
               </v-list>
             </v-menu>
@@ -694,7 +694,7 @@ async function loadUsers(options: any = { page: 1, itemsPerPage: 20, sortBy: [] 
 
 async function loadGroups() {
   try {
-    const res = await ajax<UserGroup[]>(ApiUrl.GET_GROUPS, {
+    const res = await ajax<UserGroup[]>('/api/admin/available-groups', {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) groups.value = res.data

@@ -188,6 +188,15 @@
       </v-card>
     </v-overlay>
 
+    <v-snackbar v-model="dailyReportReminder" location="bottom" timeout="-1" color="info" multi-line>
+      <v-icon class="me-2">mdi-notebook-edit-outline</v-icon>
+      今日报告尚未填写，请尽快提交。
+      <template v-slot:actions>
+        <v-btn variant="text" @click="router.push('/daily-report'); dailyReportReminder = false">去填写</v-btn>
+        <v-btn variant="text" @click="dailyReportReminder = false">稍后</v-btn>
+      </template>
+    </v-snackbar>
+
     <v-dialog v-model="announceDialog.show" max-width="520">
       <v-card rounded="xl" v-if="announceDialog.data">
         <v-card-title class="d-flex align-center pa-4">
@@ -237,8 +246,9 @@ const user = ref<CheckLoginData | null>(null)
 const isAuthChecking = ref(true)
 
 const isPageLoading = computed(() => appStore.isPageLoading)
+const dailyReportReminder = ref(false)
 
-const ADMIN_PERM_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批', '下属管理', '公告管理']
+const ADMIN_PERM_KEYS = ['账户管理', '账户组管理', '订单处理', '工单处理', 'APP配置', '充值审批', '下属管理', '公告管理', '日报管理']
 
 function hasAnyAdminPerm(permissions: Record<string, any> | undefined): boolean {
   if (!permissions) return false
@@ -273,6 +283,8 @@ const PERM_MAP: Record<string, string> = {
   '/admin/update-logs': 'APP配置.查看',
   '/admin/announcements': '公告管理.查看',
   '/admin/subordinates': '下属管理.查看',
+  '/admin/daily-reports': '日报管理.查看',
+  '/daily-report': '日报管理.填写报告',
   '/sign': '新建登记',
   '/feedback': '新建工单',
   '/recharge': '充值申请',
@@ -316,6 +328,7 @@ async function fetchUser() {
   }
   fetchNotifications()
   fetchLatestAnnouncement()
+  checkDailyReportStatus()
   isAuthChecking.value = false
 }
 
@@ -557,6 +570,18 @@ async function fetchLatestAnnouncement() {
         announcedIds.value.add(res.data.uid)
         localStorage.setItem('announced_ids', JSON.stringify([...announcedIds.value]))
       }
+    }
+  } catch { /* ignore */ }
+}
+
+async function checkDailyReportStatus() {
+  if (!user.value) return
+  try {
+    const res = await ajax<any>('/api/daily-report/status', {
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
+    })
+    if (res.code === 200 && res.data && res.data.need_fill && !res.data.filled) {
+      dailyReportReminder.value = true
     }
   } catch { /* ignore */ }
 }

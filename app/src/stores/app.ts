@@ -5,7 +5,7 @@ export const useAppStore = defineStore('app', {
     /** 页面切换加载状态 */
     isPageLoading: false,
     /** 当前登录用户信息 */
-    userInfo: null as { username: string, type: string, token: string } | null,
+    userInfo: null as { username: string, type: string, token: string, permissions?: Record<string, any> } | null,
   }),
   actions: {
     setPageLoading(status: boolean) {

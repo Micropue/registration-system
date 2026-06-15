@@ -2,10 +2,7 @@
   <div class="registration-chat">
     <div class="chat-messages" ref="msgContainer">
       <div v-if="messages.length === 0" class="chat-empty">
-        <div class="empty-icon-wrapper">
-          <v-icon size="48" color="primary" class="mb-2">mdi-message-processing-outline</v-icon>
-        </div>
-        <div class="text-body-2 font-weight-medium text-medium-emphasis mt-4">暂无消息记录</div>
+        <div class="text-body-2 font-weight-medium text-medium-emphasis">暂无消息记录</div>
         <div class="text-caption text-disabled mt-1">在下方输入内容开始沟通吧</div>
       </div>
 
@@ -55,6 +52,10 @@
     </div>
 
     <div class="chat-input-area">
+      <div v-if="frequentPhrases.length > 0" class="chat-frequent-phrases">
+        <v-chip v-for="phrase in frequentPhrases" :key="phrase" size="small" variant="tonal" color="primary"
+          class="me-1 mb-1 cursor-pointer" @click="sendPhrase(phrase)">{{ phrase }}</v-chip>
+      </div>
       <div class="chat-input-row">
         <v-textarea v-model="input" density="compact" variant="solo-filled" flat
           placeholder="输入消息... (Enter 发送，Shift+Enter 换行)" hide-details auto-grow
@@ -71,7 +72,7 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, reactive, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, reactive, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { ajax } from '@/api/ajax'
 import { cookie } from '@/api/cookie'
 import { ApiUrl } from '@/config/api-url'
@@ -153,14 +154,48 @@ function connectWs() {
   }
 }
 
+const PHRASE_STORAGE_KEY = 'chat_msg_counts'
+const msgCounts = ref<Record<string, number>>(loadMsgCounts())
+
+function loadMsgCounts(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(PHRASE_STORAGE_KEY) || '{}')
+  } catch { return {} }
+}
+
+function saveMsgCounts() {
+  localStorage.setItem(PHRASE_STORAGE_KEY, JSON.stringify(msgCounts.value))
+}
+
+function trackMessage(text: string) {
+  msgCounts.value[text] = (msgCounts.value[text] || 0) + 1
+  saveMsgCounts()
+}
+
+const frequentPhrases = computed(() => {
+  return Object.entries(msgCounts.value)
+    .filter(([, count]) => count >= 3)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 10)
+    .map(([text]) => text)
+})
+
 async function send() {
   if (!input.value.trim() || !ws || ws.readyState !== WebSocket.OPEN) return
   sending.value = true
   try {
-    ws.send(JSON.stringify({ message: input.value.trim(), type: 'text' }))
+    const text = input.value.trim()
+    ws.send(JSON.stringify({ message: text, type: 'text' }))
+    trackMessage(text)
     input.value = ''
   } catch (err) { /* ignore */ }
   finally { sending.value = false }
+}
+
+function sendPhrase(phrase: string) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ message: phrase, type: 'text' }))
+  trackMessage(phrase)
 }
 
 function sendMessage(text: string, type: string = 'text') {
@@ -434,6 +469,12 @@ defineExpose({ sendMessage })
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
   overflow: hidden;
+}
+
+.chat-frequent-phrases {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 4px 0 6px;
 }
 
 .chat-input-row {

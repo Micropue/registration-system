@@ -39,6 +39,7 @@
            <div v-for="(perms, category) in dialog.permissions" :key="category" class="mb-3">
             <div class="font-weight-bold text-body-2 mb-1">{{ category }}</div>
             <div v-if="typeof perms === 'object'" class="ml-4">
+              <div v-if="isPermDisabled(category)" class="text-caption text-grey mb-1">功能暂不可用</div>
               <template v-for="(enabled, permKey) in perms" :key="permKey">
                 <template v-if="typeof enabled === 'object' && !Array.isArray(enabled)">
                   <v-checkbox
@@ -59,11 +60,20 @@
                       :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
                   </div>
                 </template>
-                <v-checkbox v-else
-                  :model-value="isPermDisabled(category) ? false : enabled"
-                  @update:model-value="isPermDisabled(category) ? undefined : (dialog.permissions[category] as Record<string,any>)[permKey] = $event"
-                  :label="String(permKey)" density="compact" hide-details color="primary"
-                  :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
+                <div v-else class="d-flex align-center">
+                  <v-checkbox
+                    :model-value="isPermDisabled(category) ? false : enabled"
+                    @update:model-value="isPermDisabled(category) ? undefined : (dialog.permissions[category] as Record<string,any>)[permKey] = $event"
+                    :label="String(permKey)" density="compact" hide-details color="primary"
+                    :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
+                  <v-btn v-if="category === '账户管理' && permKey === '创建'" variant="tonal" size="x-small" color="primary"
+                    class="ml-2" @click="openGroupRestriction">
+                    账户组限制
+                    <v-chip v-if="dialog.allowedCreateGroups.length < groups.length" size="x-small" color="warning" class="ml-1">
+                      {{ dialog.allowedCreateGroups.length }}/{{ groups.length }}
+                    </v-chip>
+                  </v-btn>
+                </div>
               </template>
             </div>
             <v-checkbox v-else
@@ -71,6 +81,7 @@
               @update:model-value="isPermDisabled(category) ? undefined : dialog.permissions[category] = $event"
               :label="category" density="compact" hide-details color="primary" class="ml-4"
               :disabled="(!!dialog.uid && groups.find(g => g.uid === dialog.uid)?.name === '超级管理员') || isPermDisabled(category)" />
+            <div v-if="isPermDisabled(category)" class="ml-8 text-caption text-grey">功能暂不可用</div>
           </div>
         </v-card-text>
         <v-card-actions>
@@ -89,6 +100,27 @@
           <v-spacer></v-spacer>
           <v-btn variant="tonal" @click="deleteDialog.show = false">取消</v-btn>
           <v-btn color="error" variant="flat" @click="doDelete">确认删除</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <v-dialog v-model="groupRestrictionDialog" max-width="500" persistent>
+      <v-card class="pa-4">
+        <v-card-title>创建用户账户组限制</v-card-title>
+        <v-card-subtitle>选择该组用户创建账户时可分配的账户组</v-card-subtitle>
+        <v-card-text style="max-height: 400px; overflow-y: auto;">
+          <v-checkbox label="全选 / 取消全选" density="compact" hide-details color="primary" class="mb-2"
+            :model-value="dialog.allowedCreateGroups.length === groups.length"
+            :indeterminate="dialog.allowedCreateGroups.length > 0 && dialog.allowedCreateGroups.length < groups.length"
+            @update:model-value="toggleAllGroups($event)" />
+          <v-divider class="mb-2"></v-divider>
+          <v-checkbox v-for="g in groups" :key="g.uid" :label="g.name" density="compact" hide-details color="primary"
+            :model-value="dialog.allowedCreateGroups.includes(g.uid)"
+            @update:model-value="toggleGroupRestriction(g.uid, $event)" />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="tonal" @click="groupRestrictionDialog = false">确定</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -114,8 +146,9 @@ import AppDataTable from '@/components/AppDataTable.vue'
 const groups = ref<UserGroup[]>([])
 const loading = ref(false)
 const saving = ref(false)
-const dialog = reactive({ show: false, isNew: false, uid: '', name: '', permissions: {} as Record<string, any> })
+const dialog = reactive({ show: false, isNew: false, uid: '', name: '', permissions: {} as Record<string, any>, allowedCreateGroups: [] as string[] })
 const deleteDialog = reactive({ show: false, uid: '', name: '' })
+const groupRestrictionDialog = ref(false)
 const snackbar = reactive({ show: false, text: '', color: 'success' })
 
 const headers = [
@@ -144,6 +177,26 @@ function formatDate(iso: string) {
   return iso ? new Date(iso).toLocaleString('zh-CN') : '-'
 }
 
+function openGroupRestriction() {
+  groupRestrictionDialog.value = true
+}
+
+function toggleGroupRestriction(uid: string, checked: boolean | null) {
+  if (checked) {
+    if (!dialog.allowedCreateGroups.includes(uid)) dialog.allowedCreateGroups.push(uid)
+  } else {
+    dialog.allowedCreateGroups = dialog.allowedCreateGroups.filter(id => id !== uid)
+  }
+}
+
+function toggleAllGroups(checked: boolean | null) {
+  if (checked) {
+    dialog.allowedCreateGroups = groups.value.map(g => g.uid)
+  } else {
+    dialog.allowedCreateGroups = []
+  }
+}
+
 function defaultPermissions(): Record<string, any> {
   return {
     "账户管理": { "查看": { "下属用户": false, "其他用户": false }, "创建": false, "修改": false, "删除": false, "强制下线": false },
@@ -154,6 +207,7 @@ function defaultPermissions(): Record<string, any> {
     "充值审批": { "查看": false, "处理": false },
     "下属管理": { "查看": false, "配置": false },
     "公告管理": { "查看": false, "编辑": false, "发布": false, "删除": false },
+    "日报管理": { "查看": false, "字段配置": false, "填写报告": false, "无需填写": false },
     "新建登记": false,
     "新建工单": false,
     "充值申请": false,
@@ -191,6 +245,7 @@ function openCreateDialog() {
   dialog.uid = ''
   dialog.name = ''
   dialog.permissions = defaultPermissions()
+  dialog.allowedCreateGroups = groups.value.map(g => g.uid)
   stripDisabledPerms(dialog.permissions)
   dialog.show = true
 }
@@ -200,6 +255,7 @@ function openEditDialog(group: UserGroup) {
   dialog.uid = group.uid
   dialog.name = group.name
   const raw = JSON.parse(JSON.stringify(group.permissions))
+  dialog.allowedCreateGroups = Array.isArray(raw.allowed_create_groups) ? raw.allowed_create_groups : groups.value.map(g => g.uid)
   dialog.permissions = normalizePermissions({ ...defaultPermissions(), ...raw }, defaultPermissions())
   stripDisabledPerms(dialog.permissions)
   dialog.show = true
@@ -229,12 +285,12 @@ async function saveGroup() {
   saving.value = true
   try {
     stripDisabledPerms(dialog.permissions)
+    const permsToSave = { ...dialog.permissions, allowed_create_groups: dialog.allowedCreateGroups }
     const token = cookie.get('token') || ''
     if (dialog.isNew) {
       const res = await ajax(ApiUrl.CREATE_GROUP, {
         method: 'POST',
-        body: { name: dialog.name, permissions: dialog.permissions },
-
+        body: { name: dialog.name, permissions: permsToSave },
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.code === 200) { showMsg('创建成功'); dialog.show = false; loadGroups() }
@@ -242,8 +298,7 @@ async function saveGroup() {
     } else {
       const res = await ajax(`${ApiUrl.UPDATE_GROUP}/${dialog.uid}`, {
         method: 'PATCH',
-        body: { name: dialog.name, permissions: dialog.permissions },
-
+        body: { name: dialog.name, permissions: permsToSave },
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.code === 200) { showMsg('更新成功'); dialog.show = false; loadGroups() }

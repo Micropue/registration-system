@@ -112,4 +112,13 @@ export enum ApiUrl {
   CREATE_BALANCE_LINK = '/api/admin/subordinates',
   REMOVE_BALANCE_LINK = '/api/admin/subordinates',
   GET_USER_DELEGATIONS = '/api/admin/users',
+  /** 日报管理 */
+  GET_DAILY_REPORT_FIELDS = '/api/admin/daily-report-fields',
+  SAVE_DAILY_REPORT_FIELDS = '/api/admin/daily-report-fields',
+  GET_DAILY_REPORT_FIELDS_PUBLIC = '/api/daily-report/fields',
+  GET_DAILY_REPORT_STATUS = '/api/daily-report/status',
+  SUBMIT_DAILY_REPORT = '/api/daily-report/submit',
+  GET_DAILY_REPORTS = '/api/admin/daily-reports',
+  GET_DAILY_REPORT_STATISTICS = '/api/admin/daily-reports/statistics',
+  EXPORT_DAILY_REPORTS = '/api/admin/daily-reports/export',
 }

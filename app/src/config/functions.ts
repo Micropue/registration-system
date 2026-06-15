@@ -85,6 +85,18 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
+    title: '日报管理',
+    to: '/admin/daily-reports',
+    icon: 'mdi-notebook-edit-outline',
+    role: 'admin'
+  },
+  {
+    title: '每日报告',
+    to: '/daily-report',
+    icon: 'mdi-notebook-edit-outline',
+    role: 'default'
+  },
+  {
     title: '余额查看',
     to: '/balance',
     icon: 'mdi-wallet-outline',

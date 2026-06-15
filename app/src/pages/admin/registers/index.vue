@@ -5,7 +5,7 @@
         <h1 class="text-h4">订单处理</h1>
       </div>
 
-      <div class="d-flex flex-wrap ga-2 mb-4">
+      <div v-if="!showSecondary" class="d-flex flex-wrap ga-2 mb-4">
         <v-badge
           :content="totalPending"
           color="error"
@@ -126,7 +126,7 @@
           <v-chip :color="getPriorityColor(detailsDialog.item?.priority || 'low')" size="small" variant="tonal" class="me-2">
             {{ getPriorityText(detailsDialog.item?.priority || 'low') }}
           </v-chip>
-          <v-btn variant="text" size="small" @click="handleDetailsClose">关闭</v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="handleDetailsClose"></v-btn>
         </v-card-title>
 
         <div class="detail-body">
@@ -169,14 +169,14 @@
                 <strong>驳回原因：</strong>{{ detailsDialog.item.reject_reason }}
               </v-alert>
             </v-card-text>
-            <v-card-actions class="pa-4 pt-0 flex-wrap" style="gap:6px">
-              <v-btn variant="text" size="small" prepend-icon="mdi-content-copy" @click="copyDetailText">复制为文本</v-btn>
-              <v-btn v-if="hasAnyImages(detailsDialog.item?.registration_info || {})" variant="text" size="small" prepend-icon="mdi-download-multiple" color="primary" @click="downloadAllImages(detailsDialog.item?.registration_info || {})">导出所有图片</v-btn>
-              <v-btn v-if="detailsDialog.item?.status === 'pending'" variant="elevated" rounded size="small" color="warning" prepend-icon="mdi-pencil" class="px-4 font-weight-bold ms-2" @click="openModifyDialog(detailsDialog.item)">修改</v-btn>
+            <v-card-actions class="pa-4 pt-0 d-flex align-center" style="gap:4px">
+              <v-btn icon="mdi-content-copy" variant="text" size="small" title="复制为文本" @click="copyDetailText"></v-btn>
+              <v-btn v-if="hasAnyImages(detailsDialog.item?.registration_info || {})" icon="mdi-download-multiple" variant="text" size="small" color="primary" title="导出所有图片" @click="downloadAllImages(detailsDialog.item?.registration_info || {})"></v-btn>
+              <v-btn v-if="detailsDialog.item?.status === 'pending'" icon="mdi-pencil" variant="tonal" size="small" color="warning" title="修改" @click="openModifyDialog(detailsDialog.item)"></v-btn>
               <v-spacer></v-spacer>
-              <v-btn v-if="detailsDialog.item?.status !== 'approved'" variant="elevated" rounded size="small" color="success" prepend-icon="mdi-check" class="px-4 font-weight-bold" @click="doDetailsApprove">已处理</v-btn>
-              <v-btn v-if="detailsDialog.item?.status !== 'rejected'" variant="elevated" rounded size="small" color="error" prepend-icon="mdi-close" class="px-4 font-weight-bold" @click="doDetailsReject">驳回</v-btn>
-              <v-btn v-if="emphasisTemplateConfig" variant="tonal" rounded size="small" color="warning" prepend-icon="mdi-alert-octagon" class="ms-auto" @click="showEmphasisDialog">强调窗</v-btn>
+              <v-btn v-if="detailsDialog.item?.status !== 'approved'" icon="mdi-check" variant="tonal" size="small" color="success" title="已处理" @click="doDetailsApprove"></v-btn>
+              <v-btn v-if="detailsDialog.item?.status !== 'rejected'" icon="mdi-close" variant="tonal" size="small" color="error" title="驳回" @click="doDetailsReject"></v-btn>
+              <v-btn v-if="emphasisTemplateConfig" icon="mdi-alert-octagon" variant="tonal" size="small" color="warning" title="强调窗" @click="showEmphasisDialog"></v-btn>
             </v-card-actions>
             </template>
           </div>
@@ -369,6 +369,25 @@
       </v-card>
     </v-dialog>
 
+    <!-- 自定义退回跑量 Dialog -->
+    <v-dialog v-model="refundDialog.show" max-width="420">
+      <v-card>
+        <v-card-title class="text-h5 pa-4">自定义退回跑量</v-card-title>
+        <v-card-text class="pa-4 pt-0">
+          <div class="text-body-2 text-medium-emphasis mb-3">本单原跑量：{{ refundDialog.originalAmount }}{{ refundDialog.unit }}</div>
+          <v-text-field v-model.number="refundDialog.amount" label="退回跑量" type="number" variant="outlined"
+            density="comfortable" :rules="[v => v >= 0 || '不能为负数', v => v <= refundDialog.originalAmount || `不能超过原跑量 ${refundDialog.originalAmount}`]"
+            :suffix="refundDialog.unit" hide-details="auto"></v-text-field>
+        </v-card-text>
+        <v-card-actions class="pa-4">
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="refundDialog.show = false">取消</v-btn>
+          <v-btn color="error" variant="flat" :loading="loading" @click="confirmRefund"
+            :disabled="refundDialog.amount < 0 || refundDialog.amount > refundDialog.originalAmount">确认退回并驳回</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- 图片预览弹窗 -->
     <v-dialog v-model="imagePreviewDialog.show" max-width="900">
       <v-card>
@@ -501,6 +520,7 @@ const currentPage = ref(1)
 const detailsDialog = reactive({ show: false, item: null as RegistrationItem | null })
 const deleteDialog = reactive({ show: false, item: null as RegistrationItem | null })
 const rejectDialog = reactive({ show: false, item: null as RegistrationItem | null, reason: '' })
+const refundDialog = reactive({ show: false, amount: 0, originalAmount: 0, unit: '' })
 const modifyDialog = reactive({ show: false, item: null as RegistrationItem | null, app: '', amount: null as number | null | undefined, templateMismatch: false, showAmount: false })
 const modifyFields = ref<any[]>([])
 const modifyFormData = ref<Record<string, any>>({})
@@ -987,11 +1007,30 @@ function openReject(item: RegistrationItem) {
 
 async function confirmReject() {
   if (!rejectDialog.item) return
+  if (rejectDialog.item.amount != null && rejectDialog.item.amount > 0) {
+    refundDialog.originalAmount = rejectDialog.item.amount
+    refundDialog.amount = rejectDialog.item.amount
+    refundDialog.unit = getAmountUnit(rejectDialog.item.app)
+    rejectDialog.show = false
+    refundDialog.show = true
+    return
+  }
+  await doReject(null)
+}
+
+async function confirmRefund() {
+  await doReject(refundDialog.amount)
+}
+
+async function doReject(refundAmount: number | null) {
+  if (!rejectDialog.item) return
   loading.value = true
   try {
+    const body: Record<string, any> = { status: 'rejected', reject_reason: rejectDialog.reason }
+    if (refundAmount != null) body.refund_amount = refundAmount
     const res = await ajax(`${ApiUrl.UPDATE_REGISTRATION_STATUS}/${rejectDialog.item.id}/status`, {
       method: 'POST',
-      body: { status: 'rejected', reject_reason: rejectDialog.reason },
+      body,
       isFormData: true,
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
@@ -999,6 +1038,7 @@ async function confirmReject() {
       rejectDialog.item.status = 'rejected'
       showMsg(`已驳回 ${rejectDialog.item.username} 的登记`)
       rejectDialog.show = false
+      refundDialog.show = false
       loadRegisters()
     } else {
       showMsg(res.msg || '驳回失败', 'error')

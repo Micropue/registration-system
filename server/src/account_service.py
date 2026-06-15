@@ -105,6 +105,7 @@ class AccountService:
             cursor.execute("""CREATE TABLE IF NOT EXISTS login_sessions (id INT AUTO_INCREMENT PRIMARY KEY, uid VARCHAR(64) UNIQUE NOT NULL, token VARCHAR(255) NOT NULL, user_uid VARCHAR(64) NOT NULL, create_time DATETIME NOT NULL, FOREIGN KEY (user_uid) REFERENCES users(uid) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci""")
             self._init_fields_table(cursor)
             self._init_settings_tables(cursor)
+            self._init_daily_report_tables(cursor)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS registrations (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -313,6 +314,16 @@ class AccountService:
                 if "用户名已存在" not in str(e):
                     raise
 
+    def ensure_super_admin_permissions(self) -> None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("SELECT uid FROM user_groups WHERE name = '超级管理员'")
+            row = cursor.fetchone()
+            if row:
+                cursor.execute("UPDATE user_groups SET permissions = %s WHERE uid = %s",
+                    (json.dumps(self.PERMISSION_TREE, ensure_ascii=False), row[0]))
+                connection.commit()
+
     def _init_fields_table(self, cursor: Any) -> None:
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS registration_fields (
@@ -394,6 +405,34 @@ class AccountService:
         except:
             pass
 
+    def _init_daily_report_tables(self, cursor: Any) -> None:
+        try:
+            cursor.fetchall()
+        except:
+            pass
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_report_fields (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                label VARCHAR(255) NOT NULL,
+                type ENUM('text', 'textarea', 'date', 'number', 'radio', 'checkbox', 'select') NOT NULL,
+                required BOOLEAN DEFAULT FALSE,
+                options JSON,
+                sort_order INT DEFAULT 0
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_reports (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                uid VARCHAR(64) UNIQUE NOT NULL,
+                user_uid VARCHAR(64) NOT NULL,
+                report_date DATE NOT NULL,
+                data JSON NOT NULL,
+                create_time DATETIME NOT NULL,
+                update_time DATETIME NOT NULL,
+                UNIQUE KEY uq_user_date (user_uid, report_date)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+        """)
+
     DISABLED_PERM_KEYS = ['工单处理', '新建工单']
 
     def _sanitize_permissions(self, permissions: dict) -> dict:
@@ -429,6 +468,7 @@ class AccountService:
         "充值审批": {"查看": True, "处理": True},
         "下属管理": {"查看": True, "配置": True},
         "公告管理": {"查看": True, "编辑": True, "发布": True, "删除": True},
+        "日报管理": {"查看": True, "字段配置": True, "填写报告": True, "无需填写": True},
         "新建登记": True,
         "新建工单": True,
         "充值申请": True,
@@ -1488,7 +1528,7 @@ class AccountService:
         } for row in rows]
         return {"total": total, "page": page, "page_size": page_size, "items": items}
 
-    def update_registration_status(self, registration_uid: str, status: str, reject_reason: str | None = None) -> None:
+    def update_registration_status(self, registration_uid: str, status: str, reject_reason: str | None = None, refund_amount: float | None = None) -> None:
         reg_info = None
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
@@ -1513,16 +1553,18 @@ class AccountService:
             cursor.execute(sql, tuple(params))
             connection.commit()
         if reg_info and reg_info["amount"] and reg_info["app_name"] and reg_info.get("user_uid") and status == 'rejected' and reg_info.get("old_status") != 'rejected':
-            app_name = reg_info["app_name"]
-            app_uid = None
-            with self.db.connect() as conn2:
-                cur = conn2.cursor(dictionary=True)
-                cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
-                app = cur.fetchone()
-                app_uid = app["uid"] if app else None
-            if app_uid and reg_info.get("user_uid"):
-                self.adjust_user_balance(reg_info["user_uid"], app_uid, float(reg_info["amount"]),
-                    note=f"登记状态变为{status}，撤销扣除")
+            actual_refund = refund_amount if refund_amount is not None else float(reg_info["amount"])
+            if actual_refund > 0:
+                app_name = reg_info["app_name"]
+                app_uid = None
+                with self.db.connect() as conn2:
+                    cur = conn2.cursor(dictionary=True)
+                    cur.execute("SELECT uid FROM running_apps WHERE name = %s", (app_name,))
+                    app = cur.fetchone()
+                    app_uid = app["uid"] if app else None
+                if app_uid and reg_info.get("user_uid"):
+                    self.adjust_user_balance(reg_info["user_uid"], app_uid, actual_refund,
+                        note=f"订单驳回，退回跑量{actual_refund}")
 
     def delete_registration(self, registration_uid: str) -> bool:
         reg_info = None
@@ -1547,14 +1589,21 @@ class AccountService:
                     note="登记记录已删除，撤销扣除")
         return deleted
 
-    def get_registration_stats(self, secondary: bool = False) -> list[dict[str, Any]]:
-        where = "WHERE COALESCE(r.is_secondary, 0) = 1" if secondary else "WHERE COALESCE(r.is_secondary, 0) = 0"
+    def get_registration_stats(self, secondary: bool = False, user_uid: str = '') -> list[dict[str, Any]]:
+        conditions = ["COALESCE(r.is_secondary, 0) = 1" if secondary else "COALESCE(r.is_secondary, 0) = 0"]
+        params: list[Any] = []
+        if user_uid:
+            perm_filter, perm_params = self._build_perm_filter(user_uid, "订单处理")
+            perm_filter = perm_filter.replace("user_uid", "r.user_uid")
+            conditions.append(perm_filter)
+            params.extend(perm_params)
+        where = "WHERE " + " AND ".join(conditions)
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute(f"""
                 SELECT JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app, r.status, COUNT(*) as cnt
                 FROM registrations r {where} GROUP BY app, r.status
-            """)
+            """, params)
             rows = cursor.fetchall()
         app_map: dict[str, dict[str, int]] = {}
         for row in rows:
@@ -1827,16 +1876,44 @@ class AccountService:
             connection.commit()
             return cursor.rowcount > 0
 
+    def _build_perm_filter(self, user_uid: str, module: str) -> tuple[str, tuple]:
+        perms = self._get_user_permissions(user_uid)
+        view_perm = perms.get(module, {})
+        if isinstance(view_perm, dict):
+            view_perm = view_perm.get("查看", False)
+        if isinstance(view_perm, dict):
+            can_sub = view_perm.get("下属订单", False) or view_perm.get("下属工单", False)
+            can_other = view_perm.get("其他订单", False) or view_perm.get("其他工单", False)
+        elif view_perm:
+            can_sub = True
+            can_other = True
+        else:
+            return "1=0", ()
+        if can_sub and can_other:
+            return "1=1", ()
+        descendants = self._get_all_descendant_uids(user_uid)
+        sub_uids = [user_uid] + list(descendants)
+        if can_sub and not can_other:
+            if not sub_uids:
+                return "user_uid = %s", (user_uid,)
+            ph = ",".join(["%s"] * len(sub_uids))
+            return f"user_uid IN ({ph})", tuple(sub_uids)
+        if can_other and not can_sub:
+            if sub_uids:
+                ph = ",".join(["%s"] * len(sub_uids))
+                return f"user_uid NOT IN ({ph})", tuple(sub_uids)
+            return "1=1", ()
+        return "user_uid = %s", (user_uid,)
+
     def get_dashboard_stats(self, user_uid: str = '') -> dict[str, Any]:
         now = self.db.now()
         today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        sub_uids: list[str] = []
-        filter_by_user = False
         if user_uid:
-            descendants = self._get_all_descendant_uids(user_uid)
-            if descendants:
-                sub_uids = [user_uid] + list(descendants)
-                filter_by_user = True
+            reg_where, reg_params = self._build_perm_filter(user_uid, "订单处理")
+            fb_where, fb_params = self._build_perm_filter(user_uid, "工单处理")
+        else:
+            reg_where, reg_params = "1=1", ()
+            fb_where, fb_params = "1=1", ()
         with self.db.connect() as connection:
             cursor = connection.cursor()
             def count(table: str, where: str = '', params: tuple = ()) -> int:
@@ -1845,16 +1922,8 @@ class AccountService:
                     sql += " WHERE " + where
                 cursor.execute(sql, params)
                 return cursor.fetchone()[0]
-            def build_in_placeholders(uids: list[str], filter_flag: bool) -> tuple[str, tuple]:
-                if not filter_flag:
-                    return "1=1", ()
-                if not uids:
-                    return "1=0", ()
-                return "user_uid IN (" + ",".join(["%s"] * len(uids)) + ")", tuple(uids)
-            reg_where, reg_params = build_in_placeholders(sub_uids, filter_by_user)
-            fb_where, fb_params = build_in_placeholders(sub_uids, filter_by_user)
 
-            total_users = len(sub_uids) if filter_by_user else count("users")
+            total_users = count("users")
             total_registrations = count("registrations", reg_where, reg_params)
             pending_registrations = count("registrations", f"{reg_where} AND status = 'pending' AND COALESCE(is_secondary, 0) = 0", reg_params)
             pending_secondary_registrations = count("registrations", f"{reg_where} AND status = 'pending' AND COALESCE(is_secondary, 0) = 1", reg_params)
@@ -1864,13 +1933,7 @@ class AccountService:
             today_registrations = count("registrations", f"{reg_where} AND create_time >= %s", reg_params + (today_start,))
             today_feedbacks = count("feedbacks", f"{fb_where} AND create_time >= %s", fb_params + (today_start,))
             total_apps = count("running_apps")
-            if filter_by_user and sub_uids:
-                chat_where = "created_at >= %s AND sender_uid IN (" + ",".join(["%s"] * len(sub_uids)) + ")"
-                chat_params: tuple = (today_start,) + tuple(sub_uids)
-            else:
-                chat_where = "created_at >= %s"
-                chat_params = (today_start,)
-            today_chats = count("registration_chats", chat_where, chat_params)
+            today_chats = count("registration_chats", "created_at >= %s", (today_start,))
             total_recharges = count("balance_recharges", reg_where, reg_params)
             pending_recharges = count("balance_recharges", f"{reg_where} AND status = 'pending'", reg_params)
         return {
@@ -2002,32 +2065,37 @@ class AccountService:
 
     # ---- Notification: Aggregated pending items from business tables ----
 
-    def get_pending_items_for_admin(self, page: int = 1, page_size: int = 20) -> dict[str, Any]:
+    def get_pending_items_for_admin(self, page: int = 1, page_size: int = 20, user_uid: str = '') -> dict[str, Any]:
+        reg_filter, reg_params_t = ("1=1", ()) if not user_uid else self._build_perm_filter(user_uid, "订单处理")
+        fb_filter, fb_params_t = ("1=1", ()) if not user_uid else self._build_perm_filter(user_uid, "工单处理")
+        reg_cond = f"status = 'pending' AND {reg_filter}".replace("user_uid", "r.user_uid")
+        fb_cond = f"status = 'pending' AND {fb_filter}".replace("user_uid", "f.user_uid")
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
 
-            q_reg = "SELECT uid as id, 'pending_registration' as type, uid as reference_id, '新订单申请' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = r.user_uid), ' 提交了新订单') as content, create_time as created_at FROM registrations r WHERE status = 'pending'"
-            q_fb = "SELECT uid as id, 'pending_feedback' as type, uid as reference_id, '新工单' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = f.user_uid), ' 提交了工单: ', f.title) as content, create_time as created_at FROM feedbacks f WHERE status = 'pending'"
+            q_reg = f"SELECT uid as id, 'pending_registration' as type, uid as reference_id, '新订单申请' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = r.user_uid), ' 提交了新订单') as content, create_time as created_at FROM registrations r WHERE {reg_cond}"
+            q_fb = f"SELECT uid as id, 'pending_feedback' as type, uid as reference_id, '新工单' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = f.user_uid), ' 提交了工单: ', f.title) as content, create_time as created_at FROM feedbacks f WHERE {fb_cond}"
             q_recharge = "SELECT br.uid as id, 'pending_recharge' as type, br.uid as reference_id, '新充值申请' as title, CONCAT('用户 ', (SELECT u.username FROM users u WHERE u.uid = br.user_uid), ' 申请充值 ', br.amount, ' 元') as content, br.created_at FROM balance_recharges br WHERE status = 'pending'"
 
+            all_params = reg_params_t + fb_params_t
             union = f"({q_reg}) UNION ALL ({q_fb}) UNION ALL ({q_recharge}) ORDER BY created_at DESC"
 
-            cursor.execute(f"SELECT COUNT(*) as total FROM ({union}) t")
+            cursor.execute(f"SELECT COUNT(*) as total FROM ({union}) t", all_params)
             total = cursor.fetchone()["total"]
 
             offset = (page - 1) * page_size
-            cursor.execute(f"SELECT * FROM ({union}) t LIMIT %s OFFSET %s", (page_size, offset))
+            cursor.execute(f"SELECT * FROM ({union}) t LIMIT %s OFFSET %s", all_params + (page_size, offset))
             items = list(cursor.fetchall())
             for item in items:
                 if item.get('created_at'):
                     item['created_at'] = item['created_at'].isoformat()
 
-            cursor.execute("SELECT COUNT(*) FROM registrations WHERE status = 'pending'")
-            pending_regs = cursor.fetchone()["COUNT(*)"]
-            cursor.execute("SELECT COUNT(*) FROM feedbacks WHERE status = 'pending'")
-            pending_fbs = cursor.fetchone()["COUNT(*)"]
-            cursor.execute("SELECT COUNT(*) FROM balance_recharges WHERE status = 'pending'")
-            pending_recs = cursor.fetchone()["COUNT(*)"]
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM registrations r WHERE {reg_cond}", reg_params_t)
+            pending_regs = cursor.fetchone()["cnt"]
+            cursor.execute(f"SELECT COUNT(*) as cnt FROM feedbacks f WHERE {fb_cond}", fb_params_t)
+            pending_fbs = cursor.fetchone()["cnt"]
+            cursor.execute("SELECT COUNT(*) as cnt FROM balance_recharges WHERE status = 'pending'")
+            pending_recs = cursor.fetchone()["cnt"]
 
             return {
                 "total": total,
@@ -2407,3 +2475,169 @@ class AccountService:
             """, (user_uid,))
             rows = cursor.fetchall()
         return [{"uid": row["uid"], "parent_uid": row["parent_uid"], "parent_name": row["parent_name"], "app_uid": row["app_uid"], "app_name": row["app_name"], "created_at": row["created_at"].isoformat()} for row in rows]
+
+    # ─── 日报管理 ───────────────────────────────────────────────
+
+    def get_daily_report_fields(self) -> list[dict[str, Any]]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT * FROM daily_report_fields ORDER BY sort_order ASC, id ASC")
+            rows = cursor.fetchall()
+        result = []
+        for row in rows:
+            options = row.get("options")
+            if options and isinstance(options, str):
+                options = json.loads(options)
+            result.append({
+                "id": row["id"],
+                "label": row["label"],
+                "type": row["type"],
+                "required": bool(row["required"]),
+                "options": options or [],
+                "sort_order": row["sort_order"],
+            })
+        return result
+
+    def save_daily_report_fields(self, fields: list[dict[str, Any]]) -> None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("DELETE FROM daily_report_fields")
+            for i, field in enumerate(fields):
+                options = field.get("options")
+                if options is not None and not isinstance(options, str):
+                    options = json.dumps(options, ensure_ascii=False)
+                cursor.execute(
+                    "INSERT INTO daily_report_fields (label, type, required, options, sort_order) VALUES (%s, %s, %s, %s, %s)",
+                    (field["label"], field["type"], field.get("required", False), options, i)
+                )
+            connection.commit()
+
+    def get_daily_report_status(self, user_uid: str, report_date: str) -> dict[str, Any] | None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, data, create_time, update_time FROM daily_reports WHERE user_uid = %s AND report_date = %s", (user_uid, report_date))
+            row = cursor.fetchone()
+        if not row:
+            return None
+        data = row["data"]
+        if isinstance(data, str):
+            data = json.loads(data)
+        return {
+            "uid": row["uid"],
+            "data": data,
+            "create_time": row["create_time"].isoformat() if row["create_time"] else None,
+            "update_time": row["update_time"].isoformat() if row["update_time"] else None,
+        }
+
+    def submit_daily_report(self, user_uid: str, data: dict[str, Any], report_date: str) -> str:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid FROM daily_reports WHERE user_uid = %s AND report_date = %s", (user_uid, report_date))
+            existing = cursor.fetchone()
+            now = self.db.now()
+            data_json = json.dumps(data, ensure_ascii=False)
+            if existing:
+                cursor.execute("UPDATE daily_reports SET data = %s, update_time = %s WHERE uid = %s", (data_json, now, existing["uid"]))
+                connection.commit()
+                return existing["uid"]
+            else:
+                uid = self.db.new_uid()
+                cursor.execute(
+                    "INSERT INTO daily_reports (uid, user_uid, report_date, data, create_time, update_time) VALUES (%s, %s, %s, %s, %s, %s)",
+                    (uid, user_uid, report_date, data_json, now, now)
+                )
+                connection.commit()
+                return uid
+
+    def get_daily_reports(self, page: int = 1, page_size: int = 20, date_from: str | None = None, date_to: str | None = None) -> dict[str, Any]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            where = []
+            params: list[Any] = []
+            if date_from:
+                where.append("dr.report_date >= %s")
+                params.append(date_from)
+            if date_to:
+                where.append("dr.report_date <= %s")
+                params.append(date_to)
+            where_sql = ("WHERE " + " AND ".join(where)) if where else ""
+            cursor.execute(f"SELECT COUNT(*) as total FROM daily_reports dr {where_sql}", params)
+            total = cursor.fetchone()["total"]
+            offset = (page - 1) * page_size
+            cursor.execute(f"""
+                SELECT dr.uid, dr.user_uid, dr.report_date, dr.data, dr.create_time, dr.update_time,
+                       u.username
+                FROM daily_reports dr
+                JOIN users u ON u.uid = dr.user_uid
+                {where_sql}
+                ORDER BY dr.report_date DESC, dr.create_time DESC
+                LIMIT %s OFFSET %s
+            """, params + [page_size, offset])
+            rows = cursor.fetchall()
+        items = []
+        for row in rows:
+            data = row["data"]
+            if isinstance(data, str):
+                data = json.loads(data)
+            items.append({
+                "uid": row["uid"],
+                "user_uid": row["user_uid"],
+                "username": row["username"],
+                "report_date": row["report_date"].isoformat() if row["report_date"] else None,
+                "data": data,
+                "create_time": row["create_time"].isoformat() if row["create_time"] else None,
+                "update_time": row["update_time"].isoformat() if row["update_time"] else None,
+            })
+        return {"items": items, "total": total}
+
+    def get_daily_report_statistics(self, report_date: str) -> dict[str, int]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT ug.permissions FROM user_groups ug
+                JOIN users u ON u.group_uid = ug.uid
+            """)
+            all_user_groups = cursor.fetchall()
+            should_fill = 0
+            for ug in all_user_groups:
+                perms = ug["permissions"]
+                if isinstance(perms, str):
+                    perms = json.loads(perms)
+                if not perms:
+                    continue
+                daily = perms.get("日报管理")
+                if isinstance(daily, dict):
+                    has_fill = daily.get("填写报告", False)
+                    has_exempt = daily.get("无需填写", False)
+                    if has_fill and not has_exempt:
+                        should_fill += 1
+            cursor.execute("SELECT COUNT(*) as cnt FROM daily_reports WHERE report_date = %s", (report_date,))
+            filled = cursor.fetchone()["cnt"]
+        return {
+            "should_fill": should_fill,
+            "filled": filled,
+            "unfilled": max(0, should_fill - filled),
+        }
+
+    def get_daily_reports_for_export(self, date_from: str, date_to: str) -> list[dict[str, Any]]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT dr.report_date, dr.data, u.username
+                FROM daily_reports dr
+                JOIN users u ON u.uid = dr.user_uid
+                WHERE dr.report_date >= %s AND dr.report_date <= %s
+                ORDER BY dr.report_date DESC, u.username ASC
+            """, (date_from, date_to))
+            rows = cursor.fetchall()
+        items = []
+        for row in rows:
+            data = row["data"]
+            if isinstance(data, str):
+                data = json.loads(data)
+            items.append({
+                "username": row["username"],
+                "report_date": row["report_date"].isoformat() if row["report_date"] else None,
+                "data": data,
+            })
+        return items

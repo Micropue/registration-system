@@ -995,6 +995,7 @@ async function fetchConfig() {
 }
 
 function initFormData() {
+  Object.keys(formData).forEach(key => delete formData[key])
   formFields.value.forEach(field => {
     if (field.type === 'checkbox') {
       formData[field.label] = Array.isArray(field.default) ? [...field.default] : []

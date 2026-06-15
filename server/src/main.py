@@ -28,6 +28,10 @@ async def lifespan(app: FastAPI):
         print("Database initialized.")
     except Exception as e:
         print(f"Error initializing database: {e}")
+    try:
+        account_service.ensure_super_admin_permissions()
+    except Exception as e:
+        print(f"Error updating super admin permissions: {e}")
     yield
     # 这里可以放关闭数据库连接的逻辑
 
@@ -144,7 +148,13 @@ async def create_user(
 ):
     session, err = require_perm(authorization, "账户管理", "创建")
     if err: return err
-        
+
+    if request.group_uid:
+        perms = account_service._get_user_permissions(session.user_uid)
+        allowed = perms.get("allowed_create_groups")
+        if isinstance(allowed, list) and request.group_uid not in allowed:
+            return api_response(403, "您没有权限将用户分配到该账户组")
+
     try:
         account_service.create_account(
             username=request.username,
@@ -270,7 +280,7 @@ async def get_registrations(
 async def get_registration_stats(authorization: Optional[str] = Header(None), secondary: int = Query(0)):
     session, err = require_perm(authorization, "订单处理", "查看")
     if err: return err
-    stats = account_service.get_registration_stats(secondary=bool(secondary))
+    stats = account_service.get_registration_stats(secondary=bool(secondary), user_uid=session.user_uid)
     return api_response(200, "Success", stats)
 
 @app.post("/admin/registrations/{uid}/status")
@@ -278,6 +288,7 @@ async def update_registration_status(
     uid: str,
     status: str = Form(...),
     reject_reason: Optional[str] = Form(None),
+    refund_amount: Optional[float] = Form(None),
     authorization: Optional[str] = Header(None)
 ):
     session, err = require_perm(authorization, "订单处理", status == 'approved' and "处理" or status == 'rejected' and "驳回" or "处理")
@@ -289,7 +300,7 @@ async def update_registration_status(
             cur.execute("SELECT status FROM registrations WHERE uid = %s", (uid,))
             old = cur.fetchone()
             old_status = old['status'] if old else ''
-        account_service.update_registration_status(uid, status, reject_reason)
+        account_service.update_registration_status(uid, status, reject_reason, refund_amount=refund_amount)
         if status == 'rejected':
             with account_service.db.connect() as conn:
                 cur = conn.cursor(dictionary=True)
@@ -604,6 +615,125 @@ async def get_public_app_templates(app_uid: str):
     except Exception as e:
         return api_response(500, str(e))
 
+# ─── 日报管理 ───────────────────────────────────────────────
+
+@app.get("/admin/daily-report-fields")
+async def get_daily_report_fields(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "日报管理", "字段配置")
+    if err: return err
+    fields = account_service.get_daily_report_fields()
+    return api_response(200, "Success", fields)
+
+@app.post("/admin/daily-report-fields")
+async def save_daily_report_fields(fields: list[dict[str, Any]], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "日报管理", "字段配置")
+    if err: return err
+    try:
+        account_service.save_daily_report_fields(fields)
+        return api_response(200, "字段配置已保存")
+    except Exception as e:
+        return api_response(500, f"保存失败: {str(e)}")
+
+@app.get("/daily-report/fields")
+async def get_daily_report_fields_public(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "日报管理", "填写报告")
+    if err: return err
+    fields = account_service.get_daily_report_fields()
+    return api_response(200, "Success", fields)
+
+@app.get("/daily-report/status")
+async def get_daily_report_status(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    has_fill_perm = account_service._check_permission(session.user_uid, "日报管理", "填写报告")
+    has_exempt = account_service._check_permission(session.user_uid, "日报管理", "无需填写")
+    if not has_fill_perm:
+        return api_response(200, "Success", {"need_fill": False, "filled": False})
+    from datetime import date
+    today = date.today().isoformat()
+    report = account_service.get_daily_report_status(session.user_uid, today)
+    need_fill = not has_exempt
+    return api_response(200, "Success", {
+        "need_fill": need_fill,
+        "filled": report is not None,
+        "report": report,
+    })
+
+@app.post("/daily-report/submit")
+async def submit_daily_report(data: dict[str, Any], authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "日报管理", "填写报告")
+    if err: return err
+    from datetime import date
+    today = date.today().isoformat()
+    try:
+        uid = account_service.submit_daily_report(session.user_uid, data, today)
+        return api_response(200, "提交成功", {"uid": uid})
+    except Exception as e:
+        return api_response(500, f"提交失败: {str(e)}")
+
+@app.get("/admin/daily-reports")
+async def get_daily_reports(
+    authorization: Optional[str] = Header(None),
+    page: int = 1,
+    page_size: int = 20,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    session, err = require_perm(authorization, "日报管理", "查看")
+    if err: return err
+    data = account_service.get_daily_reports(page, page_size, date_from, date_to)
+    return api_response(200, "Success", data)
+
+@app.get("/admin/daily-reports/statistics")
+async def get_daily_report_statistics(authorization: Optional[str] = Header(None), report_date: Optional[str] = None):
+    session, err = require_perm(authorization, "日报管理", "查看")
+    if err: return err
+    from datetime import date
+    target_date = report_date or date.today().isoformat()
+    stats = account_service.get_daily_report_statistics(target_date)
+    return api_response(200, "Success", stats)
+
+@app.get("/admin/daily-reports/export")
+async def export_daily_reports(
+    authorization: Optional[str] = Header(None),
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+):
+    session, err = require_perm(authorization, "日报管理", "查看")
+    if err: return err
+    if not date_from or not date_to:
+        return api_response(400, "请指定导出日期范围")
+    from openpyxl import Workbook
+    from fastapi.responses import Response
+    import io
+    fields = account_service.get_daily_report_fields()
+    reports = account_service.get_daily_reports_for_export(date_from, date_to)
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "日报"
+    headers = ["用户名", "日期"] + [f["label"] for f in fields]
+    ws.append(headers)
+    for report in reports:
+        row = [report["username"], report["report_date"]]
+        for f in fields:
+            val = report["data"].get(f["label"], "")
+            if isinstance(val, list):
+                val = ", ".join(str(v) for v in val)
+            row.append(val)
+        ws.append(row)
+    output = io.BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return Response(
+        content=output.getvalue(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename=daily_reports_{date_from}_{date_to}.xlsx"}
+    )
+
 @app.get("/fields")
 async def get_public_fields():
     """获取登记字段（公开接口，仅限已登录用户或根据需求开放）"""
@@ -864,6 +994,25 @@ async def get_groups(authorization: Optional[str] = Header(None)):
     groups = account_service.get_user_groups()
     return api_response(200, "Success", groups)
 
+@app.get("/admin/available-groups")
+async def get_available_groups(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    has_create = account_service._check_permission(session.user_uid, "账户管理", "创建")
+    has_modify = account_service._check_permission(session.user_uid, "账户管理", "修改")
+    if not has_create and not has_modify:
+        return api_response(403, "您没有此操作权限")
+    all_groups = account_service.get_user_groups()
+    perms = account_service._get_user_permissions(session.user_uid)
+    allowed = perms.get("allowed_create_groups")
+    if isinstance(allowed, list):
+        all_groups = [g for g in all_groups if g["uid"] in allowed]
+    return api_response(200, "Success", all_groups)
+
 @app.post("/admin/groups")
 async def create_group(data: dict[str, Any], authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "账户组管理", "创建")
@@ -908,8 +1057,14 @@ async def delete_group(group_uid: str, authorization: Optional[str] = Header(Non
 async def assign_user_group(uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "账户管理", "修改")
     if err: return err
+    group_uid = data.get('group_uid', '')
+    if group_uid:
+        perms = account_service._get_user_permissions(session.user_uid)
+        allowed = perms.get("allowed_create_groups")
+        if isinstance(allowed, list) and group_uid not in allowed:
+            return api_response(403, "您没有权限将用户分配到该账户组")
     try:
-        account_service.assign_user_group(uid, data.get('group_uid', ''))
+        account_service.assign_user_group(uid, group_uid)
         return api_response(200, "User group assigned")
     except AccountError as e:
         return api_response(400, str(e))
@@ -1128,7 +1283,7 @@ async def get_pending_items(authorization: Optional[str] = Header(None), page: i
     is_admin = account_service._check_permission(session.user_uid, "订单处理", "查看") or account_service._check_permission(session.user_uid, "工单处理", "查看") or account_service._check_permission(session.user_uid, "充值审批", "查看")
     if not is_admin:
         return api_response(200, "Success", {"total": 0, "page": page, "page_size": page_size, "items": [], "counts": {}})
-    data = account_service.get_pending_items_for_admin(page=page, page_size=page_size)
+    data = account_service.get_pending_items_for_admin(page=page, page_size=page_size, user_uid=session.user_uid)
     return api_response(200, "Success", data)
 
 @app.get("/pending-items/count")
