@@ -17,5 +17,5 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_KEY }}
           source: "server/src/*"
-          target: "/www/huhurun-www/server/src"
+          target: "/sdb/huhurun@api"
           strip_components: 2
