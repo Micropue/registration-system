@@ -103,6 +103,12 @@ export const functions: NavFunction[] = [
     role: 'default'
   },
   {
+    title: '聊天室',
+    to: '/chat-room',
+    icon: 'mdi-comment-outline',
+    role: 'default'
+  },
+  {
     title: '余额流水',
     to: '/balance-transactions',
     icon: 'mdi-history',

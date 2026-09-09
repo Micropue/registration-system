@@ -39,6 +39,8 @@ export enum ApiUrl {
   REGISTRATION_STATS = '/api/admin/registrations/stats',
   /** 获取登记聊天记录 */
   REGISTRATION_CHAT = '/api/chat',
+  /** 全局聊天室历史消息 */
+  GET_GLOBAL_CHATS = '/api/global-chats',
   /** 获取跑步APP配置 */
   GET_RUNNING_APPS = '/api/admin/settings/running-apps',
   /** 创建跑步APP配置 */

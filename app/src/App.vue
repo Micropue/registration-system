@@ -290,6 +290,7 @@ const PERM_MAP: Record<string, string> = {
   '/recharge': '充值申请',
   '/balance': '余额查看',
   '/balance-transactions': '余额查看',
+  '/chat-room': '聊天室',
 }
 
 function isSubActive(child: { title: string; to: string }): boolean {

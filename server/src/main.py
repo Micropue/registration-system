@@ -1477,6 +1477,46 @@ class NotifConnectionManager:
 
 notif_manager = NotifConnectionManager()
 
+# --- 全局聊天室 ---
+
+class GlobalChatConnection:
+    def __init__(self, websocket: WebSocket, user_uid: str, username: str, is_admin: bool):
+        self.websocket = websocket
+        self.user_uid = user_uid
+        self.username = username
+        self.is_admin = is_admin
+
+class GlobalChatManager:
+    def __init__(self):
+        self.connections: list[GlobalChatConnection] = []
+
+    async def connect(self, session, websocket: WebSocket):
+        await websocket.accept()
+        is_admin = bool(account_service._check_permission(session.user_uid, "订单处理", "查看"))
+        self.connections.append(GlobalChatConnection(websocket, session.user_uid, session.username, is_admin))
+
+    def disconnect(self, websocket: WebSocket):
+        for conn in self.connections:
+            if conn.websocket == websocket:
+                self.connections.remove(conn)
+                return True
+        return False
+
+    async def broadcast(self, message: dict, exclude: WebSocket | None = None):
+        for conn in self.connections[:]:
+            if exclude is not None and conn.websocket == exclude:
+                continue
+            try:
+                await conn.websocket.send_json(message)
+            except Exception:
+                self.disconnect(conn.websocket)
+
+    async def broadcast_presence(self):
+        users = [{"uid": c.user_uid, "username": c.username, "is_admin": c.is_admin} for c in self.connections]
+        await self.broadcast({"type": "presence", "users": users, "online_count": len(users)})
+
+global_chat_mgr = GlobalChatManager()
+
 def _ws_push_notification(user_uid: str, data: dict):
     try:
         loop = asyncio.get_running_loop()
@@ -1600,6 +1640,74 @@ async def recall_chat_message(registration_uid: str, message_uid: str, authoriza
         }))
         return api_response(200, msg_text)
     return api_response(400, msg_text)
+
+@app.websocket("/ws/global-chat")
+async def websocket_global_chat(websocket: WebSocket, token: str = Query(...)):
+    session = account_service.get_login_session(token)
+    if not session:
+        await websocket.close(code=4001)
+        return
+    if not account_service._check_permission(session.user_uid, "聊天室"):
+        await websocket.close(code=4003)
+        return
+    await global_chat_mgr.connect(session, websocket)
+    await global_chat_mgr.broadcast_presence()
+    try:
+        while True:
+            data = await websocket.receive_json()
+            msg_type = str(data.get('msg_type') or data.get('type') or 'text')
+            message = str(data.get('message', '')).strip()
+            if msg_type not in ('text', 'image', 'registration_card'):
+                msg_type = 'text'
+            if not message and msg_type != 'image':
+                continue
+            if len(message) > 5000:
+                await websocket.send_json({"type": "error", "message": "消息过长"})
+                continue
+            image_url = data.get('image_url')
+            if image_url and isinstance(image_url, str) and not image_url.startswith('/media/'):
+                image_url = None
+            if msg_type == 'image' and not image_url:
+                await websocket.send_json({"type": "error", "message": "图片无效"})
+                continue
+            saved = account_service.save_global_chat_message(session.user_uid, message, msg_type, image_url)
+            payload = {
+                "type": "message",
+                "id": saved["id"],
+                "sender_uid": session.user_uid,
+                "username": session.username,
+                "is_admin": bool(account_service._check_permission(session.user_uid, "订单处理", "查看")),
+                "msg_type": msg_type,
+                "message": saved["message"],
+                "image_url": saved["image_url"],
+                "created_at": saved["created_at"],
+            }
+            await global_chat_mgr.broadcast(payload, exclude=websocket)
+            await websocket.send_json(payload)
+    except WebSocketDisconnect:
+        pass
+    except Exception:
+        pass
+    if global_chat_mgr.disconnect(websocket):
+        await global_chat_mgr.broadcast_presence()
+
+@app.get("/global-chats")
+async def get_global_chat_history(
+    authorization: Optional[str] = Header(None),
+    limit: int = 100,
+    before_id: Optional[str] = None
+):
+    session, err = require_perm(authorization, "聊天室")
+    if err: return err
+    data = account_service.get_global_chat_history(limit=min(max(limit, 1), 200), before_uid=before_id)
+    return api_response(200, "Success", data)
+
+@app.get("/global-chats/online")
+async def get_global_chat_online(authorization: Optional[str] = Header(None)):
+    session, err = require_perm(authorization, "聊天室")
+    if err: return err
+    users = [{"uid": c.user_uid, "username": c.username, "is_admin": c.is_admin} for c in global_chat_mgr.connections]
+    return api_response(200, "Success", {"users": users, "online_count": len(users)})
 
 if __name__ == "__main__":
 

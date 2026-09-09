@@ -140,6 +140,7 @@ class AccountService:
                 pass
             try:
                 cursor.execute("SELECT is_secondary FROM registrations LIMIT 0")
+                cursor.fetchall()
             except:
                 try:
                     with self.db.connect() as alt_conn:
@@ -209,12 +210,25 @@ class AccountService:
                     FOREIGN KEY (sender_uid) REFERENCES users(uid) ON DELETE CASCADE
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
             """)
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS global_chats (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    uid VARCHAR(64) UNIQUE NOT NULL,
+                    sender_uid VARCHAR(64) NOT NULL,
+                    message TEXT NOT NULL,
+                    msg_type VARCHAR(30) DEFAULT 'text',
+                    image_url VARCHAR(500) DEFAULT NULL,
+                    created_at DATETIME NOT NULL,
+                    FOREIGN KEY (sender_uid) REFERENCES users(uid) ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
+            """)
         try:
             cursor.execute("ALTER TABLE registration_chats ADD COLUMN msg_type VARCHAR(30) DEFAULT 'text'")
         except:
             pass
         try:
             cursor.execute("SELECT is_recalled FROM registration_chats LIMIT 0")
+            cursor.fetchall()
         except:
             try:
                 with self.db.connect() as alt_conn:
@@ -474,6 +488,7 @@ class AccountService:
         "充值申请": True,
         "余额查看": True,
         "聊天": True,
+        "聊天室": True,
     }
 
     def _init_default_groups(self, cursor: Any) -> None:
@@ -1626,6 +1641,44 @@ class AccountService:
             print(f"[CHAT] uid={uid} reg={registration_uid} secondary_set={affected}", flush=True)
             connection.commit()
         return {"id": uid, "registration_uid": registration_uid, "sender_uid": sender_uid, "message": message, "created_at": now.isoformat(), "msg_type": msg_type}
+
+    def save_global_chat_message(self, sender_uid: str, message: str, msg_type: str = 'text', image_url: str | None = None) -> dict[str, Any]:
+        uid = self.db.new_uid()
+        now = self.db.now()
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("INSERT INTO global_chats (uid, sender_uid, message, msg_type, image_url, created_at) VALUES (%s, %s, %s, %s, %s, %s)", (uid, sender_uid, message, msg_type, image_url, now))
+            connection.commit()
+        return {"id": uid, "sender_uid": sender_uid, "message": message, "msg_type": msg_type, "image_url": image_url, "created_at": now.isoformat()}
+
+    def get_global_chat_history(self, limit: int = 100, before_uid: str | None = None) -> dict[str, Any]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            params: list[Any] = []
+            where = ""
+            if before_uid:
+                where = "WHERE c.id < (SELECT id FROM global_chats WHERE uid = %s)"
+                params.append(before_uid)
+            cursor.execute(f"""
+                SELECT c.id AS seq, c.uid, c.sender_uid, c.message, c.msg_type, c.image_url, c.created_at, u.username,
+                       CASE WHEN ug.name IN ('管理员','超级管理员') THEN TRUE ELSE FALSE END as is_admin
+                FROM global_chats c
+                JOIN users u ON c.sender_uid = u.uid
+                LEFT JOIN user_groups ug ON ug.uid = u.group_uid
+                {where}
+                ORDER BY c.id DESC
+                LIMIT %s
+            """, tuple(params) + (limit + 1,))
+            rows = cursor.fetchall()
+        has_more = len(rows) > limit
+        rows = list(reversed(rows[:limit]))
+        items = [{
+            "id": row["uid"], "sender_uid": row["sender_uid"], "username": row["username"],
+            "is_admin": bool(row.get("is_admin", False)), "message": row["message"],
+            "msg_type": row.get("msg_type", "text"), "image_url": row.get("image_url"),
+            "created_at": row["created_at"].isoformat()
+        } for row in rows]
+        return {"items": items, "has_more": has_more}
 
     def get_chat_history(self, registration_uid: str) -> list[dict[str, Any]]:
         with self.db.connect() as connection:

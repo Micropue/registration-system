@@ -35,6 +35,18 @@ function checkAdminPerm(module: string, action: string): NavigationGuard {
 }
 
 /**
+ * 路由守卫：要求必须拥有指定布尔权限键（如 "聊天室"）
+ */
+function checkPerm(permKey: string): NavigationGuard {
+  return async (_to, _from, next) => {
+    const userInfo = await checkLoginStatus()
+    if (!userInfo) return next('/login')
+    if (userInfo.permissions?.[permKey]) return next()
+    return next('/')
+  }
+}
+
+/**
  * 路由守卫：要求必须登录（用户页面，含后台权限的用户也可访问）
  */
 const requireDefault: NavigationGuard = async (_to, _from, next) => {
@@ -115,10 +127,10 @@ const router = createRouter({
       meta: { title: '余额查看' }
     },
     {
-      path: '/balance-transactions',
-      component: () => import("@/pages/balance-transactions/index.vue"),
-      beforeEnter: requireDefault,
-      meta: { title: '余额流水' }
+      path: '/chat-room',
+      component: () => import("@/pages/chat-room/index.vue"),
+      beforeEnter: checkPerm('聊天室'),
+      meta: { title: '聊天室' },
     },
     {
       path: '/daily-report',
