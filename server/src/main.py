@@ -1641,6 +1641,7 @@ async def recall_chat_message(registration_uid: str, message_uid: str, authoriza
         return api_response(200, msg_text)
     return api_response(400, msg_text)
 
+
 @app.websocket("/ws/global-chat")
 async def websocket_global_chat(websocket: WebSocket, token: str = Query(...)):
     session = account_service.get_login_session(token)
@@ -1656,6 +1657,43 @@ async def websocket_global_chat(websocket: WebSocket, token: str = Query(...)):
         while True:
             data = await websocket.receive_json()
             msg_type = str(data.get('msg_type') or data.get('type') or 'text')
+            if msg_type == 'recall_message':
+                message_uid = data.get('message_uid', '')
+                success, msg_text = account_service.recall_global_chat_message(message_uid, session.user_uid)
+                if success:
+                    await global_chat_mgr.broadcast({
+                        "type": "recall_message",
+                        "message_uid": message_uid,
+                        "username": session.username
+                    })
+                else:
+                    await websocket.send_json({"type": "error", "message": msg_text})
+                continue
+            if msg_type == 'pin_message':
+                if not account_service._check_permission(session.user_uid, "聊天室"):
+                    await websocket.send_json({"type": "error", "message": "您没有聊天室权限"})
+                    continue
+                message_uid = data.get('message_uid', '')
+                if not message_uid:
+                    await websocket.send_json({"type": "error", "message": "缺少消息ID"})
+                    continue
+                success, msg_text = account_service.pin_global_chat_message(message_uid)
+                if success:
+                    pinned = account_service.get_pinned_global_chat_message()
+                    await global_chat_mgr.broadcast({"type": "pin_update", "pinned": pinned, "by": session.username})
+                else:
+                    await websocket.send_json({"type": "error", "message": msg_text})
+                continue
+            if msg_type == 'unpin_message':
+                if not account_service._check_permission(session.user_uid, "聊天室"):
+                    await websocket.send_json({"type": "error", "message": "您没有聊天室权限"})
+                    continue
+                success, msg_text = account_service.unpin_global_chat_message()
+                if success:
+                    await global_chat_mgr.broadcast({"type": "pin_update", "pinned": None, "by": session.username})
+                else:
+                    await websocket.send_json({"type": "error", "message": msg_text})
+                continue
             message = str(data.get('message', '')).strip()
             if msg_type not in ('text', 'image', 'registration_card'):
                 msg_type = 'text'
@@ -1684,6 +1722,21 @@ async def websocket_global_chat(websocket: WebSocket, token: str = Query(...)):
             }
             await global_chat_mgr.broadcast(payload, exclude=websocket)
             await websocket.send_json(payload)
+            try:
+                with account_service.db.connect() as conn:
+                    cur = conn.cursor(dictionary=True)
+                    cur.execute(
+                        "SELECT u.uid FROM users u "
+                        "INNER JOIN user_groups ug ON ug.uid = u.group_uid "
+                        "WHERE JSON_CONTAINS(ug.permissions, 'true', '$.\"聊天室\"')"
+                    )
+                    uids = [row['uid'] for row in cur.fetchall()]
+                notif_content = f'{session.username}: {message[:50]}{"..." if len(message) > 50 else ""}'
+                for uid in uids:
+                    if uid != session.user_uid:
+                        account_service.create_notification(uid, 'global_chat_message', '聊天室新消息', notif_content)
+            except Exception as e:
+                print(f"[GLOBAL_CHAT_NOTIFY] 错误: {e}", flush=True)
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -1708,6 +1761,72 @@ async def get_global_chat_online(authorization: Optional[str] = Header(None)):
     if err: return err
     users = [{"uid": c.user_uid, "username": c.username, "is_admin": c.is_admin} for c in global_chat_mgr.connections]
     return api_response(200, "Success", {"users": users, "online_count": len(users)})
+
+@app.post("/global-chats/recall/{message_uid}")
+async def recall_global_chat_message(message_uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "聊天室"):
+        return api_response(403, "您没有聊天室权限")
+    success, msg_text = account_service.recall_global_chat_message(message_uid, session.user_uid)
+    if success:
+        asyncio.create_task(global_chat_mgr.broadcast({
+            "type": "recall_message",
+            "message_uid": message_uid,
+            "username": session.username
+        }))
+        return api_response(200, msg_text)
+    return api_response(400, msg_text)
+
+@app.get("/global-chats/pinned")
+async def get_pinned_global_chat(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "聊天室"):
+        return api_response(403, "您没有聊天室权限")
+    pinned = account_service.get_pinned_global_chat_message()
+    return api_response(200, "Success", pinned)
+
+@app.post("/global-chats/pin/{message_uid}")
+async def pin_global_chat_message(message_uid: str, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "聊天室"):
+        return api_response(403, "您没有聊天室权限")
+    success, msg_text = account_service.pin_global_chat_message(message_uid)
+    if success:
+        pinned = account_service.get_pinned_global_chat_message()
+        asyncio.create_task(global_chat_mgr.broadcast({"type": "pin_update", "pinned": pinned, "by": session.username}))
+        return api_response(200, msg_text)
+    return api_response(400, msg_text)
+
+@app.post("/global-chats/unpin")
+async def unpin_global_chat_message(authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "聊天室"):
+        return api_response(403, "您没有聊天室权限")
+    success, msg_text = account_service.unpin_global_chat_message()
+    if success:
+        asyncio.create_task(global_chat_mgr.broadcast({"type": "pin_update", "pinned": None, "by": session.username}))
+        return api_response(200, msg_text)
+    return api_response(400, msg_text)
 
 if __name__ == "__main__":
 

@@ -214,6 +214,7 @@ function defaultPermissions(): Record<string, any> {
     "余额查看": false,
     "聊天": false,
     "聊天室": false,
+    "调整侧边栏位置": false,
   }
 }
 

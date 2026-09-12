@@ -47,6 +47,24 @@
       <div class="d-flex chat-body">
         <!-- 消息列 -->
         <div class="chat-main">
+          <!-- 置顶公告 -->
+          <div v-if="pinnedMsg" class="pinned-banner">
+            <div class="d-flex align-center">
+              <v-icon size="16" color="warning" class="me-1">mdi-pin</v-icon>
+              <span class="text-caption font-weight-bold text-warning me-2">群公告</span>
+              <span class="text-caption text-grey">—— {{ pinnedMsg.username }}</span>
+            </div>
+            <div class="pinned-content mt-1">
+              <span v-if="pinnedMsg.msg_type === 'image'" class="text-body-2">[图片消息]</span>
+              <span v-else class="text-body-2">{{ pinnedMsg.message }}</span>
+            </div>
+            <div class="d-flex justify-end mt-1" v-if="isAdminUser">
+              <v-btn size="x-small" variant="text" color="grey" @click="unpinMessage" class="text-none">
+                <v-icon size="14" class="me-1">mdi-pin-off</v-icon>取消置顶
+              </v-btn>
+            </div>
+          </div>
+
           <!-- 消息区 -->
           <div class="chat-messages" ref="msgContainer">
             <div v-if="loadingHistory" class="d-flex justify-center py-6">
@@ -78,26 +96,47 @@
                     </div>
                     <div v-else class="msg-time text-end">{{ formatTime(msg.created_at) }}</div>
 
-                    <div :class="['msg-bubble', isSelf(msg) ? 'bubble-self' : 'bubble-other']">
-                      <!-- 图片消息 -->
-                      <div v-if="msg.msg_type === 'image'" class="img-msg">
-                        <v-img :src="msg.image_url" max-width="260" min-width="120" aspect-ratio="1.4"
-                          class="rounded-lg cursor-pointer" cover @click="previewImage(msg.image_url)"></v-img>
-                        <div v-if="msg.message" class="mt-1 img-caption">{{ msg.message }}</div>
-                      </div>
-                      <!-- 订单卡片消息 -->
-                      <div v-else-if="msg.msg_type === 'registration_card'" class="reg-card-msg">
-                        <div class="card-row" @click="openRegistration(cardData(msg))">
-                          <v-icon color="primary" class="me-2">mdi-file-document-outline</v-icon>
-                          <div class="card-body">
-                            <div class="card-title">{{ cardData(msg).title || '订单信息' }}</div>
-                            <div class="card-text text-truncate">{{ cardData(msg).summary || '查看订单详情' }}</div>
-                          </div>
-                          <v-btn icon="mdi-open-in-new" size="x-small" variant="text"></v-btn>
+                    <div class="msg-bubble-row">
+                      <div :class="['msg-bubble', isSelf(msg) ? 'bubble-self' : 'bubble-other']">
+                        <!-- 撤回消息 -->
+                        <div v-if="msg.is_recalled" class="recalled-msg">
+                          <v-icon size="14" class="me-1">mdi-cancel</v-icon>消息已撤回
                         </div>
+                        <!-- 图片消息 -->
+                        <div v-else-if="msg.msg_type === 'image'" class="img-msg">
+                          <v-img :src="msg.image_url" max-width="260" min-width="120" aspect-ratio="1.4"
+                            class="rounded-lg cursor-pointer" cover @click="previewImage(msg.image_url)"></v-img>
+                          <div v-if="msg.message" class="mt-1 img-caption">{{ msg.message }}</div>
+                        </div>
+                        <!-- 订单卡片消息 -->
+                        <div v-else-if="msg.msg_type === 'registration_card'" class="reg-card-msg">
+                          <div class="card-row" @click="openRegistration(cardData(msg))">
+                            <v-icon color="primary" class="me-2">mdi-file-document-outline</v-icon>
+                            <div class="card-body">
+                              <div class="card-title">{{ cardData(msg).title || '订单信息' }}</div>
+                              <div class="card-text text-truncate">{{ cardData(msg).summary || '查看订单详情' }}</div>
+                            </div>
+                            <v-btn icon="mdi-open-in-new" size="x-small" variant="text"></v-btn>
+                          </div>
+                        </div>
+                        <!-- 文本消息 -->
+                        <div v-else class="text-msg">{{ msg.message }}</div>
                       </div>
-                      <!-- 文本消息 -->
-                      <div v-else class="text-msg">{{ msg.message }}</div>
+                      <!-- 操作按钮 -->
+                      <div class="msg-hover-actions" v-if="!msg.is_recalled">
+                        <v-btn v-if="pinnedMsg?.id === msg.id" icon size="x-small" variant="text" color="warning"
+                          @click="unpinMessage" title="取消置顶">
+                          <v-icon size="14">mdi-pin-off</v-icon>
+                        </v-btn>
+                        <v-btn v-else-if="isAdminUser" icon size="x-small" variant="text"
+                          @click="pinMessage(msg.id)" title="设为群公告">
+                          <v-icon size="14">mdi-pin</v-icon>
+                        </v-btn>
+                        <v-btn v-if="isSelf(msg)" icon size="x-small" variant="text"
+                          @click="recallMessage(msg.id)" title="撤回">
+                          <v-icon size="14">mdi-undo</v-icon>
+                        </v-btn>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -240,6 +279,7 @@ const previewDialog = ref(false)
 const previewUrl = ref('')
 
 const canSend = computed(() => input.value.trim() !== '' || !!pendingImageFile.value)
+const pinnedMsg = ref<any>(null)
 
 let ws: WebSocket | null = null
 let reconnectTimer: any = null
@@ -346,11 +386,23 @@ function connectWs() {
         for (const u of data.users || []) map[u.uid] = u
         Object.keys(onlineUsers).forEach(k => { if (!map[k]) delete onlineUsers[k] })
         Object.assign(onlineUsers, map)
+      } else if (data.type === 'recall_message') {
+        const msg = messages.value.find((m: any) => m.id === data.message_uid)
+        if (msg) {
+          msg.is_recalled = true
+          setTimeout(() => {
+            const idx = messages.value.findIndex((m: any) => m.id === data.message_uid)
+            if (idx !== -1) messages.value.splice(idx, 1)
+          }, 3000)
+        }
       } else if (data.type === 'message') {
         if (!messages.value.some(m => m.id === data.id)) {
           messages.value.push(data)
           scrollBottom()
         }
+      } else if (data.type === 'pin_update') {
+        pinnedMsg.value = data.pinned || null
+        if (data.by) showMsg(`${data.by} ${data.pinned ? '置顶了一条消息' : '取消了置顶'}`, 'info')
       } else if (data.type === 'error') {
         showMsg(data.message)
       }
@@ -485,7 +537,8 @@ function sendRegistrationCard(o: any) {
     created_at: o.created_at,
     status: o.status,
     amount: o.amount ?? null,
-    summary: orderSummary(o)
+    summary: orderSummary(o),
+    is_secondary: o.is_secondary || false
   }
   if (!ws || ws.readyState !== WebSocket.OPEN) return
   ws.send(JSON.stringify({ msg_type: 'registration_card', message: JSON.stringify(payload) }))
@@ -503,11 +556,42 @@ function cardData(msg: any) {
 function openRegistration(card: any) {
   if (!card.registration_uid) return
   const path = isAdminUser.value ? '/admin/registers' : '/sign'
-  router.push({ path, query: { chat: card.registration_uid } })
+  const query: Record<string, any> = { chat: card.registration_uid }
+  if (card.is_secondary) query.tab = 'secondary'
+  router.push({ path, query })
+}
+
+async function recallMessage(messageUid: string) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ type: 'recall_message', message_uid: messageUid }))
+}
+
+async function loadPinned() {
+  try {
+    const res = await ajax<any>('/api/global-chats/pinned', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (res.code === 200 && res.data && !Array.isArray(res.data)) {
+      pinnedMsg.value = res.data
+    } else {
+      pinnedMsg.value = null
+    }
+  } catch (e) { /* ignore */ }
+}
+
+function pinMessage(messageUid: string) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ msg_type: 'pin_message', message_uid: messageUid }))
+}
+
+function unpinMessage() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return
+  ws.send(JSON.stringify({ msg_type: 'unpin_message' }))
 }
 
 onMounted(() => {
   loadHistory()
+  loadPinned()
   connectWs()
 })
 
@@ -767,5 +851,63 @@ onBeforeUnmount(() => {
 
 .order-item {
   background: rgb(var(--v-theme-background));
+}
+
+.msg-bubble-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.msg-hover-actions {
+  display: flex;
+  gap: 0;
+  flex-shrink: 0;
+}
+
+.msg-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2px;
+}
+
+.recall-btn {
+  min-width: 24px;
+  min-height: 24px;
+  width: 24px;
+  height: 24px;
+}
+
+.recalled-msg {
+  font-size: 13px;
+  color: rgb(var(--v-theme-on-surface), 0.45);
+  font-style: italic;
+  display: flex;
+  align-items: center;
+}
+
+.is-self .bubble-self:has(.recalled-msg) {
+  background: rgba(var(--v-theme-on-surface), 0.05);
+  color: rgb(var(--v-theme-on-surface), 0.45);
+}
+
+.pinned-banner {
+  margin: 0 16px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.06) 0%, rgba(255, 152, 0, 0.04) 100%);
+  border: 1px solid rgba(255, 193, 7, 0.2);
+  border-left: 3px solid rgb(var(--v-theme-warning));
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.pinned-content {
+  color: rgb(var(--v-theme-on-surface), 0.8);
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+  max-height: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 </style>

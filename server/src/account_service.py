@@ -226,17 +226,39 @@ class AccountService:
             cursor.execute("ALTER TABLE registration_chats ADD COLUMN msg_type VARCHAR(30) DEFAULT 'text'")
         except:
             pass
-        try:
-            cursor.execute("SELECT is_recalled FROM registration_chats LIMIT 0")
-            cursor.fetchall()
-        except:
             try:
-                with self.db.connect() as alt_conn:
-                    alt_cursor = alt_conn.cursor()
-                    alt_cursor.execute("ALTER TABLE registration_chats ADD COLUMN is_recalled TINYINT(1) DEFAULT 0")
-                    alt_conn.commit()
+                cursor.execute("SELECT is_recalled FROM registration_chats LIMIT 0")
+                cursor.fetchall()
             except:
-                pass
+                try:
+                    with self.db.connect() as alt_conn:
+                        alt_cursor = alt_conn.cursor()
+                        alt_cursor.execute("ALTER TABLE registration_chats ADD COLUMN is_recalled TINYINT(1) DEFAULT 0")
+                        alt_conn.commit()
+                except:
+                    pass
+            try:
+                cursor.execute("SELECT is_recalled FROM global_chats LIMIT 0")
+                cursor.fetchall()
+            except:
+                try:
+                    with self.db.connect() as alt_conn:
+                        alt_cursor = alt_conn.cursor()
+                        alt_cursor.execute("ALTER TABLE global_chats ADD COLUMN is_recalled TINYINT(1) DEFAULT 0")
+                        alt_conn.commit()
+                except:
+                    pass
+            try:
+                cursor.execute("SELECT is_pinned FROM global_chats LIMIT 0")
+                cursor.fetchall()
+            except:
+                try:
+                    with self.db.connect() as alt_conn:
+                        alt_cursor = alt_conn.cursor()
+                        alt_cursor.execute("ALTER TABLE global_chats ADD COLUMN is_pinned TINYINT(1) DEFAULT 0")
+                        alt_conn.commit()
+                except:
+                    pass
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS user_groups (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -489,6 +511,7 @@ class AccountService:
         "余额查看": True,
         "聊天": True,
         "聊天室": True,
+        "调整侧边栏位置": True,
     }
 
     def _init_default_groups(self, cursor: Any) -> None:
@@ -1655,9 +1678,9 @@ class AccountService:
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             params: list[Any] = []
-            where = ""
+            where = "WHERE c.is_recalled = 0"
             if before_uid:
-                where = "WHERE c.id < (SELECT id FROM global_chats WHERE uid = %s)"
+                where += " AND c.id < (SELECT id FROM global_chats WHERE uid = %s)"
                 params.append(before_uid)
             cursor.execute(f"""
                 SELECT c.id AS seq, c.uid, c.sender_uid, c.message, c.msg_type, c.image_url, c.created_at, u.username,
@@ -1679,6 +1702,70 @@ class AccountService:
             "created_at": row["created_at"].isoformat()
         } for row in rows]
         return {"items": items, "has_more": has_more}
+
+    def recall_global_chat_message(self, message_uid: str, sender_uid: str) -> tuple[bool, str]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT sender_uid, created_at, is_recalled FROM global_chats WHERE uid = %s", (message_uid,))
+            msg = cursor.fetchone()
+            if not msg:
+                return False, "消息不存在"
+            if msg['sender_uid'] != sender_uid:
+                return False, "只能撤回自己发送的消息"
+            if msg['is_recalled']:
+                return False, "消息已被撤回"
+            elapsed = (datetime.now() - msg['created_at']).total_seconds()
+            if elapsed > 300:
+                return False, "超过5分钟无法撤回"
+            cursor.execute("UPDATE global_chats SET is_recalled = 1 WHERE uid = %s", (message_uid,))
+            connection.commit()
+        return True, "撤回成功"
+
+    def pin_global_chat_message(self, message_uid: str) -> tuple[bool, str]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT uid, message, sender_uid, is_recalled FROM global_chats WHERE uid = %s", (message_uid,))
+            msg = cursor.fetchone()
+            if not msg:
+                return False, "消息不存在"
+            if msg['is_recalled']:
+                return False, "无法置顶已撤回的消息"
+            cursor.execute("UPDATE global_chats SET is_pinned = 0")
+            cursor.execute("UPDATE global_chats SET is_pinned = 1 WHERE uid = %s", (message_uid,))
+            connection.commit()
+        return True, "置顶成功"
+
+    def unpin_global_chat_message(self) -> tuple[bool, str]:
+        with self.db.connect() as connection:
+            cursor = connection.cursor()
+            cursor.execute("UPDATE global_chats SET is_pinned = 0 WHERE is_pinned = 1")
+            affected = cursor.rowcount
+            connection.commit()
+        if affected == 0:
+            return False, "当前没有置顶消息"
+        return True, "取消置顶成功"
+
+    def get_pinned_global_chat_message(self) -> dict[str, Any] | None:
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("""
+                SELECT c.uid, c.sender_uid, c.message, c.msg_type, c.image_url, c.created_at, u.username,
+                       CASE WHEN ug.name IN ('管理员','超级管理员') THEN TRUE ELSE FALSE END as is_admin
+                FROM global_chats c
+                JOIN users u ON c.sender_uid = u.uid
+                LEFT JOIN user_groups ug ON ug.uid = u.group_uid
+                WHERE c.is_pinned = 1 AND c.is_recalled = 0
+                LIMIT 1
+            """)
+            row = cursor.fetchone()
+        if not row:
+            return None
+        return {
+            "id": row["uid"], "sender_uid": row["sender_uid"], "username": row["username"],
+            "is_admin": bool(row.get("is_admin", False)), "message": row["message"],
+            "msg_type": row.get("msg_type", "text"), "image_url": row.get("image_url"),
+            "created_at": row["created_at"].isoformat()
+        }
 
     def get_chat_history(self, registration_uid: str) -> list[dict[str, Any]]:
         with self.db.connect() as connection:

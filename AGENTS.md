@@ -70,7 +70,8 @@ docker compose down -v && docker compose up -d
 
 ## Permission group names (for require_perm)
 
-`账户管理`, `账户组管理`, `订单处理`, `工单处理`, `APP配置`, `充值审批`, `新建登记`, `新建工单`, `充值申请`, `余额查看`, `公告管理`, `下属管理`, `聊天`
+`账户管理`, `账户组管理`, `订单处理`, `工单处理`, `APP配置`, `充值审批`, `新建登记`, `新建工单`, `充值申请`, `余额查看`, `公告管理`, `下属管理`, `日报管理`, `聊天`, `聊天室`, `调整侧边栏位置`
 
-- **"聊天"** is a standalone boolean permission (added to `PERMISSION_TREE` and `defaultPermissions()`). Super admin gets it by default; other groups need manual assign.
+- **Standalone boolean permissions** (added to `PERMISSION_TREE` and `defaultPermissions()`): `"聊天"`, `"聊天室"`, `"调整侧边栏位置"`. Super admin gets them by default; other groups need manual assign.
+- **"调整侧边栏位置"** gates the "修改功能顺序" sidebar item (drag-to-reorder, saved in `localStorage` key `sidebar_order_{username}`).
 - **PERMISSION_TREE updates** auto-apply to the super admin group on restart; other groups don't auto-update.

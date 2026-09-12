@@ -885,12 +885,20 @@ function openChatFromQuery() {
   const chatId = route.query.chat
   if (chatId && typeof chatId === 'string') {
     const item = registers.value.find(r => String(r.id) === String(chatId))
-    if (item) openDetailsDialog(item)
+    if (item) {
+      openDetailsDialog(item)
+    } else if (!showSecondary.value && route.query.tab !== 'secondary') {
+      router.replace({ query: { ...route.query, tab: 'secondary' } })
+    }
   }
 }
 
 watch(() => route.query.chat, () => {
   openChatFromQuery()
+})
+
+watch(registers, () => {
+  if (route.query.chat && !detailsDialog.show) openChatFromQuery()
 })
 
 function chatUnreadCount(id: string) {

@@ -56,12 +56,18 @@
             <v-list-item-title>{{ item.title }}</v-list-item-title>
           </v-list-item>
         </template>
-        <v-divider v-if="bottomFunctions.length > 0" class="mt-2 mb-1"></v-divider>
+        <v-divider v-if="bottomFunctions.length > 0 || user" class="mt-2 mb-1"></v-divider>
         <v-list-item v-for="item in bottomFunctions" :key="item.to" :to="item.to" :exact="item.exact" rounded="xl" active-color="primary" class="mb-1">
           <template v-slot:prepend>
             <v-icon>{{ item.icon }}</v-icon>
           </template>
           <v-list-item-title>{{ item.title }}</v-list-item-title>
+        </v-list-item>
+        <v-list-item v-if="user && canAdjustSidebar" rounded="xl" class="mb-1" @click="openOrderDialog">
+          <template v-slot:prepend>
+            <v-icon>mdi-sort-variant</v-icon>
+          </template>
+          <v-list-item-title>修改功能顺序</v-list-item-title>
         </v-list-item>
       </v-list>
 
@@ -138,7 +144,7 @@
                 <v-list-item v-for="n in notifList" :key="n.id" :class="!n.is_read ? 'bg-primary-lighten-5' : ''"
                   @click="handleNotificationClick(n)" density="compact" class="mb-1">
                   <template v-slot:prepend>
-                    <v-icon size="18" :color="n.is_read ? 'grey' : 'primary'">mdi-circle</v-icon>
+                    <v-icon size="18" :color="n.is_read ? 'grey' : ((n.type === 'chat_message' || n.type === 'global_chat_message') ? 'error' : 'primary')">mdi-circle</v-icon>
                   </template>
                   <v-list-item-title class="text-body-2">{{ n.title }}</v-list-item-title>
                   <v-list-item-subtitle class="text-caption">{{ n.content }}</v-list-item-subtitle>
@@ -217,6 +223,47 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-dialog v-model="orderDialog" max-width="480">
+      <v-card rounded="xl">
+        <v-card-title class="d-flex align-center pa-4">
+          <v-icon color="primary" class="mr-2" size="28">mdi-sort-variant</v-icon>
+          <span class="text-h6 font-weight-bold">修改功能顺序</span>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" @click="orderDialog = false"></v-btn>
+        </v-card-title>
+        <v-divider></v-divider>
+        <v-card-text class="pa-4">
+          <div class="text-caption text-medium-emphasis mb-3">拖动调整顺序，仅影响你自己的侧边栏显示。</div>
+          <draggable v-model="orderMain" item-key="to" @end="onOrderChange" ghost-class="order-ghost">
+            <template #item="{ element }">
+              <div class="order-item d-flex align-center order-drag">
+                <v-icon class="order-handle me-2" size="18" color="grey">mdi-drag-vertical</v-icon>
+                <v-icon class="me-2" size="20" color="primary">{{ element.icon }}</v-icon>
+                <span class="text-body-2">{{ element.title }}</span>
+              </div>
+            </template>
+          </draggable>
+          <template v-if="orderBottom.length > 0">
+            <v-divider class="my-3"></v-divider>
+            <draggable v-model="orderBottom" item-key="to" @end="onOrderChange" ghost-class="order-ghost">
+              <template #item="{ element }">
+                <div class="order-item d-flex align-center order-drag">
+                  <v-icon class="order-handle me-2" size="18" color="grey">mdi-drag-vertical</v-icon>
+                  <v-icon class="me-2" size="20" color="primary">{{ element.icon }}</v-icon>
+                  <span class="text-body-2">{{ element.title }}</span>
+                </div>
+              </template>
+            </draggable>
+          </template>
+        </v-card-text>
+        <v-divider></v-divider>
+        <v-card-actions class="pa-4">
+          <v-btn variant="text" @click="resetOrder">恢复默认</v-btn>
+          <v-spacer></v-spacer>
+          <v-btn color="primary" variant="flat" rounded="lg" @click="orderDialog = false">完成</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-app>
 </template>
 
@@ -228,6 +275,8 @@ import { checkLoginStatus } from '@/api/auth'
 import { cookie } from '@/api/cookie'
 import { ajax } from '@/api/ajax'
 import { functions } from '@/config/functions'
+import type { NavFunction } from '@/config/functions'
+import draggable from 'vuedraggable'
 import { useAppStore } from '@/stores/app'
 import { useChatStore } from '@/stores/chat'
 import type { CheckLoginData } from '@/config/api-type'
@@ -315,14 +364,68 @@ const displayFunctions = computed(() => {
   })
 })
 
-const mainFunctions = computed(() => displayFunctions.value.filter(f => !f.group))
-const bottomFunctions = computed(() => displayFunctions.value.filter(f => f.group === 'bottom'))
+const mainFunctions = computed(() => sortByOrder(displayFunctions.value.filter(f => !f.group)))
+const bottomFunctions = computed(() => sortByOrder(displayFunctions.value.filter(f => f.group === 'bottom')))
+const canAdjustSidebar = computed(() => hasPerm(user.value?.permissions, '调整侧边栏位置'))
+
+/* ---- 自定义功能顺序 ---- */
+const orderDialog = ref(false)
+const sidebarOrder = ref<string[]>([])
+const orderMain = ref<NavFunction[]>([])
+const orderBottom = ref<NavFunction[]>([])
+
+function orderStorageKey() {
+  return user.value ? `sidebar_order_${user.value.username}` : ''
+}
+
+function loadSidebarOrder() {
+  try {
+    const raw = orderStorageKey() ? localStorage.getItem(orderStorageKey()) : ''
+    sidebarOrder.value = raw ? JSON.parse(raw) : []
+  } catch {
+    sidebarOrder.value = []
+  }
+}
+
+function sortByOrder(items: NavFunction[]): NavFunction[] {
+  const order = sidebarOrder.value
+  if (!order.length) return items
+  const pos = new Map(order.map((to, i) => [to, i]))
+  return [...items].sort((a, b) => (pos.get(a.to) ?? 1e6) - (pos.get(b.to) ?? 1e6))
+}
+
+function openOrderDialog() {
+  orderMain.value = mainFunctions.value.slice()
+  orderBottom.value = bottomFunctions.value.slice()
+  orderDialog.value = true
+}
+
+function persistOrder() {
+  try {
+    localStorage.setItem(orderStorageKey(), JSON.stringify(sidebarOrder.value))
+  } catch { /* ignore */ }
+}
+
+function onOrderChange() {
+  sidebarOrder.value = [...orderMain.value.map(i => i.to), ...orderBottom.value.map(i => i.to)]
+  persistOrder()
+}
+
+function resetOrder() {
+  sidebarOrder.value = []
+  try {
+    if (orderStorageKey()) localStorage.removeItem(orderStorageKey())
+  } catch { /* ignore */ }
+  orderMain.value = displayFunctions.value.filter(f => !f.group)
+  orderBottom.value = displayFunctions.value.filter(f => f.group === 'bottom')
+}
 
 async function fetchUser() {
   isAuthChecking.value = true
   const prevUser = user.value
   user.value = await checkLoginStatus()
   appStore.setUserInfo(user.value)
+  loadSidebarOrder()
   if (user.value && !prevUser) {
     fetchPendingCounts()
     setTimeout(connectNotifWs, 1000)
@@ -377,7 +480,7 @@ function typeColor(type: string) {
 
 const pendingCounts = computed(() => {
   const isAdmin = user.value?.role !== 'default'
-  const result: Record<string, number> = { '订单': 0, '工单反馈': 0, '充值申请': 0 }
+  const result: Record<string, number> = { '订单': 0, '工单反馈': 0, '充值申请': 0, '聊天室': 0 }
   for (const n of notifList.value) {
     if (n.is_read) continue
     if (n.type === 'chat_message' || n.type === 'registration_approved' || n.type === 'registration_rejected') {
@@ -386,6 +489,8 @@ const pendingCounts = computed(() => {
       result['工单反馈']++
     } else if (n.type === 'recharge_approved' || n.type === 'recharge_rejected') {
       result['充值申请']++
+    } else if (n.type === 'global_chat_message') {
+      result['聊天室']++
     }
   }
   if (isAdmin) {
@@ -515,6 +620,9 @@ async function handleNotificationClick(n: any) {
     const targetPath = isAdmin ? '/admin/registers' : '/sign'
     router.push({ path: targetPath, query: n.reference_id ? { chat: n.reference_id } : {} })
   }
+  else if (n.type === 'global_chat_message') {
+    router.push('/chat-room')
+  }
   else if (n.type === 'registration_rejected' || n.type === 'registration_approved') {
     router.push({ path: '/sign', query: n.reference_id ? { chat: n.reference_id } : {} })
   }
@@ -614,6 +722,8 @@ watch(() => route.path, (path) => {
     types.push('feedback_replied', 'feedback_status')
   } else if (path.startsWith('/admin/recharges')) {
     types.push('recharge_approved', 'recharge_rejected')
+  } else if (path === '/chat-room' || path.startsWith('/chat-room?')) {
+    types.push('global_chat_message')
   }
   if (types.length > 0) {
     ajax('/api/notifications/read-by-types', {
@@ -737,5 +847,30 @@ body,
     background-color: black;
     z-index: -1;
   }
+}
+
+.order-item {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  margin-bottom: 6px;
+}
+
+.order-drag {
+  cursor: grab;
+}
+
+.order-item:hover {
+  background: rgba(var(--v-theme-primary), 0.06);
+}
+
+.order-handle {
+  cursor: grab;
+}
+
+.order-ghost {
+  opacity: 0.4;
+  border-style: dashed;
 }
 </style>
