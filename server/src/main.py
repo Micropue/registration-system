@@ -1,6 +1,7 @@
 import uvicorn
 import uuid
 import os
+import json
 import asyncio
 import mimetypes
 from pathlib import Path
@@ -1529,6 +1530,22 @@ def _ws_push_notification(user_uid: str, data: dict):
 
 AccountService.ws_push = _ws_push_notification
 
+async def _notify_global_chat_members(sender_uid: str, content: str):
+    try:
+        with account_service.db.connect() as conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute(
+                "SELECT u.uid FROM users u "
+                "INNER JOIN user_groups ug ON ug.uid = u.group_uid "
+                "WHERE JSON_CONTAINS(ug.permissions, 'true', '$.\"聊天室\"')"
+            )
+            uids = [row['uid'] for row in cur.fetchall()]
+        for uid in uids:
+            if uid != sender_uid:
+                account_service.create_notification(uid, 'global_chat_message', '聊天室新消息', content)
+    except Exception as e:
+        print(f"[GLOBAL_CHAT_NOTIFY] 错误: {e}", flush=True)
+
 @app.websocket("/ws/notifications")
 async def websocket_notifications(websocket: WebSocket, token: str = Query(...)):
     session = account_service.get_login_session(token)
@@ -1722,21 +1739,8 @@ async def websocket_global_chat(websocket: WebSocket, token: str = Query(...)):
             }
             await global_chat_mgr.broadcast(payload, exclude=websocket)
             await websocket.send_json(payload)
-            try:
-                with account_service.db.connect() as conn:
-                    cur = conn.cursor(dictionary=True)
-                    cur.execute(
-                        "SELECT u.uid FROM users u "
-                        "INNER JOIN user_groups ug ON ug.uid = u.group_uid "
-                        "WHERE JSON_CONTAINS(ug.permissions, 'true', '$.\"聊天室\"')"
-                    )
-                    uids = [row['uid'] for row in cur.fetchall()]
-                notif_content = f'{session.username}: {message[:50]}{"..." if len(message) > 50 else ""}'
-                for uid in uids:
-                    if uid != session.user_uid:
-                        account_service.create_notification(uid, 'global_chat_message', '聊天室新消息', notif_content)
-            except Exception as e:
-                print(f"[GLOBAL_CHAT_NOTIFY] 错误: {e}", flush=True)
+            notif_content = f'{session.username}: {message[:50]}{"..." if len(message) > 50 else ""}'
+            await _notify_global_chat_members(session.user_uid, notif_content)
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -1827,6 +1831,36 @@ async def unpin_global_chat_message(authorization: Optional[str] = Header(None))
         asyncio.create_task(global_chat_mgr.broadcast({"type": "pin_update", "pinned": None, "by": session.username}))
         return api_response(200, msg_text)
     return api_response(400, msg_text)
+
+@app.post("/global-chats/forward")
+async def forward_registration_to_global_chat(payload: dict, authorization: Optional[str] = Header(None)):
+    if not authorization:
+        return api_response(401, "Missing Authorization Header")
+    token = get_token(authorization)
+    session = account_service.get_login_session(token)
+    if not session:
+        return api_response(401, "Unauthorized")
+    if not account_service._check_permission(session.user_uid, "聊天室"):
+        return api_response(403, "您没有聊天室权限")
+    if not payload or not payload.get("registration_uid"):
+        return api_response(400, "缺少订单信息")
+    message = json.dumps(payload, ensure_ascii=False)
+    if len(message) > 5000:
+        return api_response(400, "订单信息过长，无法转发")
+    saved = account_service.save_global_chat_message(session.user_uid, message, 'registration_card')
+    await global_chat_mgr.broadcast({
+        "type": "message",
+        "id": saved["id"],
+        "sender_uid": session.user_uid,
+        "username": session.username,
+        "is_admin": bool(account_service._check_permission(session.user_uid, "订单处理", "查看")),
+        "msg_type": "registration_card",
+        "message": saved["message"],
+        "image_url": saved["image_url"],
+        "created_at": saved["created_at"],
+    })
+    await _notify_global_chat_members(session.user_uid, f'{session.username}: [订单] {payload.get("title") or "订单信息"}')
+    return api_response(200, "已转发到聊天室")
 
 if __name__ == "__main__":
 

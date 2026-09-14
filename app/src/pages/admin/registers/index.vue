@@ -108,6 +108,7 @@
             <v-btn variant="tonal" rounded color="success" @click="updateStatus(item, 'approved')">已处理</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="openReject(item)">驳回</v-btn>
             <v-btn variant="tonal" rounded color="warning" @click="updateStatus(item, 'pending')">未处理</v-btn>
+            <v-btn v-if="canForwardToChat" variant="tonal" rounded color="info" @click="forwardToChatRoom(item)">转发聊天室</v-btn>
             <v-btn variant="tonal" rounded color="error" @click="confirmDelete(item)">删除记录</v-btn>
           </div>
         </template>
@@ -920,6 +921,45 @@ function getAmountUnit(appName: string | undefined): string {
 function confirmDelete(item: RegistrationItem) {
   deleteDialog.item = item
   deleteDialog.show = true
+}
+
+const canForwardToChat = computed(() => {
+  const perms: any = appStore.userInfo?.permissions
+  return !!perms?.['聊天室']
+})
+
+function forwardSummary(item: RegistrationItem): string {
+  const info: Record<string, any> = item.registration_info || {}
+  const appName = info['跑步APP'] || item.app || ''
+  const keys = Object.keys(info).filter(k => k !== '跑步APP' && !isImageUrl(info[k])).slice(0, 2)
+  const parts = keys.map(k => {
+    const v = info[k]
+    return Array.isArray(v) ? v.join('、') : String(v ?? '')
+  }).filter(Boolean)
+  return [appName, ...parts].join(' · ')
+}
+
+async function forwardToChatRoom(item: RegistrationItem) {
+  try {
+    const res = await ajax<any>('/api/global-chats/forward', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` },
+      body: {
+        registration_uid: item.id,
+        title: `订单 #${String(item.id).slice(-8).toUpperCase()}`,
+        username: item.username || '',
+        created_at: item.created_at,
+        status: item.status,
+        amount: item.amount ?? null,
+        summary: forwardSummary(item),
+        is_secondary: item.is_secondary || false,
+      }
+    })
+    if (res.code === 200) router.push('/chat-room')
+    else showMsg(res.msg || '转发失败', 'error')
+  } catch (e) {
+    showMsg('转发失败', 'error')
+  }
 }
 
 // 配置化表头
