@@ -79,6 +79,7 @@ export interface RunningApp {
   icon?: string;
   template_count?: number;
   balance_mode?: string;
+  balance_round?: string;
 }
 
 /** APP模板 */

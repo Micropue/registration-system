@@ -87,6 +87,7 @@ class RunningAppRequest(BaseModel):
     accent_color: str = '#1976D2'
     icon: str = ''
     balance_mode: str = ''
+    balance_round: str = ''
 
 @app.post("/upload/image")
 async def upload_image(
@@ -463,7 +464,7 @@ async def create_running_app(
     session, err = require_perm(authorization, "APP配置", "修改")
     if err: return err
     try:
-        app_id = account_service.create_running_app(request.name, request.note, request.accent_color, request.icon, request.balance_mode)
+        app_id = account_service.create_running_app(request.name, request.note, request.accent_color, request.icon, request.balance_mode, request.balance_round)
         return api_response(200, "Running app created", {'id': app_id})
     except Exception as e:
         return api_response(500, f"Error creating running app: {str(e)}")
@@ -477,7 +478,7 @@ async def update_running_app(
     session, err = require_perm(authorization, "APP配置", "修改")
     if err: return err
     try:
-        account_service.update_running_app(app_id, request.name, request.note, request.accent_color, request.icon, request.balance_mode)
+        account_service.update_running_app(app_id, request.name, request.note, request.accent_color, request.icon, request.balance_mode, request.balance_round)
         return api_response(200, "Running app updated")
     except Exception as e:
         return api_response(500, f"Error updating running app: {str(e)}")

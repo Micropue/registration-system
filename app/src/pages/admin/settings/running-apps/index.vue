@@ -80,6 +80,7 @@
                   :rules="[v => !!v || 'APP名称必填']" hide-details="auto" class="mb-4" required></v-text-field>
             <v-textarea v-model="dialog.note" label="备注" variant="outlined" rows="3" hide-details="auto"></v-textarea>
             <v-select v-model="dialog.balance_mode" :items="balanceModeOptions" label="余额类型" variant="outlined" density="comfortable" class="mt-3" hide-details></v-select>
+            <v-select v-model="dialog.balance_round" :items="balanceRoundOptions" label="余额扣除方式" variant="outlined" density="comfortable" class="mt-3" hide-details="auto" persistent-hint hint="仅对余额扣除更新。"></v-select>
             <div class="d-flex align-center ga-3 mt-4">
               <label class="color-picker-label">
                 <div class="color-preview" :style="{ backgroundColor: dialog.accent_color || '#1976D2' }"></div>
@@ -228,12 +229,15 @@ const dialog = reactive({
   accent_color: '#1976D2',
   icon: '',
   iconPreview: '',
-  balance_mode: ''
+  balance_mode: '',
+  balance_round: ''
 })
 
 const deleteDialog = reactive({ show: false, id: 0, name: '' })
 
 const balanceModeOptions = [{ title: '未设置', value: '' }, { title: '公里数', value: 'mileage' }, { title: '次数', value: 'count' }]
+
+const balanceRoundOptions = [{ title: '未设置', value: '' }, { title: '四舍五入', value: '四舍五入' }, { title: '五舍六入', value: '五舍六入' }]
 
 const bulkDialog = reactive({
   show: false,
@@ -362,6 +366,7 @@ function openCreateDialog() {
   dialog.icon = ''
   dialog.iconPreview = ''
   dialog.balance_mode = ''
+  dialog.balance_round = ''
 }
 
 function openEditDialog(item: RunningApp) {
@@ -374,6 +379,7 @@ function openEditDialog(item: RunningApp) {
   dialog.icon = item.icon || ''
   dialog.iconPreview = item.icon || ''
   dialog.balance_mode = item.balance_mode || ''
+  dialog.balance_round = item.balance_round || ''
 }
 
 async function submitApp() {
@@ -384,7 +390,7 @@ async function submitApp() {
     if (dialog.isEdit) {
       const res = await ajax(`${ApiUrl.UPDATE_RUNNING_APP}/${dialog.editId}`, {
         method: 'PUT',
-        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon, balance_mode: dialog.balance_mode },
+        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon, balance_mode: dialog.balance_mode, balance_round: dialog.balance_round },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('修改成功'); dialog.show = false; loadApps() }
@@ -392,7 +398,7 @@ async function submitApp() {
     } else {
       const res = await ajax(ApiUrl.CREATE_RUNNING_APP, {
         method: 'POST',
-        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon, balance_mode: dialog.balance_mode },
+        body: { name: dialog.name, note: dialog.note, accent_color: dialog.accent_color, icon: dialog.icon, balance_mode: dialog.balance_mode, balance_round: dialog.balance_round },
         headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
       })
       if (res.code === 200) { showMsg('创建成功'); dialog.show = false; loadApps() }

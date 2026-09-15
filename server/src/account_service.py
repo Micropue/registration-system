@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import secrets
@@ -395,6 +396,10 @@ class AccountService:
         except:
             pass
         try:
+            cursor.execute("ALTER TABLE running_apps ADD COLUMN balance_round VARCHAR(20) DEFAULT ''")
+        except:
+            pass
+        try:
             cursor.execute("ALTER TABLE running_apps ADD COLUMN balance DECIMAL(12,2) DEFAULT 0")
         except:
             pass
@@ -675,7 +680,7 @@ class AccountService:
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             try:
-                cursor.execute("SELECT id, uid, name, note, accent_color, icon, balance_mode, sort_order FROM running_apps ORDER BY sort_order ASC, id ASC")
+                cursor.execute("SELECT id, uid, name, note, accent_color, icon, balance_mode, balance_round, sort_order FROM running_apps ORDER BY sort_order ASC, id ASC")
             except Exception:
                 cursor.execute("SELECT id, uid, name, note, accent_color, icon FROM running_apps ORDER BY id ASC")
             rows = cursor.fetchall()
@@ -685,6 +690,7 @@ class AccountService:
             "accent_color": row.get("accent_color") or "#1976D2",
             "icon": row.get("icon") or "",
             "balance_mode": row.get("balance_mode") or "",
+            "balance_round": row.get("balance_round") or "",
             "template_count": self.get_app_template_count(row["id"])
         } for row in rows]
 
@@ -838,6 +844,20 @@ class AccountService:
                 "group_name": row.get("group_name") or "",
             })
         return {"total": total, "page": page, "page_size": page_size, "items": items}
+
+    def _round_balance_amount(self, app_uid: str, amount: float | None) -> float:
+        if amount is None:
+            return 0.0
+        with self.db.connect() as connection:
+            cursor = connection.cursor(dictionary=True)
+            cursor.execute("SELECT balance_round FROM running_apps WHERE uid = %s", (app_uid,))
+            row = cursor.fetchone()
+        mode = (row or {}).get("balance_round") or ""
+        if mode == "四舍五入":
+            return float(math.floor(float(amount) + 0.5))
+        if mode == "五舍六入":
+            return float(math.ceil(float(amount) - 0.5))
+        return float(amount)
 
     def adjust_user_balance(self, user_uid: str, app_uid: str, amount: float, note: str = "") -> dict:
         owner_uid = self._resolve_balance_owner(user_uid, app_uid)
@@ -1322,7 +1342,7 @@ class AccountService:
                     app_uid = app["uid"] if app else None
                 if app_uid:
                     self._ensure_user_balance(user_uid, app_uid)
-                    self.adjust_user_balance(user_uid, app_uid, -amount,
+                    self.adjust_user_balance(user_uid, app_uid, -self._round_balance_amount(app_uid, amount),
                         note=f"登记创建扣除")
         return uid
 
@@ -1415,7 +1435,7 @@ class AccountService:
                 app = cur.fetchone()
                 app_uid = app["uid"] if app else None
             if app_uid:
-                self.adjust_user_balance(user_uid, app_uid, float(old_amount),
+                self.adjust_user_balance(user_uid, app_uid, self._round_balance_amount(app_uid, float(old_amount)),
                     note="重新提交撤销原扣除")
         if amount and amount > 0:
             app_name = data.get('跑步APP', '')
@@ -1428,7 +1448,7 @@ class AccountService:
                     app_uid2 = app["uid"] if app else None
                 if app_uid2:
                     self._ensure_user_balance(user_uid, app_uid2)
-                    self.adjust_user_balance(user_uid, app_uid2, -amount,
+                    self.adjust_user_balance(user_uid, app_uid2, -self._round_balance_amount(app_uid2, amount),
                         note="登记重新提交扣除")
 
     def update_registration_data(self, uid: str, data: dict[str, Any], priority: str | None = None, template_uid: str | None = None, amount: float | None = None) -> None:
@@ -1471,7 +1491,7 @@ class AccountService:
                 app_uid = app["uid"] if app else None
             if app_uid and user_uid:
                 try:
-                    self.adjust_user_balance(user_uid, app_uid, float(old_amount),
+                    self.adjust_user_balance(user_uid, app_uid, self._round_balance_amount(app_uid, float(old_amount)),
                         note="订单修改，撤销原扣除")
                 except Exception:
                     pass
@@ -1487,7 +1507,7 @@ class AccountService:
                     app_uid2 = app["uid"] if app else None
                 if app_uid2 and user_uid:
                     self._ensure_user_balance(user_uid, app_uid2)
-                    self.adjust_user_balance(user_uid, app_uid2, -effective_amount,
+                    self.adjust_user_balance(user_uid, app_uid2, -self._round_balance_amount(app_uid2, effective_amount),
                         note="订单修改，重新扣除")
 
     # ---- Admin Registrations ----
@@ -1601,8 +1621,9 @@ class AccountService:
                     app = cur.fetchone()
                     app_uid = app["uid"] if app else None
                 if app_uid and reg_info.get("user_uid"):
-                    self.adjust_user_balance(reg_info["user_uid"], app_uid, actual_refund,
-                        note=f"订单驳回，退回跑量{actual_refund}")
+                    refund_value = self._round_balance_amount(app_uid, actual_refund)
+                    self.adjust_user_balance(reg_info["user_uid"], app_uid, refund_value,
+                        note=f"订单驳回，退回跑量{refund_value}")
 
     def delete_registration(self, registration_uid: str) -> bool:
         reg_info = None
@@ -1623,7 +1644,7 @@ class AccountService:
                 app = cur.fetchone()
                 app_uid = app["uid"] if app else None
             if app_uid and reg_info.get("user_uid"):
-                self.adjust_user_balance(reg_info["user_uid"], app_uid, float(reg_info["amount"]),
+                self.adjust_user_balance(reg_info["user_uid"], app_uid, self._round_balance_amount(app_uid, float(reg_info["amount"])),
                     note="登记记录已删除，撤销扣除")
         return deleted
 
@@ -1827,18 +1848,18 @@ class AccountService:
             return None
         return {'id': row['id'], 'uid': row['uid'], 'name': row['name']}
 
-    def create_running_app(self, name: str, note: str, accent_color: str = '#1976D2', icon: str = '', balance_mode: str = '') -> int:
+    def create_running_app(self, name: str, note: str, accent_color: str = '#1976D2', icon: str = '', balance_mode: str = '', balance_round: str = '') -> int:
         uid = self.db.new_uid()
         with self.db.connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("INSERT INTO running_apps (name, note, accent_color, icon, uid, balance_mode) VALUES (%s, %s, %s, %s, %s, %s)", (name, note, accent_color, icon, uid, balance_mode))
+            cursor.execute("INSERT INTO running_apps (name, note, accent_color, icon, uid, balance_mode, balance_round) VALUES (%s, %s, %s, %s, %s, %s, %s)", (name, note, accent_color, icon, uid, balance_mode, balance_round))
             connection.commit()
             return cursor.lastrowid or 0
 
-    def update_running_app(self, app_id: int, name: str, note: str, accent_color: str, icon: str = '', balance_mode: str = '') -> bool:
+    def update_running_app(self, app_id: int, name: str, note: str, accent_color: str, icon: str = '', balance_mode: str = '', balance_round: str = '') -> bool:
         with self.db.connect() as connection:
             cursor = connection.cursor()
-            cursor.execute("UPDATE running_apps SET name = %s, note = %s, accent_color = %s, icon = %s, balance_mode = %s WHERE id = %s", (name, note, accent_color, icon, balance_mode, app_id))
+            cursor.execute("UPDATE running_apps SET name = %s, note = %s, accent_color = %s, icon = %s, balance_mode = %s, balance_round = %s WHERE id = %s", (name, note, accent_color, icon, balance_mode, balance_round, app_id))
             connection.commit()
             return cursor.rowcount > 0
 
