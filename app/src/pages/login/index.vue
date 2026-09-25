@@ -8,10 +8,10 @@
                 <v-col md="6" class="d-none d-md-flex align-center justify-center left-section">
                     <div class="text-center pa-8">
                         <v-avatar size="80" class="mb-4 bg-background shadow-lg">
-                            <v-img src="@/assets/logo.jpg"></v-img>
+                            <v-img src="@/assets/logo.png"></v-img>
                         </v-avatar>
-                        <h2 class="text-h5 font-weight-black mb-2 color-primary">哆啦A梦（校园跑版）</h2>
-                        <p class="text-body-2 text-grey-darken-1">8年专业校园跑</p>
+                        <h2 class="text-h5 font-weight-black mb-2 color-primary">登记系统</h2>
+                        <p class="text-body-2 text-grey-darken-1">专业登记服务</p>
                     </div>
                 </v-col>
 

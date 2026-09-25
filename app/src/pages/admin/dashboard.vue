@@ -85,14 +85,14 @@
         </v-col>
 
         <v-col cols="6" sm="4" md="3" lg="2">
-          <v-card class="stat-card" border rounded="lg" @click="router.push('/admin/settings/running-apps')">
+          <v-card class="stat-card" border rounded="lg" @click="router.push('/admin/apps')">
             <div class="pa-4 d-flex align-center">
               <v-avatar color="purple" variant="tonal" size="44" class="me-3">
-                <v-icon size="24">mdi-run-fast</v-icon>
+                <v-icon size="24">mdi-apps</v-icon>
               </v-avatar>
               <div>
                 <div class="text-h5 font-weight-bold">{{ stats.total_apps }}</div>
-                <div class="text-caption text-medium-emphasis">跑步APP</div>
+                <div class="text-caption text-medium-emphasis">APP</div>
               </div>
             </div>
           </v-card>
@@ -157,7 +157,7 @@
                 <v-btn variant="tonal" rounded color="primary" prepend-icon="mdi-file-document-edit-outline" :to="'/admin/registers'">订单处理</v-btn>
                 <v-btn variant="tonal" rounded color="info" prepend-icon="mdi-ticket-confirmation-outline" :to="'/admin/feedbacks'">工单处理</v-btn>
                 <v-btn variant="tonal" rounded color="success" prepend-icon="mdi-account-group-outline" :to="'/admin/users'">账户管理</v-btn>
-                <v-btn variant="tonal" rounded color="secondary" prepend-icon="mdi-run-fast" :to="'/admin/running-apps'">APP管理</v-btn>
+                <v-btn variant="tonal" rounded color="secondary" prepend-icon="mdi-apps" :to="'/admin/apps'">APP管理</v-btn>
                 <v-btn variant="tonal" rounded color="purple" prepend-icon="mdi-account-tree-outline" :to="'/admin/subordinates'">下属管理</v-btn>
                 <v-btn variant="tonal" rounded color="orange" prepend-icon="mdi-cog-outline" :to="'/admin'">系统设置</v-btn>
               </div>

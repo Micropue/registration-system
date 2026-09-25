@@ -19,6 +19,6 @@
 
 <script setup lang="ts">
 const settingsMenu = [
-  { title: '跑步APP配置', to: '/admin/settings/running-apps', icon: 'mdi-run' }
+  { title: 'APP配置', to: '/admin/settings/apps', icon: 'mdi-apps' }
 ]
 </script>

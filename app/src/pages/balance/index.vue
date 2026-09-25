@@ -19,13 +19,13 @@
             <v-avatar v-if="item.icon" size="28" rounded>
               <v-img :src="item.icon" cover></v-img>
             </v-avatar>
-            <v-icon v-else size="20" color="grey">mdi-run-fast</v-icon>
+            <v-icon v-else size="20" color="grey">mdi-apps</v-icon>
             {{ item.app_name }}
             <v-chip v-if="item.is_delegated" size="x-small" color="warning" class="ml-1">已链接</v-chip>
           </div>
         </template>
         <template v-slot:item.balance_mode="{ item }">
-          <v-chip size="small" :color="item.balance_mode === 'mileage' ? 'blue' : item.balance_mode === 'count' ? 'green' : 'grey'">
+          <v-chip size="small" :color="item.balance_mode === 'mileage' ? 'primary' : item.balance_mode === 'count' ? 'green' : 'grey'">
             {{ item.balance_mode === 'mileage' ? '公里数' : item.balance_mode === 'count' ? '次数' : '未设置' }}
           </v-chip>
         </template>

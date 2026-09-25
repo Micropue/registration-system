@@ -314,7 +314,7 @@ defineExpose({ sendMessage })
 }
 
 .is-self .chat-bubble {
-  background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%);
+  background: linear-gradient(135deg, #EF5350 0%, #C62828 100%);
   border-top-right-radius: 4px;
   color: #FFFFFF;
   box-shadow: 0 4px 10px rgba(21, 101, 192, 0.2);
@@ -406,7 +406,7 @@ defineExpose({ sendMessage })
 }
 
 .is-self .chat-card {
-  border: 1px solid rgba(33, 150, 243, 0.2);
+  border: 1px solid rgba(211, 47, 47, 0.2);
 }
 
 .chat-card-icon {
@@ -420,8 +420,8 @@ defineExpose({ sendMessage })
 }
 
 .reg-icon {
-  background: linear-gradient(135deg, #E3F2FD, #BBDEFB);
-  color: #1976D2;
+  background: linear-gradient(135deg, #FFEBEE, #FFCDD2);
+  color: #D32F2F;
 }
 
 .fb-icon {

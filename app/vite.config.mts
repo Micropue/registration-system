@@ -33,10 +33,10 @@ export default defineConfig({
     VitePWA({
       registerType: 'prompt',
       manifest: {
-        name: '哆啦A梦（校园跑版）',
-        short_name: '校园跑登记',
-        description: '虎虎校园跑登记系统',
-        theme_color: '#1867C0',
+        name: '登记系统',
+        short_name: '登记系统',
+        description: '多功能登记管理后台服务系统',
+        theme_color: '#D32F2F',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
@@ -72,7 +72,7 @@ export default defineConfig({
     ],
   },
   server: {
-    port: 3000,
+    port: 3300,
     proxy: {
       '/api': {
         target:"http://localhost:8001/",

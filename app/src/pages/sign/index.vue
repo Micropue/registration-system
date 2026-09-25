@@ -138,9 +138,9 @@
         <v-card-text>
           <v-form ref="selectFormRef" v-model="selectFormValid" @submit.prevent="goSelectTemplate">
             <v-autocomplete v-model="newDialog.app" :items="runningApps" item-title="name" item-value="name"
-              label="搜索跑步APP" :rules="[v => !!v || '请选择跑步APP']"
+              label="搜索APP" :rules="[v => !!v || '请选择APP']"
               variant="outlined" density="comfortable" hide-no-data
-              :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : { prependIcon: 'mdi-run-fast' }" />
+              :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : { prependIcon: 'mdi-apps' }" />
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -186,7 +186,7 @@
       </v-card>
     </v-dialog>
 
-    <!-- 跑量输入 Dialog -->
+    <!-- 数量输入 Dialog -->
     <v-dialog v-model="amountDialog.show" max-width="420" persistent>
       <v-card class="pa-4">
         <v-card-title class="text-h5">输入{{ amountDialog.modeLabel }}</v-card-title>
@@ -231,9 +231,9 @@
         <v-card-text>
           <v-form ref="resubmitSelectFormRef" v-model="resubmitSelectValid">
             <v-autocomplete v-model="resubmitDialog.app" :items="runningApps" item-title="name" item-value="name"
-              label="搜索跑步APP" :rules="[v => !!v || '请选择跑步APP']"
+              label="搜索APP" :rules="[v => !!v || '请选择APP']"
               variant="outlined" density="comfortable" hide-no-data
-              :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : { prependIcon: 'mdi-run-fast' }" />
+              :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : { prependIcon: 'mdi-apps' }" />
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -358,8 +358,8 @@
             </thead>
             <tbody>
               <tr v-if="infoDialogItem.amount != null">
-                <td class="font-weight-bold text-primary">跑量</td>
-                <td class="font-weight-bold text-primary">{{ infoDialogItem.amount }}{{ getAmountUnit(infoDialogItem.data['跑步APP']) }}</td>
+                <td class="font-weight-bold text-primary">数量</td>
+                <td class="font-weight-bold text-primary">{{ infoDialogItem.amount }}{{ getAmountUnit(infoDialogItem.data['应用']) }}</td>
               </tr>
               <tr v-for="key in infoSortedKeys" :key="key">
                 <td :style="fieldStyle(key)">{{ key }}</td>
@@ -411,10 +411,10 @@
     >
       <template v-slot:item.app="{ item }">
         <div class="d-flex align-center ga-1">
-          <v-avatar v-if="getAppIcon(item.data['跑步APP'])" size="22" rounded>
-            <v-img :src="getAppIcon(item.data['跑步APP'])" cover></v-img>
+          <v-avatar v-if="getAppIcon(item.data['应用'])" size="22" rounded>
+            <v-img :src="getAppIcon(item.data['应用'])" cover></v-img>
           </v-avatar>
-          <span class="font-weight-bold text-body-2">{{ item.data['跑步APP'] || '-' }}</span>
+          <span class="font-weight-bold text-body-2">{{ item.data['应用'] || '-' }}</span>
         </div>
       </template>
 
@@ -476,8 +476,8 @@
                 </thead>
                 <tbody>
                   <tr v-if="detailDialog.amount != null">
-                    <td class="font-weight-bold text-primary">跑量</td>
-                    <td class="font-weight-bold text-primary">{{ detailDialog.amount }}{{ getAmountUnit(detailDialog.data['跑步APP']) }}</td>
+                    <td class="font-weight-bold text-primary">数量</td>
+                    <td class="font-weight-bold text-primary">{{ detailDialog.amount }}{{ getAmountUnit(detailDialog.data['应用']) }}</td>
                   </tr>
                   <tr v-for="key in sortedDetailKeys" :key="key">
                 <td :style="fieldStyle(key)">{{ key }}</td>
@@ -666,10 +666,10 @@ const resubmitFormAppIcon = computed(() => {
 
 const amountUnitLabel = computed(() => {
   const app = runningApps.value.find(a => a.name === resubmitFormDialog.app)
-  if (!app?.balance_mode) return '跑量'
+  if (!app?.balance_mode) return '数量'
   if (app.balance_mode === 'mileage') return '公里数'
   if (app.balance_mode === 'count') return '次数'
-  return '跑量'
+  return '数量'
 })
 
 const imageFiles = shallowRef<Record<string, File[]>>({})
@@ -886,7 +886,7 @@ const detailTemplateLoading = ref(false)
 const sortedDetailKeys = computed(() => {
   const data = detailDialog.data
   const keys = Object.keys(data)
-  const fieldOrder = ['跑步APP', ...detailTemplateFieldOrder.value]
+  const fieldOrder = ['应用', ...detailTemplateFieldOrder.value]
   return keys.sort((a, b) => {
     const ai = fieldOrder.indexOf(a)
     const bi = fieldOrder.indexOf(b)
@@ -937,9 +937,9 @@ function getPriorityText(p: string) {
 }
 
 const historyHeaders = [
-  { title: '跑步APP', key: 'app', sortable: false, searchable: true, filterable: true },
+  { title: 'APP', key: 'app', sortable: false, searchable: true, filterable: true },
   { title: '模板', key: 'template', sortable: false, searchable: true },
-  { title: '跑量', key: 'amount', sortable: false },
+  { title: '数量', key: 'amount', sortable: false },
   { title: '状态', key: 'status', sortable: false, filterable: true },
   { title: '优先级', key: 'priority', sortable: false, filterable: true },
   { title: '操作', key: 'actions', sortable: false },
@@ -1167,7 +1167,7 @@ async function submitForm() {
   }
 
   const submissionData: Record<string, any> = {
-    跑步APP: selectedApp.value,
+    应用: selectedApp.value,
     priority: priority.value,
     template_uid: selectedTemplate.value,
     ...formData
@@ -1212,7 +1212,7 @@ async function loadHistory(options: any = { page: 1, itemsPerPage: 20 }) {
     if (res.code === 200) {
       registrations.value = res.data.items.map((item: any) => ({
         ...item,
-        amount_unit: getAmountUnit(item.data?.['跑步APP']),
+        amount_unit: getAmountUnit(item.data?.['应用']),
         _searchable: item.data
           ? Object.values(item.data)
               .filter((v: any) => v != null)
@@ -1241,7 +1241,7 @@ function openDetailDialog(item: RegistrationItem) {
   detailDialog.show = true
   chatStore.clearUnreadCount(item.id)
   detailTemplateLoading.value = true
-  loadDetailTemplateOrder(item.data['跑步APP'], item.template_uid || '')
+  loadDetailTemplateOrder(item.data['应用'], item.template_uid || '')
 }
 
 const infoDialogItem = ref<RegistrationItem | null>(null)
@@ -1251,7 +1251,7 @@ const infoSortedKeys = computed(() => {
   if (!infoDialogItem.value) return []
   const data = infoDialogItem.value.data
   const keys = Object.keys(data)
-  const fieldOrder = ['跑步APP', ...detailTemplateFieldOrder.value]
+  const fieldOrder = ['应用', ...detailTemplateFieldOrder.value]
   return keys.sort((a, b) => {
     const ai = fieldOrder.indexOf(a)
     const bi = fieldOrder.indexOf(b)
@@ -1265,7 +1265,7 @@ const infoSortedKeys = computed(() => {
 function openInfoDialog(item: RegistrationItem) {
   infoDialogItem.value = item
   detailTemplateLoading.value = true
-  loadDetailTemplateOrder(item.data['跑步APP'], item.template_uid || '')
+  loadDetailTemplateOrder(item.data['应用'], item.template_uid || '')
   infoDialog.show = true
 }
 
@@ -1276,7 +1276,7 @@ async function loadDetailTemplateOrder(appName: string, templateUid: string) {
   const app = runningApps.value.find(a => a.name === appName)
   if (!app) { detailTemplateLoading.value = false; return }
   try {
-    const res = await ajax<any[]>(`/api/running-apps/${app.uid}/templates`)
+    const res = await ajax<any[]>(`/api/apps/${app.uid}/templates`)
     if (res.code === 200) {
       const tpl = (res.data || []).find((t: any) => t.uid === templateUid)
       if (tpl?.fields) {
@@ -1315,7 +1315,7 @@ watch(() => route.query.chat, () => {
 })
 
 async function openModifyDialog(item: RegistrationItem) {
-  const appName = item.data['跑步APP'] || ''
+  const appName = item.data['应用'] || ''
   const templateUid = item.template_uid || ''
   if (!appName || !templateUid) {
     showMsg('无法修改：订单缺少APP或模板信息', 'error')
@@ -1341,7 +1341,7 @@ async function openModifyDialog(item: RegistrationItem) {
   selectedApp.value = appName
 
   const templateLabels = (tpl.fields || []).map((f: any) => f.label)
-  const oldKeys = Object.keys(item.data).filter(k => k !== '跑步APP')
+  const oldKeys = Object.keys(item.data).filter(k => k !== '应用')
   const mismatch = oldKeys.length !== templateLabels.length ||
     !oldKeys.every(k => templateLabels.includes(k)) ||
     !templateLabels.every((l: string) => oldKeys.includes(l))
@@ -1359,7 +1359,7 @@ async function openModifyDialog(item: RegistrationItem) {
   })
   if (!mismatch) {
     for (const key of Object.keys(item.data)) {
-      if (key !== '跑步APP' && key in data) {
+      if (key !== '应用' && key in data) {
         data[key] = item.data[key]
       }
     }
@@ -1384,7 +1384,7 @@ async function openModifyDialog(item: RegistrationItem) {
 
 function openResubmitDialog(item: RegistrationItem) {
   resubmitDialog.uid = item.id
-  resubmitDialog.app = item.data['跑步APP'] || ''
+  resubmitDialog.app = item.data['应用'] || ''
   resubmitDialog.oldData = { ...item.data }
   resubmitPriority.value = item.priority || 'low'
   resubmitTemplateUid.value = item.template_uid || ''
@@ -1423,7 +1423,7 @@ function startResubmitRegistration() {
   templateDialog.show = false
   isResubmitMode.value = false
   const templateLabels = (tpl.fields || []).map((f: any) => f.label)
-  const oldKeys = Object.keys(resubmitDialog.oldData).filter(k => k !== '跑步APP')
+  const oldKeys = Object.keys(resubmitDialog.oldData).filter(k => k !== '应用')
   const mismatch = oldKeys.length !== templateLabels.length ||
     !oldKeys.every(k => templateLabels.includes(k)) ||
     !templateLabels.every((l: string) => oldKeys.includes(l))
@@ -1457,7 +1457,7 @@ function fillResubmitForm() {
   })
   if (!skipOldData.value) {
     for (const key of Object.keys(resubmitDialog.oldData)) {
-      if (key !== '跑步APP' && key in data) {
+      if (key !== '应用' && key in data) {
         data[key] = resubmitDialog.oldData[key]
       }
     }
@@ -1498,7 +1498,7 @@ async function doResubmit() {
   }
 
   const submissionData: Record<string, any> = {
-    跑步APP: resubmitFormDialog.app,
+    应用: resubmitFormDialog.app,
     priority: resubmitPriority.value,
     template_uid: resubmitTemplateUid.value,
     ...resubmitFormDialog.data

@@ -26,9 +26,20 @@ function getGitLog() {
 
 function cleanMessage(msg) {
   // Strip conventional commit prefixes
-  return msg
+  return sanitizeMessage(msg)
     .replace(/^(feat|fix|docs|style|refactor|test|chore|perf|ci|build)(\(.*?\))?:\s*/i, '')
     .trim()
+}
+
+// 历史提交信息中的旧业务术语替换，避免在更新日志中露出
+function sanitizeMessage(msg) {
+  return msg
+    .replace(/校园跑数据登记/g, '数据登记')
+    .replace(/校园跑/g, '数据登记')
+    .replace(/跑量/g, '数量')
+    .replace(/campus-running-registration-system/gi, 'registration-system')
+    .replace(/running apps/gi, 'apps')
+    .replace(/running app/gi, 'app')
 }
 
 function truncate(msg, max) {

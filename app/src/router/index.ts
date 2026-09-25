@@ -159,15 +159,15 @@ const router = createRouter({
         { path: 'users', component: () => import("@/pages/admin/users/index.vue"), meta: { title: '账户管理' }, beforeEnter: checkAdminPerm('账户管理', '查看') },
         { path: 'registers/:appName?', component: () => import("@/pages/admin/registers/index.vue"), meta: { title: '订单处理' }, beforeEnter: checkAdminPerm('订单处理', '查看') },
         { path: 'feedbacks', component: () => import("@/pages/admin/feedbacks/index.vue"), meta: { title: '工单处理' }, beforeEnter: checkAdminPerm('工单处理', '查看') },
-        { path: 'running-apps', component: () => import("@/pages/admin/settings/running-apps/index.vue"), meta: { title: '跑步APP配置' }, beforeEnter: checkAdminPerm('APP配置', '查看') },
-        { path: 'running-apps/:appUid/templates', component: () => import("@/pages/admin/settings/running-apps/templates/index.vue"), meta: { title: '模板管理' }, beforeEnter: checkAdminPerm('APP配置', '查看') },
-        { path: 'settings/running-apps/:appUid/templates', redirect: (to: any) => `/admin/running-apps/${to.params.appUid}/templates` },
-        { path: 'settings/running-apps', redirect: '/admin/running-apps' },
+        { path: 'apps', component: () => import("@/pages/admin/settings/running-apps/index.vue"), meta: { title: 'APP配置' }, beforeEnter: checkAdminPerm('APP配置', '查看') },
+        { path: 'apps/:appUid/templates', component: () => import("@/pages/admin/settings/running-apps/templates/index.vue"), meta: { title: '模板管理' }, beforeEnter: checkAdminPerm('APP配置', '查看') },
+        { path: 'settings/apps/:appUid/templates', redirect: (to: any) => `/admin/apps/${to.params.appUid}/templates` },
+        { path: 'settings/apps', redirect: '/admin/apps' },
         { path: 'settings', redirect: '/admin' },
         { path: 'groups', component: () => import("@/pages/admin/groups/index.vue"), meta: { title: '账户组管理' }, beforeEnter: checkAdminPerm('账户组管理', '查看') },
         { path: 'recharges', component: () => import("@/pages/admin/recharges/index.vue"), meta: { title: '充值审批' }, beforeEnter: checkAdminPerm('充值审批', '查看') },
         { path: 'subordinates/:uid?', component: () => import("@/pages/admin/subordinates/index.vue"), meta: { title: '下属管理' }, beforeEnter: checkAdminPerm('下属管理', '查看') },
-        { path: 'running-apps/:appUid/balance', component: () => import("@/pages/admin/running-apps/balance/index.vue"), meta: { title: '用户余额管理' }, beforeEnter: checkAdminPerm('APP配置', '查看') },
+        { path: 'apps/:appUid/balance', component: () => import("@/pages/admin/running-apps/balance/index.vue"), meta: { title: '用户余额管理' }, beforeEnter: checkAdminPerm('APP配置', '查看') },
         { path: 'announcements', component: () => import("@/pages/admin/announcements/index.vue"), meta: { title: '公告' }, beforeEnter: checkAdminPerm('公告管理', '查看') },
         { path: 'daily-reports', component: () => import("@/pages/admin/daily-reports/index.vue"), meta: { title: '日报管理' }, beforeEnter: checkAdminPerm('日报管理', '查看') },
         { path: 'update-logs', component: () => import("@/pages/admin/update-logs/index.vue"), meta: { title: '更新日志' }, beforeEnter: checkAdminPerm('APP配置', '查看') },
@@ -195,7 +195,7 @@ router.afterEach((to) => {
     appStore.setPageLoading(false)
   }, 400)
 
-  document.title = to.meta.title ? `${to.meta.title} - 哆啦A梦（校园跑版）` : '哆啦A梦（校园跑版）'
+  document.title = to.meta.title ? `${to.meta.title} - 登记系统` : '登记系统'
 })
 
 export default router

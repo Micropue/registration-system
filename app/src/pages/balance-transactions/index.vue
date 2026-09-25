@@ -20,7 +20,7 @@
             <v-avatar v-if="item.app_icon" size="22" rounded>
               <v-img :src="item.app_icon" cover></v-img>
             </v-avatar>
-            <v-icon v-else size="18" color="grey">mdi-run-fast</v-icon>
+            <v-icon v-else size="18" color="grey">mdi-apps</v-icon>
             {{ item.app_name }}
           </div>
         </template>

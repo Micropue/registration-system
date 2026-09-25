@@ -21,7 +21,7 @@
           <div class="d-flex align-center ga-2">
             <span class="font-weight-bold">{{ item.username }}</span>
             <v-chip v-if="item.group_name" size="x-small" variant="flat"
-              :color="item.group_name === '超级管理员' ? '#DC2626' : item.group_name === '未分配' ? '#6B7280' : '#1677ff'">
+              :color="item.group_name === '超级管理员' ? '#B71C1C' : item.group_name === '未分配' ? '#6B7280' : '#D32F2F'">
               {{ item.group_name }}
             </v-chip>
             <v-chip v-if="item.is_delegated" size="x-small" color="warning">已链接</v-chip>
@@ -55,7 +55,7 @@
         <v-card-text>
            <div class="text-subtitle-2 mb-2">
             当前余额: {{ adjustDialog.currentBalance }}
-            <v-chip v-if="balanceMode" size="x-small" class="ml-1" :color="balanceMode === 'mileage' ? 'blue' : 'green'">
+            <v-chip v-if="balanceMode" size="x-small" class="ml-1" :color="balanceMode === 'mileage' ? 'primary' : 'green'">
               {{ balanceMode === 'mileage' ? '公里' : '次' }}
             </v-chip>
           </div>

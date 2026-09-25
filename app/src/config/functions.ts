@@ -61,9 +61,9 @@ export const functions: NavFunction[] = [
     role: 'admin'
   },
   {
-    title: '跑步APP配置',
-    to: '/admin/running-apps',
-    icon: 'mdi-run',
+    title: 'APP配置',
+    to: '/admin/apps',
+    icon: 'mdi-apps',
     role: 'admin'
   },
   {

@@ -49,7 +49,7 @@
                 <v-icon size="20" color="primary" class="mr-1">mdi-account-circle</v-icon>
                 <span class="font-weight-bold">{{ selectedNode.username }}</span>
                 <v-chip v-if="selectedNode.group_name" size="x-small" class="ml-2"
-                  :color="selectedNode.group_name === '超级管理员' ? '#DC2626' : selectedNode.group_name === '未分配' ? '#6B7280' : '#1677ff'"
+                  :color="selectedNode.group_name === '超级管理员' ? '#B71C1C' : selectedNode.group_name === '未分配' ? '#6B7280' : '#D32F2F'"
                   variant="flat">
                   {{ selectedNode.group_name }}
                 </v-chip>
@@ -75,7 +75,7 @@
               <v-divider />
               <v-card-text class="pa-0">
                 <v-alert v-if="!runningApps.length" type="info" variant="tonal" class="ma-4 mb-0" density="compact">
-                  暂无跑步APP配置，请先在APP管理中创建
+                  暂无APP配置，请先在APP管理中创建
                 </v-alert>
                 <div v-else class="balance-table-wrap">
                 <v-table density="compact" hover>
@@ -95,8 +95,8 @@
                           <v-avatar v-if="app.icon" size="28" rounded="sm">
                             <v-img :src="app.icon" cover />
                           </v-avatar>
-                          <v-avatar v-else size="28" rounded="sm" color="#1677ff">
-                            <v-icon size="14" color="white">mdi-run-fast</v-icon>
+                          <v-avatar v-else size="28" rounded="sm" color="#D32F2F">
+                            <v-icon size="14" color="white">mdi-apps</v-icon>
                           </v-avatar>
                           <span class="text-body-2 font-weight-medium">{{ app.name }}</span>
                         </div>

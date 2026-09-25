@@ -82,10 +82,10 @@
         <v-app-bar-nav-icon class="me-1" @click="toggleSidebar"></v-app-bar-nav-icon>
         <div class="d-flex align-center cursor-pointer" @click="router.push('/')">
           <v-avatar size="36" class="me-2 ml-5">
-            <v-img src="@/assets/logo.jpg"></v-img>
+            <v-img src="@/assets/logo.png"></v-img>
           </v-avatar>
           <span class="text-h6 font-weight-bold color-primary d-none d-sm-flex">
-            哆啦A梦（校园跑版）
+            登记系统
           </span>
         </div>
 
@@ -328,7 +328,7 @@ const PERM_MAP: Record<string, string> = {
   '/admin/registers': '订单处理.查看',
   '/admin/registers?tab=secondary': '订单处理.查看',
   '/admin/feedbacks': '工单处理.查看',
-  '/admin/running-apps': 'APP配置.查看',
+  '/admin/apps': 'APP配置.查看',
   '/admin/update-logs': 'APP配置.查看',
   '/admin/announcements': '公告管理.查看',
   '/admin/subordinates': '下属管理.查看',
@@ -778,7 +778,7 @@ body,
 }
 
 .color-primary {
-  color: #1867C0;
+  color: #D32F2F;
 }
 
 .bg-gradient-overlay {
@@ -792,7 +792,7 @@ body,
   left: 0;
   right: 0;
   height: 400px;
-  background: linear-gradient(180deg, rgba(24, 103, 192, 0.08) 0%, rgba(255, 255, 255, 0) 100%);
+  background: linear-gradient(180deg, rgba(211, 47, 47, 0.08) 0%, rgba(255, 255, 255, 0) 100%);
   pointer-events: none;
 }
 
@@ -801,8 +801,8 @@ body,
 }
 
 :deep(.v-list-item--active) {
-  background: rgba(24, 103, 192, 0.1) !important;
-  color: #1867C0 !important;
+  background: rgba(211, 47, 47, 0.1) !important;
+  color: #D32F2F !important;
 }
 
 :deep(.v-navigation-drawer .v-list-item) {

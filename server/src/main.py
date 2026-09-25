@@ -84,7 +84,7 @@ class UpdateUserRequest(BaseModel):
 class RunningAppRequest(BaseModel):
     name: str
     note: str = ''
-    accent_color: str = '#1976D2'
+    accent_color: str = '#D32F2F'
     icon: str = ''
     balance_mode: str = ''
     balance_round: str = ''
@@ -269,13 +269,13 @@ async def get_registrations(
     page_size: int = 20, 
     sort_by: Optional[str] = None, 
     order: str = "desc",
-    running_app: Optional[str] = None,
+    app_name: Optional[str] = None,
     username: Optional[str] = None,
     secondary: int = Query(0)
 ):
     session, err = require_perm(authorization, "订单处理", "查看")
     if err: return err
-    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=running_app, username=username, current_user_uid=session.user_uid, secondary=bool(secondary))
+    data = account_service.get_registrations(page=page, page_size=page_size, sort_by=sort_by, order=order, running_app=app_name, username=username, current_user_uid=session.user_uid, secondary=bool(secondary))
     return api_response(200, "Success", data)
 
 @app.get("/admin/registrations/stats")
@@ -449,14 +449,14 @@ async def get_fields(authorization: Optional[str] = Header(None)):
     fields = account_service.get_registration_fields()
     return api_response(200, "Success", fields)
 
-@app.get("/admin/settings/running-apps")
+@app.get("/admin/settings/apps")
 async def get_running_apps(authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "APP配置", "查看")
     if err: return err
     apps = account_service.get_running_apps()
     return api_response(200, "Success", apps)
 
-@app.post("/admin/settings/running-apps")
+@app.post("/admin/settings/apps")
 async def create_running_app(
     request: RunningAppRequest,
     authorization: Optional[str] = Header(None)
@@ -465,11 +465,11 @@ async def create_running_app(
     if err: return err
     try:
         app_id = account_service.create_running_app(request.name, request.note, request.accent_color, request.icon, request.balance_mode, request.balance_round)
-        return api_response(200, "Running app created", {'id': app_id})
+        return api_response(200, "App created", {'id': app_id})
     except Exception as e:
-        return api_response(500, f"Error creating running app: {str(e)}")
+        return api_response(500, f"Error creating app: {str(e)}")
 
-@app.put("/admin/settings/running-apps/{app_id}")
+@app.put("/admin/settings/apps/{app_id}")
 async def update_running_app(
     app_id: int,
     request: RunningAppRequest,
@@ -479,21 +479,21 @@ async def update_running_app(
     if err: return err
     try:
         account_service.update_running_app(app_id, request.name, request.note, request.accent_color, request.icon, request.balance_mode, request.balance_round)
-        return api_response(200, "Running app updated")
+        return api_response(200, "App updated")
     except Exception as e:
-        return api_response(500, f"Error updating running app: {str(e)}")
+        return api_response(500, f"Error updating app: {str(e)}")
 
-@app.delete("/admin/settings/running-apps/{app_id}")
+@app.delete("/admin/settings/apps/{app_id}")
 async def delete_running_app(app_id: int, authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "APP配置", "修改")
     if err: return err
     try:
         account_service.delete_running_app(app_id)
-        return api_response(200, "Running app deleted")
+        return api_response(200, "App deleted")
     except Exception as e:
-        return api_response(500, f"Error deleting running app: {str(e)}")
+        return api_response(500, f"Error deleting app: {str(e)}")
 
-@app.post("/admin/settings/running-apps/bulk")
+@app.post("/admin/settings/apps/bulk")
 async def bulk_create_running_apps(
     apps: list[dict[str, Any]],
     authorization: Optional[str] = Header(None)
@@ -502,14 +502,14 @@ async def bulk_create_running_apps(
     if err: return err
     try:
         count = account_service.bulk_create_running_apps(apps)
-        return api_response(200, f"Successfully imported {count} running apps")
+        return api_response(200, f"Successfully imported {count} apps")
     except Exception as e:
         return api_response(500, f"Error bulk importing: {str(e)}")
 
 class SortRunningAppsRequest(BaseModel):
     ordered_ids: list[int]
 
-@app.post("/admin/settings/running-apps/sort")
+@app.post("/admin/settings/apps/sort")
 async def sort_running_apps(
     request: SortRunningAppsRequest,
     authorization: Optional[str] = Header(None)
@@ -542,7 +542,7 @@ async def get_dashboard_stats(authorization: Optional[str] = Header(None)):
     stats = account_service.get_dashboard_stats(session.user_uid)
     return api_response(200, "Success", stats)
 
-@app.get("/admin/settings/running-apps/{app_uid}/templates")
+@app.get("/admin/settings/apps/{app_uid}/templates")
 async def get_app_templates(app_uid: str, authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "APP配置", "查看")
     if err: return err
@@ -553,7 +553,7 @@ async def get_app_templates(app_uid: str, authorization: Optional[str] = Header(
     except Exception as e:
         return api_response(500, str(e))
 
-@app.post("/admin/settings/running-apps/{app_uid}/templates")
+@app.post("/admin/settings/apps/{app_uid}/templates")
 async def create_app_template(app_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
     if not authorization:
         return api_response(401, "Missing Authorization Header")
@@ -567,7 +567,7 @@ async def create_app_template(app_uid: str, data: dict[str, Any], authorization:
     except Exception as e:
         return api_response(500, str(e))
 
-@app.post("/admin/settings/running-apps/{app_uid}/templates/clone")
+@app.post("/admin/settings/apps/{app_uid}/templates/clone")
 async def clone_app_template(app_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "APP配置", "修改")
     if err: return err
@@ -580,7 +580,7 @@ async def clone_app_template(app_uid: str, data: dict[str, Any], authorization: 
     except Exception as e:
         return api_response(500, str(e))
 
-@app.put("/admin/settings/running-apps/{app_uid}/templates/{uid}")
+@app.put("/admin/settings/apps/{app_uid}/templates/{uid}")
 async def update_app_template(app_uid: str, uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
     if not authorization:
         return api_response(401, "Missing Authorization Header")
@@ -593,7 +593,7 @@ async def update_app_template(app_uid: str, uid: str, data: dict[str, Any], auth
     except Exception as e:
         return api_response(500, str(e))
 
-@app.delete("/admin/settings/running-apps/{app_uid}/templates/{uid}")
+@app.delete("/admin/settings/apps/{app_uid}/templates/{uid}")
 async def delete_app_template(app_uid: str, uid: str, authorization: Optional[str] = Header(None)):
     if not authorization:
         return api_response(401, "Missing Authorization Header")
@@ -608,7 +608,7 @@ async def delete_app_template(app_uid: str, uid: str, authorization: Optional[st
 
 # --- 普通用户接口 ---
 
-@app.get("/running-apps/{app_uid}/templates")
+@app.get("/apps/{app_uid}/templates")
 async def get_public_app_templates(app_uid: str):
     try:
         app_id = _get_app_id(app_uid)
@@ -745,9 +745,9 @@ async def get_public_fields():
     except Exception as e:
         return api_response(500, f"Error fetching fields: {str(e)}")
 
-@app.get("/running-apps")
+@app.get("/apps")
 async def get_public_running_apps():
-    """获取跑步APP列表（公开接口）"""
+    """获取APP列表（公开接口）"""
     try:
         apps = account_service.get_running_apps()
         return api_response(200, "Success", apps)
@@ -790,7 +790,7 @@ async def resubmit_registration(
         amount = data.pop('amount', None) if isinstance(data, dict) else None
         if amount is not None:
             amount = float(amount)
-            app_name = data.get('跑步APP', '') if isinstance(data, dict) else ''
+            app_name = data.get('应用', '') if isinstance(data, dict) else ''
             if app_name:
                 app = account_service.get_running_app_by_name(app_name)
                 if app and not account_service.check_user_balance(session.user_uid, app['uid'], amount):
@@ -839,7 +839,7 @@ async def submit_registration(
         amount = data.pop('amount', None) if isinstance(data, dict) else None
         if amount is not None:
             amount = float(amount)
-            app_name = data.get('跑步APP', '') if isinstance(data, dict) else ''
+            app_name = data.get('应用', '') if isinstance(data, dict) else ''
             if app_name:
                 app = account_service.get_running_app_by_name(app_name)
                 if app and not account_service.check_user_balance(session.user_uid, app['uid'], amount):
@@ -1083,7 +1083,7 @@ async def remove_user_group(uid: str, authorization: Optional[str] = Header(None
 
 # --- APP 余额管理 ---
 
-@app.patch("/admin/running-apps/{app_uid}/balance")
+@app.patch("/admin/apps/{app_uid}/balance")
 async def update_app_balance(app_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "APP配置", "余额管理")
     if err: return err
@@ -1130,14 +1130,14 @@ async def admin_get_user_balances(user_uid: str, authorization: Optional[str] = 
 
 # --- APP 用户余额管理（管理员） ---
 
-@app.get("/admin/running-apps/{app_uid}/users-balance")
+@app.get("/admin/apps/{app_uid}/users-balance")
 async def get_app_user_balances(app_uid: str, authorization: Optional[str] = Header(None), page: int = 1, page_size: int = 20):
     session, err = require_perm(authorization, "APP配置", "余额管理")
     if err: return err
     data = account_service.get_app_user_balances(app_uid, page=page, page_size=page_size)
     return api_response(200, "Success", data)
 
-@app.patch("/admin/running-apps/{app_uid}/users/{user_uid}/balance")
+@app.patch("/admin/apps/{app_uid}/users/{user_uid}/balance")
 async def adjust_user_balance(app_uid: str, user_uid: str, data: dict[str, Any], authorization: Optional[str] = Header(None)):
     session, err = require_perm(authorization, "APP配置", "余额管理")
     if err: return err

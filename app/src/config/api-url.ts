@@ -41,20 +41,20 @@ export enum ApiUrl {
   REGISTRATION_CHAT = '/api/chat',
   /** 全局聊天室历史消息 */
   GET_GLOBAL_CHATS = '/api/global-chats',
-  /** 获取跑步APP配置 */
-  GET_RUNNING_APPS = '/api/admin/settings/running-apps',
-  /** 创建跑步APP配置 */
-  CREATE_RUNNING_APP = '/api/admin/settings/running-apps',
-  /** 修改跑步APP配置 */
-  UPDATE_RUNNING_APP = '/api/admin/settings/running-apps',
-  /** 删除跑步APP配置 */
-  DELETE_RUNNING_APP = '/api/admin/settings/running-apps',
-  /** 批量导入跑步APP配置 */
-  BULK_CREATE_RUNNING_APPS = '/api/admin/settings/running-apps/bulk',
+  /** 获取APP配置 */
+  GET_RUNNING_APPS = '/api/admin/settings/apps',
+  /** 创建APP配置 */
+  CREATE_RUNNING_APP = '/api/admin/settings/apps',
+  /** 修改APP配置 */
+  UPDATE_RUNNING_APP = '/api/admin/settings/apps',
+  /** 删除APP配置 */
+  DELETE_RUNNING_APP = '/api/admin/settings/apps',
+  /** 批量导入APP配置 */
+  BULK_CREATE_RUNNING_APPS = '/api/admin/settings/apps/bulk',
   /** 获取APP模板列表 */
-  GET_APP_TEMPLATES = '/api/admin/settings/running-apps',
+  GET_APP_TEMPLATES = '/api/admin/settings/apps',
   /** 获取公开APP模板 */
-  GET_PUBLIC_APP_TEMPLATES = '/api/running-apps',
+  GET_PUBLIC_APP_TEMPLATES = '/api/apps',
   /** 仪表盘统计数据 */
   DASHBOARD_STATS = '/api/admin/dashboard/stats',
   /** 获取用户订单历史 */
@@ -63,8 +63,8 @@ export enum ApiUrl {
   GET_REGISTRATION_DETAIL = '/api/registrations',
   /** 重新提交被驳回的登记 */
   RESUBMIT_REGISTRATION = '/api/registrations',
-  /** 获取跑步APP列表（公开） */
-  GET_PUBLIC_RUNNING_APPS = '/api/running-apps',
+  /** 获取APP列表（公开） */
+  GET_PUBLIC_RUNNING_APPS = '/api/apps',
   /** 创建工单 */
   CREATE_FEEDBACK = '/api/feedbacks',
   /** 获取用户工单 */
@@ -88,7 +88,7 @@ export enum ApiUrl {
   ASSIGN_USER_GROUP = '/api/admin/users',
   REMOVE_USER_GROUP = '/api/admin/users',
   /** APP余额 */
-  UPDATE_APP_BALANCE = '/api/admin/running-apps',
+  UPDATE_APP_BALANCE = '/api/admin/apps',
   /** 余额流水 */
   GET_BALANCE_TRANSACTIONS = '/api/admin/balance-transactions',
   /** 用户余额 */
@@ -97,8 +97,8 @@ export enum ApiUrl {
   /** 管理员查询指定用户余额 */
   ADMIN_GET_USER_BALANCES = '/api/admin/users',
   /** APP用户余额管理 */
-  GET_APP_USER_BALANCES = '/api/admin/running-apps',
-  ADJUST_APP_USER_BALANCE = '/api/admin/running-apps',
+  GET_APP_USER_BALANCES = '/api/admin/apps',
+  ADJUST_APP_USER_BALANCE = '/api/admin/apps',
   /** 充值申请 */
   CREATE_RECHARGE = '/api/balance-recharges',
   GET_MY_RECHARGES = '/api/balance-recharges',

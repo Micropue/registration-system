@@ -39,7 +39,7 @@
         <v-card-title>新建充值申请</v-card-title>
         <v-card-text>
           <v-autocomplete v-model="dialog.appUid" :items="runningApps" item-title="name" item-value="uid"
-            label="选择跑步APP" variant="outlined" density="comfortable" class="mb-3"
+            label="选择APP" variant="outlined" density="comfortable" class="mb-3"
             :item-props="(item: any) => item.icon ? { prependAvatar: item.icon } : {}" />
           <div v-if="dialog.appUid" class="mb-3 text-body-2 text-medium-emphasis">
             余额模式：{{ selectedAppMode || '未设置' }}

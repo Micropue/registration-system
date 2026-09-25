@@ -69,7 +69,7 @@ export interface RegistrationItem {
   priority?: 'low' | 'medium' | 'high';
 }
 
-/** 跑步APP配置 */
+/** APP配置 */
 export interface RunningApp {
   id: number;
   uid: string;

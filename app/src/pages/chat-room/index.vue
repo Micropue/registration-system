@@ -502,8 +502,8 @@ async function openOrderPicker() {
 
 function orderSummary(o: any) {
   const data = o.data || {}
-  const appName = data['跑步APP'] || ''
-  const keys = Object.keys(data).filter(k => k !== '跑步APP' && !isImageVal(data[k])).slice(0, 2)
+  const appName = data['应用'] || ''
+  const keys = Object.keys(data).filter(k => k !== '应用' && !isImageVal(data[k])).slice(0, 2)
   const parts = keys.map(k => {
     const v = data[k]
     return Array.isArray(v) ? v.join('、') : String(v ?? '')
@@ -711,7 +711,7 @@ onBeforeUnmount(() => {
 }
 
 .msg-username.admin-name {
-  color: #1867C0;
+  color: #D32F2F;
 }
 
 .is-self .msg-time {
@@ -741,7 +741,7 @@ onBeforeUnmount(() => {
 }
 
 .is-self .msg-bubble {
-  background: linear-gradient(135deg, #2196F3 0%, #1565C0 100%);
+  background: linear-gradient(135deg, #EF5350 0%, #C62828 100%);
   border-top-right-radius: 4px;
   color: #fff;
 }
@@ -771,7 +771,7 @@ onBeforeUnmount(() => {
 }
 
 .card-row:hover .card-title {
-  color: #1867C0;
+  color: #D32F2F;
 }
 
 .card-body {

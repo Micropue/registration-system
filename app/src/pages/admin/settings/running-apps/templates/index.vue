@@ -6,7 +6,7 @@
         <h1 class="text-h4 mt-0 mb-0">模板管理</h1>
       </div>
       <div class="d-flex align-center mt-1">
-        <v-icon size="14" color="grey" class="mr-1">mdi-run-fast</v-icon>
+        <v-icon size="14" color="grey" class="mr-1">mdi-apps</v-icon>
         <span class="text-body-2 text-medium-emphasis">
           正在为 <b class="text-primary">「{{ appName || '加载中...' }}」</b> 配置模板版本
         </span>
@@ -525,7 +525,7 @@
               <v-expansion-panel-title>
                 <div class="d-flex align-center w-100">
                   <v-icon size="20" class="me-2" :color="app.accent_color || 'primary'">
-                    {{ app.icon || 'mdi-run' }}
+                    {{ app.icon || 'mdi-apps' }}
                   </v-icon>
                   <span class="font-weight-medium">{{ app.name }}</span>
                   <v-chip size="x-small" variant="tonal" class="ml-2" color="grey">
@@ -770,7 +770,7 @@ function genKey() {
 async function loadTemplates() {
   loading.value = true
   try {
-    const res = await ajax<Template[]>(`/api/admin/settings/running-apps/${appUid}/templates`, {
+    const res = await ajax<Template[]>(`/api/admin/settings/apps/${appUid}/templates`, {
       method: 'GET',
       headers: authHeaders()
     })
@@ -798,7 +798,7 @@ async function doCreate() {
   }
   saving.value = true
   try {
-    const res = await ajax<Template>(`/api/admin/settings/running-apps/${appUid}/templates`, {
+    const res = await ajax<Template>(`/api/admin/settings/apps/${appUid}/templates`, {
       method: 'POST',
       body: { version_name: createDialog.versionName.trim(), fields: [] },
       headers: authHeaders()
@@ -837,7 +837,7 @@ async function saveFields() {
     const cleanFields = JSON.parse(JSON.stringify(fields.value))
     cleanFields.forEach((f: any) => delete f._key)
     const res = await ajax(
-      `/api/admin/settings/running-apps/${appUid}/templates/${currentTemplate.value.uid}`,
+      `/api/admin/settings/apps/${appUid}/templates/${currentTemplate.value.uid}`,
       {
         method: 'PUT',
         body: { version_name: editorDialog.editVersionName || currentTemplate.value.version_name, fields: cleanFields },
@@ -867,7 +867,7 @@ function confirmDeleteDialog(tpl: Template) {
 async function doDelete() {
   saving.value = true
   try {
-    const res = await ajax(`/api/admin/settings/running-apps/${appUid}/templates/${deleteDialog.uid}`, {
+    const res = await ajax(`/api/admin/settings/apps/${appUid}/templates/${deleteDialog.uid}`, {
       method: 'DELETE',
       headers: authHeaders()
     })
@@ -991,7 +991,7 @@ async function saveEmphasisConfig() {
   emphasisSaving.value = true
   try {
     const tpl = emphasisTemplate.value
-    const res = await ajax(`/api/admin/settings/running-apps/${appUid}/templates/${tpl.uid}`, {
+    const res = await ajax(`/api/admin/settings/apps/${appUid}/templates/${tpl.uid}`, {
       method: 'PUT',
       body: { version_name: tpl.version_name, fields: tpl.fields, emphasis_config: config },
       headers: authHeaders()
@@ -1015,7 +1015,7 @@ async function clearEmphasisConfig() {
   emphasisSaving.value = true
   try {
     const tpl = emphasisTemplate.value
-    const res = await ajax(`/api/admin/settings/running-apps/${appUid}/templates/${tpl.uid}`, {
+    const res = await ajax(`/api/admin/settings/apps/${appUid}/templates/${tpl.uid}`, {
       method: 'PUT',
       body: { version_name: tpl.version_name, fields: tpl.fields, emphasis_config: null },
       headers: authHeaders()
@@ -1043,7 +1043,7 @@ onMounted(async () => {
 
 async function loadAppName() {
   try {
-    const res = await ajax<any[]>('/api/admin/settings/running-apps', { headers: authHeaders() })
+    const res = await ajax<any[]>('/api/admin/settings/apps', { headers: authHeaders() })
     if (res.code === 200) {
       const app = res.data.find((a: any) => String(a.uid) === String(appUid))
       if (app) appName.value = app.name
@@ -1082,7 +1082,7 @@ async function openCloneDrawer() {
   expandedApp.value = ''
   if (cloneApps.value.length > 0) return
   try {
-    const res = await ajax<RunningApp[]>('/api/admin/settings/running-apps', { headers: authHeaders() })
+    const res = await ajax<RunningApp[]>('/api/admin/settings/apps', { headers: authHeaders() })
     if (res.code === 200) {
       cloneApps.value = res.data || []
     }
@@ -1093,7 +1093,7 @@ async function loadTemplatesForApp(uid: string) {
   if (loadedTemplates.value[uid] || loadingApps.value[uid]) return
   loadingApps.value[uid] = true
   try {
-    const res = await ajax<Template[]>(`/api/admin/settings/running-apps/${uid}/templates`, {
+    const res = await ajax<Template[]>(`/api/admin/settings/apps/${uid}/templates`, {
       headers: authHeaders()
     })
     if (res.code === 200) {
@@ -1120,7 +1120,7 @@ async function doClone() {
   }
   saving.value = true
   try {
-    const res = await ajax(`/api/admin/settings/running-apps/${appUid}/templates/clone`, {
+    const res = await ajax(`/api/admin/settings/apps/${appUid}/templates/clone`, {
       method: 'POST',
       body: { source_uid: cloneDialog.sourceUid, version_name: cloneDialog.versionName.trim() },
       headers: authHeaders()

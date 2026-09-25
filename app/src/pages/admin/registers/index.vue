@@ -42,7 +42,7 @@
             <v-avatar v-if="app.icon" size="20" rounded class="me-1">
               <v-img :src="app.icon" cover></v-img>
             </v-avatar>
-            <span class="color-dot" :style="{ backgroundColor: app.accent_color || '#1976D2' }"></span>
+            <span class="color-dot" :style="{ backgroundColor: app.accent_color || '#D32F2F' }"></span>
             {{ app.name }}
           </v-btn>
         </v-badge>
@@ -53,13 +53,13 @@
         @update:options="loadRegisters" @reset="loadRegisters"
         :row-props="({ item }: any) => item.status !== 'pending' ? { class: 'row-processed' } : {}">
 
-        <!-- 自定义槽位：跑步APP -->
+        <!-- 自定义槽位：APP -->
         <template v-slot:item.app="{ item }">
           <div class="d-flex align-center ga-1 app-name-cell">
             <v-avatar v-if="getAppInfo(item.app)?.icon" size="22" rounded>
               <v-img :src="getAppInfo(item.app)?.icon" cover></v-img>
             </v-avatar>
-            <span class="color-dot" :style="{ backgroundColor: getAppInfo(item.app)?.accent_color || '#1976D2' }"></span>
+            <span class="color-dot" :style="{ backgroundColor: getAppInfo(item.app)?.accent_color || '#D32F2F' }"></span>
             <span class="font-weight-bold text-body-2 text-no-wrap">{{ item.app }}</span>
           </div>
         </template>
@@ -69,7 +69,7 @@
           <span class="text-body-2">{{ item.template_name || '-' }}</span>
         </template>
 
-        <!-- 自定义槽位：跑量 -->
+        <!-- 自定义槽位：数量 -->
   <template v-slot:item.amount="{ item }">
     <span v-if="item.amount != null" class="font-weight-black text-error">{{ item.amount }}{{ getAmountUnit(item.app) }}</span>
     <span v-else class="text-grey">-</span>
@@ -141,7 +141,7 @@
                 </thead>
                 <tbody>
                   <tr v-if="detailsDialog.item?.amount != null">
-                    <td class="font-weight-bold text-primary">跑量</td>
+                    <td class="font-weight-bold text-primary">数量</td>
                     <td class="font-weight-bold text-primary">{{ detailsDialog.item.amount }}{{ getAmountUnit(detailsDialog.item.app) }}</td>
                   </tr>
               <tr v-for="row in detailFields" :key="row.key">
@@ -324,7 +324,7 @@
           </v-row>
           <v-row v-if="modifyDialog.showAmount">
             <v-col cols="12">
-              <v-text-field v-model.number="modifyDialog.amount" label="跑量" type="number"
+              <v-text-field v-model.number="modifyDialog.amount" label="数量" type="number"
                 variant="outlined" density="comfortable"></v-text-field>
             </v-col>
           </v-row>
@@ -370,14 +370,14 @@
       </v-card>
     </v-dialog>
 
-    <!-- 自定义退回跑量 Dialog -->
+    <!-- 自定义退回数量 Dialog -->
     <v-dialog v-model="refundDialog.show" max-width="420">
       <v-card>
-        <v-card-title class="text-h5 pa-4">自定义退回跑量</v-card-title>
+        <v-card-title class="text-h5 pa-4">自定义退回数量</v-card-title>
         <v-card-text class="pa-4 pt-0">
-          <div class="text-body-2 text-medium-emphasis mb-3">本单原跑量：{{ refundDialog.originalAmount }}{{ refundDialog.unit }}</div>
-          <v-text-field v-model.number="refundDialog.amount" label="退回跑量" type="number" variant="outlined"
-            density="comfortable" :rules="[v => v >= 0 || '不能为负数', v => v <= refundDialog.originalAmount || `不能超过原跑量 ${refundDialog.originalAmount}`]"
+          <div class="text-body-2 text-medium-emphasis mb-3">本单原数量：{{ refundDialog.originalAmount }}{{ refundDialog.unit }}</div>
+          <v-text-field v-model.number="refundDialog.amount" label="退回数量" type="number" variant="outlined"
+            density="comfortable" :rules="[v => v >= 0 || '不能为负数', v => v <= refundDialog.originalAmount || `不能超过原数量 ${refundDialog.originalAmount}`]"
             :suffix="refundDialog.unit" hide-details="auto"></v-text-field>
         </v-card-text>
         <v-card-actions class="pa-4">
@@ -692,7 +692,7 @@ const detailFields = computed(() => {
   const info = detailsDialog.item?.registration_info
   if (!info) return []
   const keys = Object.keys(info)
-  const order = ['跑步APP', ...templateFieldOrder.value]
+  const order = ['应用', ...templateFieldOrder.value]
   return keys
     .map(k => ({ key: k, value: _formatVal(info[k]) }))
     .sort((a, b) => {
@@ -758,7 +758,7 @@ async function loadTemplateFieldOrder(appName: string, templateUid: string) {
   const app = runningApps.value.find(a => a.name === appName)
   if (!app || !templateUid) { templateFieldOrder.value = []; templateFieldCopyable.value = {}; templateFieldStyles.value = {}; detailTemplateLoading.value = false; return }
   try {
-    const res = await ajax<any[]>(`/api/admin/settings/running-apps/${app.uid}/templates`, {
+    const res = await ajax<any[]>(`/api/admin/settings/apps/${app.uid}/templates`, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) {
@@ -930,8 +930,8 @@ const canForwardToChat = computed(() => {
 
 function forwardSummary(item: RegistrationItem): string {
   const info: Record<string, any> = item.registration_info || {}
-  const appName = info['跑步APP'] || item.app || ''
-  const keys = Object.keys(info).filter(k => k !== '跑步APP' && !isImageUrl(info[k])).slice(0, 2)
+  const appName = info['应用'] || item.app || ''
+  const keys = Object.keys(info).filter(k => k !== '应用' && !isImageUrl(info[k])).slice(0, 2)
   const parts = keys.map(k => {
     const v = info[k]
     return Array.isArray(v) ? v.join('、') : String(v ?? '')
@@ -965,9 +965,9 @@ async function forwardToChatRoom(item: RegistrationItem) {
 // 配置化表头
 const headers = [
   { title: '用户名', key: 'username', searchable: true, filterable: true },
-  { title: '跑步APP', key: 'app', sortable: true, filterable: true },
+  { title: 'APP', key: 'app', sortable: true, filterable: true },
   { title: '模板', key: 'template_name', sortable: true },
-  { title: '跑量', key: 'amount', sortable: true },
+  { title: '数量', key: 'amount', sortable: true },
   { title: '客户信息', key: 'details', sortable: false },
   { title: '登记状态', key: 'status', sortable: true, filterable: true },
   { title: '优先级', key: 'priority', sortable: true, filterable: true },
@@ -1020,7 +1020,7 @@ async function copyDetailText() {
   if (!item?.registration_info) return
   const info = item.registration_info
   const keys = Object.keys(info)
-  const order = ['跑步APP', ...templateFieldOrder.value]
+  const order = ['应用', ...templateFieldOrder.value]
   const sorted = [...keys].sort((a, b) => {
     const ai = order.indexOf(a)
     const bi = order.indexOf(b)
@@ -1150,13 +1150,13 @@ async function handleDelete() {
 
 async function openModifyDialog(item: RegistrationItem) {
   const info = item.registration_info || {}
-  const appName = info['跑步APP'] || ''
+  const appName = info['应用'] || ''
   const templateUid = item.template_uid || ''
   if (!appName || !templateUid) { showMsg('无法修改：缺少APP或模板信息', 'error'); return }
   const app = runningApps.value.find(a => a.name === appName)
   if (!app) { showMsg('无法修改：APP不存在', 'error'); return }
   try {
-    const res = await ajax<any[]>(`/api/admin/settings/running-apps/${app.uid}/templates`, {
+    const res = await ajax<any[]>(`/api/admin/settings/apps/${app.uid}/templates`, {
       headers: { 'Authorization': `Bearer ${cookie.get('token') || ''}` }
     })
     if (res.code === 200) {
@@ -1164,7 +1164,7 @@ async function openModifyDialog(item: RegistrationItem) {
       if (!tpl) { showMsg('无法修改：模板不存在', 'error'); return }
       modifyFields.value = tpl.fields || []
       const templateLabels = (tpl.fields || []).map((f: any) => f.label)
-      const oldKeys = Object.keys(info).filter(k => k !== '跑步APP')
+      const oldKeys = Object.keys(info).filter(k => k !== '应用')
       const mismatch = oldKeys.length !== templateLabels.length ||
         !oldKeys.every(k => templateLabels.includes(k)) ||
         !templateLabels.every((l: string) => oldKeys.includes(l))
@@ -1183,7 +1183,7 @@ async function openModifyDialog(item: RegistrationItem) {
       })
       if (!mismatch) {
         for (const key of Object.keys(info)) {
-          if (key !== '跑步APP' && key in formData) {
+          if (key !== '应用' && key in formData) {
             formData[key] = info[key]
           }
         }
@@ -1224,7 +1224,7 @@ async function doModify() {
       }
     }
 
-    const data: Record<string, any> = { '跑步APP': modifyDialog.app }
+    const data: Record<string, any> = { '应用': modifyDialog.app }
     for (const [key, value] of Object.entries(modifyFormData.value)) {
       data[key] = value
     }
@@ -1260,7 +1260,7 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
 
   let url = `${ApiUrl.GET_REGISTRATIONS}?page=${page}&page_size=${pageSize}`
   if (selectedApp.value) {
-    url += `&running_app=${encodeURIComponent(selectedApp.value)}`
+    url += `&app_name=${encodeURIComponent(selectedApp.value)}`
   }
   const username = route.query.username as string || ''
   if (username) {
@@ -1281,7 +1281,7 @@ async function loadRegisters(options: any = { page: 1, itemsPerPage: 20 }) {
     if (res.code === 200) {
       registers.value = res.data.items.map((item: any) => ({
         ...item,
-        app: item.registration_info?.['跑步APP'] || '',
+        app: item.registration_info?.['应用'] || '',
         amount: item.amount ?? null,
         process_count: item.process_count || 0,
         is_secondary: item.is_secondary || false,

@@ -150,6 +150,11 @@ class AccountService:
                         alt_conn.commit()
                 except:
                     pass
+            # 兼容旧数据：把登记数据中的历史字段名统一迁移为「应用」
+            try:
+                cursor.execute("UPDATE registrations SET data = JSON_SET(JSON_REMOVE(data, '$.\"跑步APP\"'), '$.\"应用\"', JSON_UNQUOTE(JSON_EXTRACT(data, '$.\"跑步APP\"'))) WHERE JSON_CONTAINS_PATH(data, 'one', '$.\"跑步APP\"')")
+            except Exception as e:
+                print(f"[MIGRATION] app field rename failed: {e}", flush=True)
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS feedbacks (
                     id INT AUTO_INCREMENT PRIMARY KEY,
@@ -380,11 +385,11 @@ class AccountService:
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 name VARCHAR(255) NOT NULL,
                 note TEXT,
-                accent_color VARCHAR(7) DEFAULT '#1976D2'
+                accent_color VARCHAR(7) DEFAULT '#D32F2F'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci
         """)
         try:
-            cursor.execute("ALTER TABLE running_apps ADD COLUMN accent_color VARCHAR(7) DEFAULT '#1976D2'")
+            cursor.execute("ALTER TABLE running_apps ADD COLUMN accent_color VARCHAR(7) DEFAULT '#D32F2F'")
         except:
             pass
         try:
@@ -687,7 +692,7 @@ class AccountService:
         return [{
             "id": row["id"], "uid": row["uid"], "name": row["name"],
             "note": row["note"] or "",
-            "accent_color": row.get("accent_color") or "#1976D2",
+            "accent_color": row.get("accent_color") or "#D32F2F",
             "icon": row.get("icon") or "",
             "balance_mode": row.get("balance_mode") or "",
             "balance_round": row.get("balance_round") or "",
@@ -1332,7 +1337,7 @@ class AccountService:
             cursor.execute("INSERT INTO registrations (uid, user_uid, data, create_time, status, priority, template_uid, amount) VALUES (%s, %s, %s, %s, 'pending', %s, %s, %s)", (uid, user_uid, json.dumps(data, ensure_ascii=False), now, priority, template_uid, amount))
             connection.commit()
         if amount and amount > 0:
-            app_name = data.get('跑步APP', '')
+            app_name = data.get('应用', '')
             if app_name:
                 app_uid = None
                 with self.db.connect() as conn2:
@@ -1414,7 +1419,7 @@ class AccountService:
         old_status = None
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT amount, status, JSON_UNQUOTE(JSON_EXTRACT(data, '$.跑步APP')) as app_name FROM registrations WHERE uid = %s", (uid,))
+            cursor.execute("SELECT amount, status, JSON_UNQUOTE(JSON_EXTRACT(data, '$.\"应用\"')) as app_name FROM registrations WHERE uid = %s", (uid,))
             reg = cursor.fetchone()
             if reg:
                 old_amount = reg.get("amount")
@@ -1438,7 +1443,7 @@ class AccountService:
                 self.adjust_user_balance(user_uid, app_uid, self._round_balance_amount(app_uid, float(old_amount)),
                     note="重新提交撤销原扣除")
         if amount and amount > 0:
-            app_name = data.get('跑步APP', '')
+            app_name = data.get('应用', '')
             if app_name:
                 app_uid2 = None
                 with self.db.connect() as conn3:
@@ -1458,7 +1463,7 @@ class AccountService:
         user_uid = None
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT user_uid, status, amount, JSON_UNQUOTE(JSON_EXTRACT(data, '$.跑步APP')) as app_name FROM registrations WHERE uid = %s", (uid,))
+            cursor.execute("SELECT user_uid, status, amount, JSON_UNQUOTE(JSON_EXTRACT(data, '$.\"应用\"')) as app_name FROM registrations WHERE uid = %s", (uid,))
             reg = cursor.fetchone()
             if not reg:
                 raise AccountError("登记记录不存在")
@@ -1497,7 +1502,7 @@ class AccountService:
                     pass
         effective_amount = amount if amount is not None else old_amount
         if effective_amount and effective_amount > 0:
-            app_name = data.get('跑步APP', old_app_name or '')
+            app_name = data.get('应用', old_app_name or '')
             if app_name:
                 app_uid2 = None
                 with self.db.connect() as conn3:
@@ -1517,7 +1522,7 @@ class AccountService:
         params: list[Any] = []
         where_parts: list[str] = []
         if running_app:
-            where_parts.append("JSON_EXTRACT(r.data, '$.跑步APP') = %s")
+            where_parts.append("JSON_EXTRACT(r.data, '$.\"应用\"') = %s")
             params.append(running_app)
         if username:
             where_parts.append("u.username = %s")
@@ -1590,7 +1595,7 @@ class AccountService:
         reg_info = None
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT r.status as old_status, r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app_name, r.user_uid FROM registrations r WHERE r.uid = %s", (registration_uid,))
+            cursor.execute("SELECT r.status as old_status, r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.\"应用\"')) as app_name, r.user_uid FROM registrations r WHERE r.uid = %s", (registration_uid,))
             reg = cursor.fetchone()
             if reg:
                 reg_info = {"old_status": reg["old_status"], "amount": reg.get("amount"), "app_name": reg.get("app_name"), "user_uid": reg.get("user_uid")}
@@ -1623,13 +1628,13 @@ class AccountService:
                 if app_uid and reg_info.get("user_uid"):
                     refund_value = self._round_balance_amount(app_uid, actual_refund)
                     self.adjust_user_balance(reg_info["user_uid"], app_uid, refund_value,
-                        note=f"订单驳回，退回跑量{refund_value}")
+                        note=f"订单驳回，退回数量{refund_value}")
 
     def delete_registration(self, registration_uid: str) -> bool:
         reg_info = None
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
-            cursor.execute("SELECT r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app_name, r.user_uid, r.status FROM registrations r WHERE r.uid = %s", (registration_uid,))
+            cursor.execute("SELECT r.amount, JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.\"应用\"')) as app_name, r.user_uid, r.status FROM registrations r WHERE r.uid = %s", (registration_uid,))
             reg = cursor.fetchone()
             if reg:
                 reg_info = {"amount": reg.get("amount"), "app_name": reg.get("app_name"), "user_uid": reg.get("user_uid"), "status": reg.get("status")}
@@ -1660,7 +1665,7 @@ class AccountService:
         with self.db.connect() as connection:
             cursor = connection.cursor(dictionary=True)
             cursor.execute(f"""
-                SELECT JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.跑步APP')) as app, r.status, COUNT(*) as cnt
+                SELECT JSON_UNQUOTE(JSON_EXTRACT(r.data, '$.\"应用\"')) as app, r.status, COUNT(*) as cnt
                 FROM registrations r {where} GROUP BY app, r.status
             """, params)
             rows = cursor.fetchall()
@@ -1848,7 +1853,7 @@ class AccountService:
             return None
         return {'id': row['id'], 'uid': row['uid'], 'name': row['name']}
 
-    def create_running_app(self, name: str, note: str, accent_color: str = '#1976D2', icon: str = '', balance_mode: str = '', balance_round: str = '') -> int:
+    def create_running_app(self, name: str, note: str, accent_color: str = '#D32F2F', icon: str = '', balance_mode: str = '', balance_round: str = '') -> int:
         uid = self.db.new_uid()
         with self.db.connect() as connection:
             cursor = connection.cursor()
@@ -1875,7 +1880,7 @@ class AccountService:
             cursor = connection.cursor()
             count = 0
             for app in apps:
-                cursor.execute("INSERT INTO running_apps (name, note, accent_color, uid) VALUES (%s, %s, %s, %s)", (app['name'], app.get('note', ''), app.get('accent_color', '#1976D2'), self.db.new_uid()))
+                cursor.execute("INSERT INTO running_apps (name, note, accent_color, uid) VALUES (%s, %s, %s, %s)", (app['name'], app.get('note', ''), app.get('accent_color', '#D32F2F'), self.db.new_uid()))
                 count += 1
             connection.commit()
             return count

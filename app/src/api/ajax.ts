@@ -4,7 +4,7 @@ import { getErrorMessage } from '@/config/error-msg';
  * Fetch 请求封装工具类
  */
 
-// 统一的响应体结构定义 (根据 @虎虎校园跑登记系统项目要求.md)
+// 统一的响应体结构定义 (根据 @登记系统项目要求.md)
 export interface ApiResponse<T = any> {
   code: number;
   msg: string;

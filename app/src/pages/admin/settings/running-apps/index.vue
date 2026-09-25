@@ -3,7 +3,7 @@
     <div class="table-wrapper mt-4">
       <v-row align="center" class="mb-4">
         <v-col cols="12" sm="auto">
-          <h1 class="text-h4">跑步APP配置</h1>
+          <h1 class="text-h4">APP配置</h1>
         </v-col>
         <v-col cols="12" sm class="d-flex flex-wrap ga-2 justify-sm-end">
           <v-btn color="secondary" variant="tonal" @click="bulkDialog.show = true" prepend-icon="mdi-file-upload">Excel批量导入</v-btn>
@@ -27,7 +27,7 @@
             <v-avatar v-if="item.icon" size="28" rounded>
               <v-img :src="item.icon" cover></v-img>
             </v-avatar>
-            <v-icon v-else size="20" color="grey">mdi-run-fast</v-icon>
+            <v-icon v-else size="20" color="grey">mdi-apps</v-icon>
             {{ item.name }}
           </div>
         </template>
@@ -35,21 +35,21 @@
           {{ item.note || '-' }}
         </template>
         <template v-slot:item.accent_color="{ item }">
-          <span class="color-dot" :style="{ backgroundColor: item.accent_color || '#1976D2' }"></span>
-          {{ item.accent_color || '#1976D2' }}
+          <span class="color-dot" :style="{ backgroundColor: item.accent_color || '#D32F2F' }"></span>
+          {{ item.accent_color || '#D32F2F' }}
         </template>
         <template v-slot:item.template_count="{ item }">
           {{ item.template_count ?? '-' }}
         </template>
         <template v-slot:item.balance_mode="{ item }">
-          <v-chip size="x-small" :color="item.balance_mode === 'mileage' ? 'blue' : item.balance_mode === 'count' ? 'green' : 'grey'">
+          <v-chip size="x-small" :color="item.balance_mode === 'mileage' ? 'primary' : item.balance_mode === 'count' ? 'green' : 'grey'">
             {{ item.balance_mode === 'mileage' ? '公里数' : item.balance_mode === 'count' ? '次数' : '未设置' }}
           </v-chip>
         </template>
         <template v-slot:item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn variant="tonal" rounded size="small" color="secondary" :to="`/admin/running-apps/${item.uid}/templates`">模板管理</v-btn>
-            <v-btn variant="tonal" rounded size="small" color="info" :to="`/admin/running-apps/${item.uid}/balance`">余额管理</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="secondary" :to="`/admin/apps/${item.uid}/templates`">模板管理</v-btn>
+            <v-btn variant="tonal" rounded size="small" color="info" :to="`/admin/apps/${item.uid}/balance`">余额管理</v-btn>
             <v-btn variant="tonal" rounded size="small" color="primary" @click="openEditDialog(item)">修改</v-btn>
             <v-btn variant="tonal" rounded size="small" color="error" @click="confirmDeleteDialog(item)">删除</v-btn>
           </div>
@@ -83,10 +83,10 @@
             <v-select v-model="dialog.balance_round" :items="balanceRoundOptions" label="余额扣除方式" variant="outlined" density="comfortable" class="mt-3" hide-details="auto" persistent-hint hint="仅对余额扣除更新。"></v-select>
             <div class="d-flex align-center ga-3 mt-4">
               <label class="color-picker-label">
-                <div class="color-preview" :style="{ backgroundColor: dialog.accent_color || '#1976D2' }"></div>
+                <div class="color-preview" :style="{ backgroundColor: dialog.accent_color || '#D32F2F' }"></div>
                 <input type="color" v-model="dialog.accent_color" class="hidden-input">
               </label>
-              <span class="text-body-2">{{ dialog.accent_color || '#1976D2' }}</span>
+              <span class="text-body-2">{{ dialog.accent_color || '#D32F2F' }}</span>
             </div>
               </div>
             </div>
@@ -226,7 +226,7 @@ const dialog = reactive({
   editId: 0,
   name: '',
   note: '',
-  accent_color: '#1976D2',
+  accent_color: '#D32F2F',
   icon: '',
   iconPreview: '',
   balance_mode: '',
@@ -306,7 +306,7 @@ function parseFile(file: File) {
         .map(row => ({
           name: String(row[0] || ''),
           note: String(row[1] || ''),
-          accent_color: String(row[2] || '#1976D2')
+          accent_color: String(row[2] || '#D32F2F')
         }))
     } catch (err) {
       showMsg('文件解析失败', 'error')
@@ -320,13 +320,13 @@ function parseFile(file: File) {
 function downloadTemplate() {
   const data = [
     ['APP名称', '备注', '强调色'],
-    ['校园跑', '基础跑步APP', '#1976D2'],
-    ['乐跑', '', '#E53935']
+    ['示例应用', '基础APP', '#D32F2F'],
+    ['示例应用二', '', '#E53935']
   ]
   const ws = XLSX.utils.aoa_to_sheet(data)
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, "跑步APP导入模板")
-  XLSX.writeFile(wb, "跑步APP导入样板.xlsx")
+  XLSX.utils.book_append_sheet(wb, ws, "APP导入模板")
+  XLSX.writeFile(wb, "APP导入样板.xlsx")
 }
 
 async function handleBulkImport() {
@@ -362,7 +362,7 @@ function openCreateDialog() {
   dialog.editId = 0
   dialog.name = ''
   dialog.note = ''
-  dialog.accent_color = '#1976D2'
+  dialog.accent_color = '#D32F2F'
   dialog.icon = ''
   dialog.iconPreview = ''
   dialog.balance_mode = ''
@@ -375,7 +375,7 @@ function openEditDialog(item: RunningApp) {
   dialog.editId = item.id
   dialog.name = item.name
   dialog.note = item.note
-  dialog.accent_color = item.accent_color || '#1976D2'
+  dialog.accent_color = item.accent_color || '#D32F2F'
   dialog.icon = item.icon || ''
   dialog.iconPreview = item.icon || ''
   dialog.balance_mode = item.balance_mode || ''

@@ -3,7 +3,7 @@
     <v-list-item
       :value="node.uid"
       :active="selectedUid === node.uid"
-      active-color="#1677ff"
+      active-color="#D32F2F"
       @click="$emit('select', node)"
       class="tree-node py-1"
       density="compact"
@@ -23,7 +23,7 @@
         </div>
         <v-icon v-if="node.is_delegated" size="14" color="#D97706"
           class="mr-1" title="已链接余额">mdi-link-variant</v-icon>
-        <v-icon v-else size="18" :color="selectedUid === node.uid ? '#1677ff' : '#9CA3AF'">
+        <v-icon v-else size="18" :color="selectedUid === node.uid ? '#D32F2F' : '#9CA3AF'">
           mdi-account-outline
         </v-icon>
       </template>
@@ -31,7 +31,7 @@
         <div class="d-flex align-center">
           <span class="text-body-2 font-weight-medium">{{ node.username }}</span>
           <v-chip v-if="node.group_name" size="x-small" class="ml-2" variant="flat"
-            :color="node.group_name === '超级管理员' ? '#DC2626' : node.group_name === '未分配' ? '#6B7280' : '#1677ff'"
+            :color="node.group_name === '超级管理员' ? '#B71C1C' : node.group_name === '未分配' ? '#6B7280' : '#D32F2F'"
             style="font-size: 10px; height: 18px">
             {{ node.group_name }}
           </v-chip>
